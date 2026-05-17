@@ -11,7 +11,7 @@ import {
 } from '@/lib/calculations'
 import { TrendingUp, TrendingDown, Plus, LineChart, Activity, Target, Zap, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import CountUp from 'react-countup'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth } from 'date-fns'
@@ -31,7 +31,7 @@ function filterByPeriod(trades: any[], period: Period) {
 
 // ── Animated stat card ────────────────────────────────────────────────────────
 function StatCard({
-  label, value, isCurrency, color, icon: Icon, index, subtitle
+  label, value, isCurrency, color, icon: Icon, index, subtitle, badge, isProgress
 }: {
   label: string
   value: number
@@ -40,6 +40,8 @@ function StatCard({
   icon: React.ElementType
   index: number
   subtitle?: string
+  badge?: string
+  isProgress?: boolean
 }) {
   const isPositive = value >= 0
 
@@ -49,19 +51,12 @@ function StatCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -3, transition: { duration: 0.2 } }}
-      className="relative overflow-hidden bg-[#12121a] border border-white/5 rounded-2xl p-5 group cursor-default"
+      className="relative overflow-hidden bg-[#0d1017] border border-white/5 rounded-2xl p-5 group cursor-default shadow-lg"
     >
-      {/* Animated glow on hover */}
-      <div className={cn(
-        'absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl',
-        isCurrency
-          ? isPositive ? 'bg-[#22C55E]/3' : 'bg-[#EF4444]/3'
-          : 'bg-primary/3'
-      )} />
-
       {/* Top accent line */}
       <motion.div
         className={cn('absolute top-0 left-0 right-0 h-[1px]',
+          color === 'text-primary' ? 'bg-gradient-to-r from-transparent via-primary/40 to-transparent' :
           isCurrency
             ? isPositive ? 'bg-gradient-to-r from-transparent via-[#22C55E]/40 to-transparent'
               : 'bg-gradient-to-r from-transparent via-[#EF4444]/40 to-transparent'
@@ -72,10 +67,23 @@ function StatCard({
         transition={{ duration: 0.6, delay: index * 0.08 + 0.2 }}
       />
 
-      <div className="relative flex items-start justify-between">
-        <div>
+      <div className="relative flex flex-col justify-between h-full">
+        <div className="flex items-start justify-between">
+          <div className={cn(
+            'w-10 h-10 rounded-full flex items-center justify-center shrink-0 border border-white/5 bg-white/5'
+          )}>
+            <Icon className={cn('w-4 h-4', color)} />
+          </div>
+          {badge && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
+              {badge}
+            </span>
+          )}
+        </div>
+        
+        <div className="mt-4">
           <p className="text-[11px] text-[#64748B] uppercase tracking-wider font-semibold">{label}</p>
-          <div className={cn('text-3xl font-black mt-2 tabular-nums tracking-tight', color)}>
+          <div className={cn('text-3xl font-black mt-1 tabular-nums tracking-tight', 'text-white')}>
             {isCurrency && value < 0 && <span>-</span>}
             {isCurrency && <span>$</span>}
             <CountUp
@@ -85,17 +93,21 @@ function StatCard({
               separator=","
               preserveValue
             />
-            {!isCurrency && label === 'Win Rate' && <span className="text-xl ml-0.5">%</span>}
+            {!isCurrency && label === 'WIN RATE' && <span className="text-xl ml-0.5">%</span>}
           </div>
-          {subtitle && <p className="text-xs text-[#475569] mt-1">{subtitle}</p>}
-        </div>
-        <div className={cn(
-          'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-          isCurrency
-            ? isPositive ? 'bg-[#22C55E]/10' : 'bg-[#EF4444]/10'
-            : 'bg-primary/10'
-        )}>
-          <Icon className={cn('w-4 h-4', color)} />
+          
+          {isProgress ? (
+            <div className="mt-3 h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-primary rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${value}%` }}
+                transition={{ duration: 1.5, delay: 0.5, ease: 'easeOut' }}
+              />
+            </div>
+          ) : (
+            subtitle && <p className="text-xs text-primary mt-2 font-medium flex items-center gap-1">→ {subtitle}</p>
+          )}
         </div>
       </div>
     </motion.div>
@@ -104,9 +116,13 @@ function StatCard({
 
 // ── Calendar heatmap ──────────────────────────────────────────────────────────
 function CalendarHeatmap({ dailyPnl, month }: { dailyPnl: Record<string, number>; month: Date }) {
-  const start = startOfWeek(startOfMonth(month))
-  const end = endOfWeek(endOfMonth(month))
+  const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
+  const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 })
   const days = eachDayOfInterval({ start, end })
+
+  // Group days into weeks for weekly totals
+  const weeks: Date[][] = []
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
 
   return (
     <motion.div
@@ -181,6 +197,16 @@ export default function DashboardPage() {
   const { activeAccount } = useAccounts()
   const { trades, loading } = useTrades(activeAccount?.id)
   const [period, setPeriod] = useState<Period>('1M')
+  const [news, setNews] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/news')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setNews(data)
+      })
+      .catch(console.error)
+  }, [])
 
   const filteredTrades = filterByPeriod(trades, period)
   const stats = computeStats(filteredTrades)
@@ -190,33 +216,36 @@ export default function DashboardPage() {
 
   const statCards = [
     {
-      label: 'Total P&L',
+      label: 'TOTAL P&L',
       value: stats.totalPnl,
       isCurrency: true,
-      color: stats.totalPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]',
-      icon: stats.totalPnl >= 0 ? TrendingUp : TrendingDown,
+      color: 'text-primary',
+      icon: TrendingUp,
+      badge: 'TOTAL',
+      subtitle: `${stats.closedTrades} trades`,
+    },
+    {
+      label: 'UNREALIZED',
+      value: stats.unrealizedPnl,
+      isCurrency: true,
+      color: 'text-[#F59E0B]',
+      icon: Clock,
+      subtitle: `${stats.openTrades} open positions`,
+    },
+    {
+      label: 'REALIZED',
+      value: stats.realizedPnl,
+      isCurrency: true,
+      color: 'text-primary',
+      icon: Zap,
       subtitle: `${stats.closedTrades} closed trades`,
     },
     {
-      label: 'Win Rate',
+      label: 'WIN RATE',
       value: stats.winRate,
-      color: 'text-white',
+      color: 'text-primary',
       icon: Target,
-      subtitle: `${stats.winningTrades}W / ${stats.losingTrades}L`,
-    },
-    {
-      label: 'Profit Factor',
-      value: stats.profitFactor === Infinity ? 99.99 : stats.profitFactor,
-      color: stats.profitFactor >= 1 ? 'text-[#22C55E]' : 'text-[#EF4444]',
-      icon: Zap,
-      subtitle: stats.profitFactor >= 1.5 ? 'Excellent' : stats.profitFactor >= 1 ? 'Good' : 'Needs work',
-    },
-    {
-      label: 'Open Positions',
-      value: stats.openTrades,
-      color: 'text-[#F59E0B]',
-      icon: Activity,
-      subtitle: `$${(activeAccount?.current_balance ?? 0).toLocaleString()} balance`,
+      isProgress: true,
     },
   ]
 
@@ -442,6 +471,38 @@ export default function DashboardPage() {
             </table>
           </div>
         )}
+      </motion.div>
+
+      {/* News Ticker */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="bg-[#0d1017] border border-white/5 rounded-2xl p-4 flex items-center overflow-hidden"
+      >
+        <div className="flex items-center gap-2 pr-4 border-r border-white/10 shrink-0">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          <span className="text-xs font-bold tracking-widest text-[#64748B]">NEWS</span>
+        </div>
+        <div className="flex-1 overflow-hidden ml-4 relative">
+          <div className="flex whitespace-nowrap animate-[marquee_20s_linear_infinite]">
+            {news.length === 0 ? (
+              <span className="text-sm font-medium mr-12 text-[#64748B]">No high-impact news upcoming...</span>
+            ) : (
+              // Duplicate the news list so the marquee loops seamlessly
+              [...news, ...news].map((n, i) => {
+                const timeStr = format(new Date(n.date), 'MMM d, HH:mm')
+                return (
+                  <span key={i} className="text-sm font-medium mr-12">
+                    <span className="text-xs text-[#64748B] mr-2">{n.country}</span> 
+                    {n.title} 
+                    <span className="text-[#EF4444] ml-2">High Impact ({timeStr})</span>
+                  </span>
+                )
+              })
+            )}
+          </div>
+        </div>
       </motion.div>
 
     </div>

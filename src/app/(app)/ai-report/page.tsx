@@ -9,7 +9,7 @@ import {
 } from '@/lib/calculations'
 import { Bot, Loader2, CheckCircle2, XCircle, Eye, AlertTriangle, Share2, RefreshCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generateAIReport } from '@/lib/ai'
+
 
 export default function AIReportPage() {
   const { activeAccount } = useAccounts()

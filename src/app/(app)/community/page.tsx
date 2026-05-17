@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
 import { computeStats, fmt } from '@/lib/calculations'
-import { Send, Hash, Users, Trophy, TrendingUp, Bot } from 'lucide-react'
+import { Send, Hash, Users, Trophy, TrendingUp, TrendingDown, Bot, Image as ImageIcon, Link as LinkIcon, Paperclip, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { UserProfileModal } from '@/components/community/UserProfileModal'
@@ -23,7 +22,10 @@ interface Message {
   channel: string
   content: string
   created_at: string
+  image_url?: string
+  shared_trade_id?: string
   profiles?: { username: string; avatar_url?: string }
+  trades?: { symbol: string; direction: string; entry_price: number; net_profit: number; status: string }
 }
 
 export default function CommunityPage() {
@@ -37,6 +39,13 @@ export default function CommunityPage() {
   const [friends, setFriends] = useState<{id: string, username: string}[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+
+  // Share Trade state
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [myTrades, setMyTrades] = useState<any[]>([])
+  const [selectedTrade, setSelectedTrade] = useState<any>(null)
+  const [imageUrl, setImageUrl] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
 
   // Load current user and friends
   useEffect(() => {
@@ -55,6 +64,14 @@ export default function CommunityPage() {
             username: f.profiles?.username || 'Unknown'
           })))
         }
+
+        // Load trades for sharing
+        const { data: tData } = await supabase.from('trades')
+          .select('*')
+          .eq('user_id', data.user.id)
+          .order('open_time', { ascending: false })
+          .limit(20)
+        if (tData) setMyTrades(tData)
       }
     })
   }, [])
@@ -64,7 +81,7 @@ export default function CommunityPage() {
     async function loadMessages() {
       const { data } = await supabase
         .from('messages')
-        .select('*, profiles(username, avatar_url)')
+        .select('*, profiles(username, avatar_url), trades(symbol, direction, entry_price, net_profit, status)')
         .eq('channel', channel)
         .order('created_at', { ascending: true })
         .limit(50)
@@ -77,7 +94,7 @@ export default function CommunityPage() {
         async (payload) => {
           const { data } = await supabase
             .from('messages')
-            .select('*, profiles(username, avatar_url)')
+            .select('*, profiles(username, avatar_url), trades(symbol, direction, entry_price, net_profit, status)')
             .eq('id', payload.new.id)
             .single()
           if (data) setMessages(m => [...m, data as Message])
@@ -91,23 +108,54 @@ export default function CommunityPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newMsg.trim() || !user) return
+  const send = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if ((!newMsg.trim() && !selectedTrade && !imageUrl && !imageFile) || !user) return
+    
     setSending(true)
-    await supabase.from('messages').insert({ user_id: user.id, channel, content: newMsg.trim() })
+    
+    let uploadedUrl = imageUrl
+    if (imageFile) {
+      const ext = imageFile.name.split('.').pop()
+      const fileName = `${Math.random()}.${ext}`
+      const { data: uploadData, error } = await supabase.storage.from('chat_images').upload(fileName, imageFile)
+      if (!error && uploadData) {
+        const { data: { publicUrl } } = supabase.storage.from('chat_images').getPublicUrl(fileName)
+        uploadedUrl = publicUrl
+      }
+    }
+
+    await supabase.from('messages').insert({ 
+      user_id: user.id, 
+      channel, 
+      content: newMsg.trim() || (selectedTrade ? 'Shared a trade' : ''),
+      shared_trade_id: selectedTrade?.id || null,
+      image_url: uploadedUrl || null
+    })
+    
     setNewMsg('')
+    setSelectedTrade(null)
+    setImageUrl('')
+    setImageFile(null)
+    setShowShareModal(false)
     setSending(false)
   }
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    // If we're in the modal, handle image paste
+    if (showShareModal && e.clipboardData.files.length > 0) {
+      setImageFile(e.clipboardData.files[0])
+    }
+  }
+
   return (
-    <div className="flex h-[calc(100vh-56px)] overflow-hidden">
+    <div className="flex h-[calc(100vh-56px)] overflow-hidden" onPaste={handlePaste}>
       {/* Left channel list */}
       <div className="w-56 bg-[#0d0d14] border-r border-white/5 flex flex-col shrink-0">
         <div className="px-4 py-4 border-b border-white/5">
           <p className="text-xs font-bold uppercase tracking-widest text-[#334155]">Channels</p>
         </div>
-        <div className="flex-1 py-2 px-2 space-y-0.5">
+        <div className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
           {CHANNELS.map(ch => (
             <button
               key={ch.id}
@@ -167,7 +215,7 @@ export default function CommunityPage() {
         {tab === 'chat' ? (
           <>
             {/* Channel header */}
-            <div className="h-12 border-b border-white/5 px-5 flex items-center gap-2 shrink-0">
+            <div className="h-12 border-b border-white/5 px-5 flex items-center gap-2 shrink-0 bg-[#0d1017]">
               {channel.startsWith('dm_') ? (
                 <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">@</div>
               ) : (
@@ -180,7 +228,7 @@ export default function CommunityPage() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
               {messages.length === 0 && (
                 <div className="text-center py-16 text-[#334155] text-sm">
                   No messages yet. Be the first!
@@ -194,21 +242,56 @@ export default function CommunityPage() {
                   >
                     {(msg.profiles?.username ?? 'U').charAt(0).toUpperCase()}
                   </button>
-                  <div className={cn('max-w-sm space-y-0.5', msg.user_id === user?.id && 'items-end flex flex-col')}>
-                    <div className="flex items-center gap-2 text-[10px] text-[#64748B]">
+                  <div className={cn('max-w-md space-y-1', msg.user_id === user?.id && 'items-end flex flex-col')}>
+                    <div className="flex items-center gap-2 text-[10px] text-[#64748B] px-1">
                       <button onClick={() => setSelectedUser(msg.user_id)} className="font-medium text-[#94A3B8] hover:text-white hover:underline">
                         {msg.profiles?.username ?? 'Anonymous'}
                       </button>
                       <span>{format(new Date(msg.created_at), 'HH:mm')}</span>
                     </div>
-                    <div className={cn(
-                      'px-3 py-2 rounded-xl text-sm leading-relaxed',
-                      msg.user_id === user?.id
-                        ? 'bg-primary/20 text-foreground rounded-tr-sm'
-                        : 'bg-[#12121a] border border-white/5 rounded-tl-sm'
-                    )}>
-                      {msg.content}
-                    </div>
+
+                    {msg.content && msg.content !== 'Shared a trade' && (
+                      <div className={cn(
+                        'px-3 py-2 rounded-xl text-sm leading-relaxed',
+                        msg.user_id === user?.id
+                          ? 'bg-primary text-white rounded-tr-sm'
+                          : 'bg-[#12121a] border border-white/5 text-foreground rounded-tl-sm'
+                      )}>
+                        {msg.content}
+                      </div>
+                    )}
+
+                    {/* Shared Trade Embed */}
+                    {msg.trades && (
+                      <div className="bg-[#12121a] border border-white/10 rounded-xl p-3 w-64 shadow-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-sm text-white">{msg.trades.symbol}</span>
+                          <span className={cn(
+                            'text-[10px] px-1.5 py-0.5 rounded font-bold uppercase',
+                            msg.trades.direction === 'buy' ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-[#EF4444]'
+                          )}>
+                            {msg.trades.direction}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs text-[#64748B] mb-2">
+                          <span>Entry: {msg.trades.entry_price}</span>
+                          <span className="uppercase">{msg.trades.status}</span>
+                        </div>
+                        {msg.trades.status === 'closed' && (
+                          <div className={cn('font-bold text-sm', (msg.trades.net_profit ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                            {fmt(msg.trades.net_profit ?? 0)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Attached Image */}
+                    {msg.image_url && (
+                      <div className="mt-2 rounded-xl overflow-hidden border border-white/10 w-64 md:w-80">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={msg.image_url} alt="Shared chart" className="w-full h-auto object-cover" />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -216,27 +299,123 @@ export default function CommunityPage() {
             </div>
 
             {/* Input */}
-            <form onSubmit={send} className="px-5 py-4 border-t border-white/5 flex gap-3">
-              <input
-                value={newMsg}
-                onChange={e => setNewMsg(e.target.value)}
-                placeholder={user ? `Message #${channel}...` : 'Sign in to chat'}
-                disabled={!user || sending}
-                className="flex-1 bg-[#12121a] border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors placeholder:text-[#334155]"
-              />
-              <button
-                type="submit"
-                disabled={!newMsg.trim() || !user || sending}
-                className="w-10 h-10 rounded-xl bg-primary hover:bg-primary/90 flex items-center justify-center transition-colors disabled:opacity-40"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
+            <div className="px-5 py-4 border-t border-white/5 bg-[#0d1017]">
+              <form onSubmit={send} className="flex items-center gap-3 bg-[#12121a] border border-white/10 rounded-xl px-2 py-1.5 focus-within:border-primary/50 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setShowShareModal(true)}
+                  className="p-2 text-[#64748B] hover:text-white transition-colors"
+                  title="Share a trade or screenshot"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                <input
+                  value={newMsg}
+                  onChange={e => setNewMsg(e.target.value)}
+                  placeholder={user ? `Message #${channel}...` : 'Sign in to chat'}
+                  disabled={!user || sending}
+                  className="flex-1 bg-transparent border-none text-sm focus:outline-none placeholder:text-[#334155]"
+                />
+                <button
+                  type="submit"
+                  disabled={(!newMsg.trim() && !selectedTrade && !imageUrl && !imageFile) || !user || sending}
+                  className="w-8 h-8 rounded-lg bg-primary hover:bg-primary/90 flex items-center justify-center transition-colors disabled:opacity-40"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
           </>
         ) : (
           <LeaderboardTab />
         )}
       </div>
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowShareModal(false)}>
+          <div className="bg-[#12121a] border border-white/10 rounded-2xl p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold">Share Trade & Chart</h2>
+              <button onClick={() => setShowShareModal(false)} className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-white/5 transition-all">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Select Trade */}
+              <div>
+                <label className="text-xs text-[#64748B] uppercase tracking-wider font-semibold mb-2 block">Link a Trade (Optional)</label>
+                <select 
+                  value={selectedTrade?.id || ''}
+                  onChange={e => setSelectedTrade(myTrades.find(t => t.id === e.target.value) || null)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+                >
+                  <option value="">-- No trade selected --</option>
+                  {myTrades.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.status.toUpperCase()}: {t.symbol} {t.direction.toUpperCase()} @ {t.entry_price} {t.status === 'closed' ? `(${fmt(t.net_profit)})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Attach Image / Link */}
+              <div>
+                <label className="text-xs text-[#64748B] uppercase tracking-wider font-semibold mb-2 block flex items-center justify-between">
+                  <span>Attach Screenshot (Optional)</span>
+                  <span className="text-[#64748B] text-[10px] font-normal lowercase">Ctrl+V to paste image</span>
+                </label>
+                
+                {imageFile ? (
+                  <div className="p-3 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between">
+                    <span className="text-sm text-white truncate max-w-[200px] flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-primary" /> {imageFile.name}
+                    </span>
+                    <button onClick={() => setImageFile(null)} className="text-[#EF4444] text-xs font-bold">Remove</button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <LinkIcon className="w-4 h-4 absolute left-3 top-2.5 text-[#64748B]" />
+                      <input
+                        value={imageUrl}
+                        onChange={e => setImageUrl(e.target.value)}
+                        placeholder="Paste TradingView image link..."
+                        className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+                      />
+                    </div>
+                    <label className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg cursor-pointer hover:bg-white/10 transition-colors flex items-center justify-center">
+                      <ImageIcon className="w-4 h-4 text-[#64748B]" />
+                      <input type="file" className="hidden" accept="image/*" onChange={e => {
+                        if (e.target.files?.[0]) setImageFile(e.target.files[0])
+                      }} />
+                    </label>
+                  </div>
+                )}
+              </div>
+              
+              <div className="pt-2">
+                <label className="text-xs text-[#64748B] uppercase tracking-wider font-semibold mb-2 block">Comment (Optional)</label>
+                <input
+                  value={newMsg}
+                  onChange={e => setNewMsg(e.target.value)}
+                  placeholder="Add a comment to your trade..."
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+                />
+              </div>
+
+              <button
+                onClick={() => send()}
+                disabled={(!newMsg.trim() && !selectedTrade && !imageUrl && !imageFile) || sending}
+                className="w-full py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-40 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+              >
+                {sending ? 'Sending...' : <><Send className="w-4 h-4" /> Share to #{channel}</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedUser && (
         <UserProfileModal 
@@ -259,7 +438,6 @@ function LeaderboardTab() {
   const supabase = createClient()
 
   useEffect(() => {
-    // Aggregate by user_id from trades
     supabase
       .from('trades')
       .select('user_id, net_profit, profiles(username)')

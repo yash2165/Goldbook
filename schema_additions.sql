@@ -138,3 +138,12 @@ DROP POLICY IF EXISTS "Users can update their friendships" ON public.friendships
 CREATE POLICY "Users can update their friendships" ON public.friendships FOR UPDATE USING (auth.uid() = user_id OR auth.uid() = friend_id);
 DROP POLICY IF EXISTS "Users can delete their friendships" ON public.friendships;
 CREATE POLICY "Users can delete their friendships" ON public.friendships FOR DELETE USING (auth.uid() = user_id OR auth.uid() = friend_id);
+
+-- 12. Trade sharing in chat
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS shared_trade_id UUID REFERENCES public.trades(id) ON DELETE SET NULL;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+-- 13. Create storage bucket for chat images (run in SQL Editor)
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('chat_images', 'chat_images', true) ON CONFLICT (id) DO NOTHING;
+-- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'chat_images');
+-- CREATE POLICY "Authenticated users can upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'chat_images' AND auth.role() = 'authenticated');
