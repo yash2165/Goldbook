@@ -33,6 +33,7 @@ cat << 'EOF' > /usr/bin/mt5
 #!/bin/bash
 USER_HOME="${HOME:-/root}"
 export WINEPREFIX="$USER_HOME/.mt5"
+export WINEDLLOVERRIDES="mscoree,mshtml="
 wine "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
 EOF
 chmod +x /usr/bin/mt5
