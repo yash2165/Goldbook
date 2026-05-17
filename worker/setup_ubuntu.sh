@@ -26,6 +26,17 @@ wget -q "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5linux
 chmod +x "$MT5_SCRIPT"
 # Run the official MetaQuotes installer script automatically
 yes | "$MT5_SCRIPT" || true
+
+# Create the /usr/bin/mt5 wrapper script to bridge Wine and the Orchestrator
+echo "Creating /usr/bin/mt5 launcher wrapper..."
+cat << 'EOF' > /usr/bin/mt5
+#!/bin/bash
+USER_HOME="${HOME:-/root}"
+export WINEPREFIX="$USER_HOME/.mt5"
+wine "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
+EOF
+chmod +x /usr/bin/mt5
+
 MT5_BIN=$(which mt5 || echo "/usr/bin/mt5")
 echo "   MT5 binary: $MT5_BIN"
 
