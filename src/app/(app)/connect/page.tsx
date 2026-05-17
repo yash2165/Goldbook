@@ -76,7 +76,8 @@ export default function ConnectPage() {
           investor_password: password,
           broker_server: server,
           is_verified: false,
-          is_active: true
+          is_active: true,
+          sync_token: crypto.randomUUID()
         })
         .select()
         .single()
