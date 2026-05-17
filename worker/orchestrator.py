@@ -163,7 +163,7 @@ def sync_account(acc: dict) -> dict:
 
     cmd = [
         MT5_BINARY,
-        f"/portable:{data_dir}",
+        "/portable",
         f"/login:{login}",
         f"/password:{acc['investor_password']}",
         f"/server:{server}",
