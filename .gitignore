@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env.local
+.env*.local
+dist/
+out/
+*.log
+.DS_Store
+Thumbs.db
+/opt/mt5data/
+__pycache__/
+*.pyc
+.venv/
