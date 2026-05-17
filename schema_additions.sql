@@ -19,11 +19,14 @@ ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS emotion_before TEXT;
 ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS emotion_after TEXT;
 ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS rating INTEGER;
 
--- 6. Add updated_at for profiles upsert
+-- 6. Add profile enhancements
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS trading_style TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS country TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'UTC';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pre_trade_checklist JSONB;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS trading_setups JSONB;
 
 -- 7. Community messages table
 CREATE TABLE IF NOT EXISTS public.messages (

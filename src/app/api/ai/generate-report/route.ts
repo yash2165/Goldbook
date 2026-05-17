@@ -40,8 +40,14 @@ export async function POST(req: Request) {
     const activeRules = (rulesData ?? []) as TradingRule[]
 
     // ── 3. Check rule violations + revenge trades ───────────────────────────
+    let accountBalance: number | undefined = undefined
+    if (accountId) {
+      const { data: acc } = await supabase.from('mt5_accounts').select('current_balance, initial_balance').eq('id', accountId).single()
+      if (acc) accountBalance = acc.current_balance ?? acc.initial_balance
+    }
+
     const { violations: ruleViolations, revengeTradeCount } =
-      checkRuleViolations(allTrades, activeRules)
+      checkRuleViolations(allTrades, activeRules, accountBalance)
 
     // ── 4. Build emotion stats from journal ─────────────────────────────────
     const emotionStats = buildEmotionStats(allTrades)

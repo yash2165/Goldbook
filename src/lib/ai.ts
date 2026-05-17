@@ -81,9 +81,18 @@ function buildPrompt(input: AIReportInput): string {
   const hasRules = activeRules && activeRules.length > 0
   const hasEmotions = emotionStats && Object.keys(emotionStats).length > 0
 
-  return `You are GoldBook's elite trading coach and psychologist, specialized in XAUUSD (Gold) intraday and swing trading.
+  return `You are Nirikshan, GoldBook's elite trading coach and psychologist, specialized in intraday and swing trading.
 
 Analyze this trader's ${period} data and generate a DETAILED, PERSONALIZED coaching report. Reference exact numbers — never give generic advice.
+
+PSYCHOLOGICAL ANALYSIS RULES — follow strictly:
+- Never suggest abandoning a session/strategy that has >5 trades and >60% win rate
+- Distinguish between "unexplored" (< 3 trades) and "weak" (>5 trades, <40% win rate)
+- Analyze trade SEQUENCES: look for revenge trading (loss followed by larger position), overtrading (>3 trades in 1 hour after a loss), early exits (trades closed before TP hit by >20% of the distance)
+- If a trader specializes, validate the specialization first, then identify risks WITHIN it
+- Frame weaknesses as questions, not instructions: "Have you considered why you avoid shorting?" not "You should short more"
+- The action plan should fix identified problems, not add new experiments
+- A trader with a high profit factor does NOT need to change their strategy — they need to understand WHY it works and protect it
 
 ═══════════════════════════════════════════
 PERFORMANCE STATISTICS
@@ -224,7 +233,7 @@ async function callGroq(input: AIReportInput): Promise<AIReportOutput> {
       messages: [
         {
           role: 'system',
-          content: 'You are GoldBook\'s elite trading coach. Always respond with valid JSON only. No markdown, no code blocks.',
+          content: 'You are Nirikshan, GoldBook\'s elite trading coach. Always respond with valid JSON only. No markdown, no code blocks.',
         },
         { role: 'user', content: buildPrompt(input) },
       ],
@@ -249,7 +258,8 @@ async function callGroq(input: AIReportInput): Promise<AIReportOutput> {
 
 export function checkRuleViolations(
   trades: any[],
-  rules: TradingRule[]
+  rules: TradingRule[],
+  accountBalance?: number
 ): { violations: RuleViolation[]; revengeTradeCount: number } {
   const violations: RuleViolation[] = []
 
@@ -266,11 +276,13 @@ export function checkRuleViolations(
     const v: RuleViolation = { rule_type: rule.rule_type, label: rule.label, count: 0, examples: [] }
 
     if (rule.rule_type === 'daily_loss_limit' && rule.value !== null) {
+      // rule.value is a percentage (e.g., 5 means 5% of balance)
+      const dollarLimit = accountBalance ? accountBalance * (rule.value / 100) : rule.value // Fallback to raw value if no balance
       for (const [day, dayTrades] of Object.entries(byDay)) {
         const dayLoss = dayTrades.reduce((s, t) => s + (t.net_profit ?? 0), 0)
-        if (dayLoss < -rule.value) {
+        if (dayLoss < -dollarLimit) {
           v.count++
-          v.examples.push(`${day}: day P&L was $${dayLoss.toFixed(2)} (limit: -$${rule.value})`)
+          v.examples.push(`${day}: day P&L was $${dayLoss.toFixed(2)} (limit: -$${dollarLimit.toFixed(2)}${accountBalance ? ` based on ${rule.value}% of balance` : ''})`)
         }
       }
     }

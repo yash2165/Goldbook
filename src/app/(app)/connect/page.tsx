@@ -13,6 +13,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useEffect } from 'react'
 
 export default function ConnectPage() {
+  const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

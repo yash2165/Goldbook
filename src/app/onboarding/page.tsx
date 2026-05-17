@@ -96,7 +96,7 @@ export default function OnboardingPage() {
               <select
                 value={profile.timezone}
                 onChange={e => setProfile({...profile, timezone: e.target.value})}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                className="w-full bg-[#12121a] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] appearance-none"
               >
                 <option value="UTC">UTC</option>
                 <option value="America/New_York">EST (New York)</option>

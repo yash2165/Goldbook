@@ -44,6 +44,24 @@ function StatCard({
   isProgress?: boolean
 }) {
   const isPositive = value >= 0
+  const [prevVal, setPrevVal] = useState(value)
+  const [flashState, setFlashState] = useState<'up' | 'down' | null>(null)
+  const [blurState, setBlurState] = useState(false)
+
+  useEffect(() => {
+    if (value !== prevVal && prevVal !== undefined) {
+      setFlashState(value > prevVal ? 'up' : 'down')
+      setBlurState(true)
+      
+      // Remove blur after 150ms (start of number roll)
+      const t1 = setTimeout(() => setBlurState(false), 150)
+      // Fade out flash background after 800ms
+      const t2 = setTimeout(() => setFlashState(null), 800)
+      
+      setPrevVal(value)
+      return () => { clearTimeout(t1); clearTimeout(t2) }
+    }
+  }, [value, prevVal])
 
   return (
     <motion.div
@@ -51,16 +69,19 @@ function StatCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -3, transition: { duration: 0.2 } }}
-      className="relative overflow-hidden bg-[#0d1017] border border-white/5 rounded-2xl p-5 group cursor-default shadow-lg"
+      className={cn(
+        "relative overflow-hidden border border-[#1A1A2E] rounded-2xl p-5 group cursor-default shadow-lg transition-all duration-500",
+        flashState === 'up' ? 'bg-[#22C55E]/10' : flashState === 'down' ? 'bg-[#EF4444]/10' : 'bg-[#0F0F18]'
+      )}
     >
       {/* Top accent line */}
       <motion.div
         className={cn('absolute top-0 left-0 right-0 h-[1px]',
-          color === 'text-primary' ? 'bg-gradient-to-r from-transparent via-primary/40 to-transparent' :
+          color === 'text-primary' ? 'bg-gradient-to-r from-transparent via-[#F59E0B]/40 to-transparent' :
           isCurrency
             ? isPositive ? 'bg-gradient-to-r from-transparent via-[#22C55E]/40 to-transparent'
               : 'bg-gradient-to-r from-transparent via-[#EF4444]/40 to-transparent'
-            : 'bg-gradient-to-r from-transparent via-primary/40 to-transparent'
+            : 'bg-gradient-to-r from-transparent via-[#F59E0B]/40 to-transparent'
         )}
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
@@ -75,7 +96,7 @@ function StatCard({
             <Icon className={cn('w-4 h-4', color)} />
           </div>
           {badge && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/20 uppercase tracking-wider">
               {badge}
             </span>
           )}
@@ -83,13 +104,17 @@ function StatCard({
         
         <div className="mt-4">
           <p className="text-[11px] text-[#64748B] uppercase tracking-wider font-semibold">{label}</p>
-          <div className={cn('text-3xl font-black mt-1 tabular-nums tracking-tight', 'text-white')}>
+          <div className={cn(
+            'text-3xl font-black mt-1 tabular-nums tracking-tight text-[#F1F5F9]',
+            'transition-all duration-150',
+            blurState ? 'blur-[4px]' : 'blur-0'
+          )}>
             {isCurrency && value < 0 && <span>-</span>}
             {isCurrency && <span>$</span>}
             <CountUp
               end={Math.abs(value)}
               decimals={isCurrency || !Number.isInteger(value) ? 2 : 0}
-              duration={1.8}
+              duration={0.6}
               separator=","
               preserveValue
             />
@@ -99,14 +124,14 @@ function StatCard({
           {isProgress ? (
             <div className="mt-3 h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
               <motion.div 
-                className="h-full bg-primary rounded-full"
+                className="h-full bg-[#F59E0B] rounded-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${value}%` }}
-                transition={{ duration: 1.5, delay: 0.5, ease: 'easeOut' }}
+                transition={{ duration: 1.5, delay: 0.5, type: 'spring', bounce: 0.2 }}
               />
             </div>
           ) : (
-            subtitle && <p className="text-xs text-primary mt-2 font-medium flex items-center gap-1">→ {subtitle}</p>
+            subtitle && <p className="text-xs text-[#F59E0B] mt-2 font-medium flex items-center gap-1">→ {subtitle}</p>
           )}
         </div>
       </div>
@@ -120,55 +145,62 @@ function CalendarHeatmap({ dailyPnl, month }: { dailyPnl: Record<string, number>
   const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 })
   const days = eachDayOfInterval({ start, end })
 
-  // Group days into weeks for weekly totals
-  const weeks: Date[][] = []
-  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      className="bg-[#12121a] border border-white/5 rounded-2xl p-5"
+      className="bg-[#0F0F18] border border-[#1A1A2E] rounded-2xl p-5"
     >
       <div className="flex items-center justify-between mb-5">
         <div>
           <p className="text-[11px] text-[#64748B] uppercase tracking-wider font-semibold">P&L Calendar</p>
-          <p className="text-sm font-semibold mt-0.5">{format(month, 'MMMM yyyy')}</p>
+          <p className="text-sm font-semibold mt-0.5 text-[#F1F5F9]">{format(month, 'MMMM yyyy')}</p>
         </div>
       </div>
       <div className="grid grid-cols-7 gap-1.5">
         {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-          <div key={i} className="text-[10px] text-[#334155] text-center font-medium pb-1">{d}</div>
+          <div key={i} className="text-[10px] text-[#64748B] text-center font-medium pb-1">{d}</div>
         ))}
         {days.map((day, i) => {
           const key = format(day, 'yyyy-MM-dd')
           const pnl = dailyPnl[key]
           const isCurrentMonth = isSameMonth(day, month)
           const hasTrades = pnl !== undefined
+          
+          // Calculate grid row/col for precise stagger delay
+          const row = Math.floor(i / 7)
+          const col = i % 7
+          const staggerDelay = (row * 4 + col) * 0.015
+
           return (
             <motion.div
               key={i}
-              initial={{ opacity: 0, scale: 0.6 }}
+              initial={{ opacity: 0, scale: 0 }}
               animate={{ opacity: isCurrentMonth ? 1 : 0.3, scale: 1 }}
-              transition={{ duration: 0.25, delay: i * 0.008 }}
+              transition={{ 
+                delay: staggerDelay, 
+                type: 'spring', 
+                stiffness: 400, 
+                damping: 20 
+              }}
               className={cn(
                 'group relative h-10 rounded-lg border flex flex-col items-center justify-center text-[10px]',
-                'cursor-help transition-transform hover:scale-110 z-0 hover:z-50',
+                'cursor-help transition-transform hover:scale-125 z-0 hover:z-50 duration-200',
                 hasTrades
                   ? pnl >= 0
                     ? 'bg-[#22C55E]/10 border-[#22C55E]/25'
                     : 'bg-[#EF4444]/10 border-[#EF4444]/25'
-                  : 'bg-[#0d0d14] border-white/3'
+                  : 'bg-[#0A0A0F] border-white/5'
               )}
             >
-              <span className={cn('font-medium text-[11px]', hasTrades ? 'text-white' : 'text-[#334155]')}>
+              <span className={cn('font-medium text-[11px]', hasTrades ? 'text-white' : 'text-[#64748B]')}>
                 {format(day, 'd')}
               </span>
               {hasTrades && (
                 <>
                   <div className={cn('absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full', pnl >= 0 ? 'bg-[#22C55E]' : 'bg-[#EF4444]')} />
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-[#1a1a24] border border-white/10 px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap shadow-2xl pointer-events-none z-50">
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-[#1A1A2E] border border-white/10 px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap shadow-[0_0_20px_rgba(0,0,0,0.5)] pointer-events-none z-50">
                     <span className={cn('font-bold', pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>{fmt(pnl)}</span>
                     <p className="text-[#64748B] text-[10px] mt-0.5">{format(day, 'MMM d')}</p>
                   </div>
@@ -219,7 +251,7 @@ export default function DashboardPage() {
       label: 'TOTAL P&L',
       value: stats.totalPnl,
       isCurrency: true,
-      color: 'text-primary',
+      color: stats.totalPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]',
       icon: TrendingUp,
       badge: 'TOTAL',
       subtitle: `${stats.closedTrades} trades`,
@@ -228,7 +260,7 @@ export default function DashboardPage() {
       label: 'UNREALIZED',
       value: stats.unrealizedPnl,
       isCurrency: true,
-      color: 'text-[#F59E0B]',
+      color: stats.unrealizedPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]',
       icon: Clock,
       subtitle: `${stats.openTrades} open positions`,
     },
@@ -236,7 +268,7 @@ export default function DashboardPage() {
       label: 'REALIZED',
       value: stats.realizedPnl,
       isCurrency: true,
-      color: 'text-primary',
+      color: stats.realizedPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]',
       icon: Zap,
       subtitle: `${stats.closedTrades} closed trades`,
     },
@@ -356,8 +388,26 @@ export default function DashboardPage() {
                         <stop offset="100%" stopColor={stats.totalPnl >= 0 ? '#22C55E' : '#EF4444'} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="time" hide />
-                    <YAxis hide domain={['auto', 'auto']} />
+                    <XAxis 
+                      dataKey="time" 
+                      stroke="#64748B" 
+                      fontSize={10} 
+                      tickLine={false} 
+                      axisLine={false}
+                      tickFormatter={(val) => {
+                        try { return format(new Date(val), period === '1D' ? 'HH:mm' : 'MMM d') }
+                        catch { return val }
+                      }}
+                    />
+                    <YAxis 
+                      domain={['auto', 'auto']} 
+                      stroke="#64748B" 
+                      fontSize={10} 
+                      tickLine={false} 
+                      axisLine={false}
+                      tickFormatter={(val) => `$${val.toLocaleString()}`}
+                      width={60}
+                    />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: '#1a1a24',
@@ -366,7 +416,11 @@ export default function DashboardPage() {
                         fontSize: '12px',
                         boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
                       }}
-                      formatter={(v: any) => [fmt(v), 'Equity']}
+                      formatter={(v: any) => [fmt(v), 'Balance']}
+                      labelFormatter={(label) => {
+                        try { return format(new Date(label), 'MMM d, yyyy HH:mm') }
+                        catch { return label }
+                      }}
                     />
                     <Area
                       type="monotone"
@@ -375,7 +429,9 @@ export default function DashboardPage() {
                       strokeWidth={2}
                       fill="url(#equityGrad)"
                       dot={false}
-                      animationDuration={800}
+                      animationDuration={1500}
+                      animationEasing="ease-out"
+                      isAnimationActive={true}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -435,37 +491,57 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/4">
-                <AnimatePresence>
-                  {openTrades.map((t, i) => (
-                    <motion.tr
-                      key={t.id}
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 12 }}
-                      transition={{ duration: 0.25, delay: i * 0.05 }}
-                      className="hover:bg-white/2 transition-colors group"
-                    >
-                      <td className="py-3 font-bold tracking-tight">{t.symbol}</td>
-                      <td className="py-3">
-                        <span className={cn(
-                          'text-xs px-2 py-0.5 rounded-md font-semibold',
-                          t.direction === 'buy'
-                            ? 'bg-[#22C55E]/12 text-[#22C55E]'
-                            : 'bg-[#EF4444]/12 text-[#EF4444]'
-                        )}>
-                          {t.direction === 'buy' ? '↗ Long' : '↘ Short'}
-                        </span>
-                      </td>
-                      <td className="py-3 font-mono text-[#94A3B8] text-xs">${t.entry_price?.toFixed(2) ?? '—'}</td>
-                      <td className="py-3 text-[#94A3B8] text-xs">{t.lot_size ?? '—'} lots</td>
-                      <td className={cn(
-                        'py-3 text-right font-bold tabular-nums',
-                        (t.net_profit ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'
-                      )}>
-                        {fmt(t.net_profit ?? 0)}
-                      </td>
-                    </motion.tr>
-                  ))}
+                <AnimatePresence mode="popLayout">
+                  {openTrades.map((t, i) => {
+                    const isPositive = (t.net_profit ?? 0) >= 0
+                    
+                    return (
+                      <motion.tr
+                        key={t.id}
+                        initial={{ opacity: 0, y: -20, backgroundColor: 'rgba(245,159,11,0.12)' }}
+                        animate={{ opacity: 1, y: 0, backgroundColor: 'rgba(0,0,0,0)' }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ 
+                          opacity: { duration: 0.3 }, 
+                          y: { duration: 0.4, type: 'spring', bounce: 0.2 },
+                          backgroundColor: { duration: 3, delay: 0.5 }
+                        }}
+                        className="group border-b border-white/[0.02]"
+                      >
+                        <td className="py-4 px-2 font-bold tracking-tight flex items-center gap-2">
+                          {t.symbol}
+                          <motion.span 
+                            initial={{ opacity: 1 }}
+                            animate={{ opacity: 0 }}
+                            transition={{ delay: 5, duration: 1 }}
+                            className="text-[9px] bg-[#F59E0B] text-black px-1.5 py-0.5 rounded font-black tracking-widest uppercase"
+                          >
+                            NEW
+                          </motion.span>
+                        </td>
+                        <td className="py-4 px-2">
+                          <span className={cn(
+                            'text-xs px-2 py-0.5 rounded-md font-semibold',
+                            t.direction === 'buy'
+                              ? 'bg-[#22C55E]/12 text-[#22C55E]'
+                              : 'bg-[#EF4444]/12 text-[#EF4444]'
+                          )}>
+                            {t.direction === 'buy' ? '↗ Long' : '↘ Short'}
+                          </span>
+                        </td>
+                        <td className="py-4 px-2 font-mono text-[#64748B] text-xs">${t.entry_price?.toFixed(2) ?? '—'}</td>
+                        <td className="py-4 px-2 text-[#64748B] text-xs">{t.lot_size ?? '—'} lots</td>
+                        <td className={cn('py-4 px-2 text-right font-bold tabular-nums', isPositive ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                          <motion.div
+                            animate={isPositive ? { scale: [1, 1.015, 1] } : {}}
+                            transition={isPositive ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : {}}
+                          >
+                            {fmt(t.net_profit ?? 0)}
+                          </motion.div>
+                        </td>
+                      </motion.tr>
+                    )
+                  })}
                 </AnimatePresence>
               </tbody>
             </table>

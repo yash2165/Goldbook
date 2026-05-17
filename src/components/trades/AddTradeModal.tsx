@@ -8,13 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { format } from 'date-fns'
 
-const PRE_TRADE_CHECKS = [
-  { key: 'checked_htf', label: 'Checked higher timeframe' },
-  { key: 'risk_in_limits', label: 'Risk within limits' },
-  { key: 'fits_plan', label: 'Fits my trading plan' },
-  { key: 'key_levels', label: 'Key levels identified' },
-  { key: 'econ_cal', label: 'Economic calendar checked' },
-]
+import { useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 interface AddTradeModalProps {
   onClose: () => void
@@ -26,9 +21,36 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
   const [direction, setDirection] = useState<'buy' | 'sell'>('buy')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [checks, setChecks] = useState<Record<string, boolean>>(
-    Object.fromEntries(PRE_TRADE_CHECKS.map(c => [c.key, true]))
-  )
+  const [checks, setChecks] = useState<Record<string, boolean>>({})
+  const [profileChecklist, setProfileChecklist] = useState<string[]>([])
+  const [profileSetups, setProfileSetups] = useState<{name: string, description: string}[]>([])
+  
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase.from('profiles').select('pre_trade_checklist, trading_setups').eq('id', user.id).single()
+      if (data?.pre_trade_checklist) {
+        setProfileChecklist(data.pre_trade_checklist)
+        setChecks(Object.fromEntries(data.pre_trade_checklist.map((c: string) => [c, true])))
+      } else {
+        const def = [
+          'Checked higher timeframe',
+          'Risk within limits',
+          'Fits my trading plan',
+          'Key levels identified',
+          'Economic calendar checked'
+        ]
+        setProfileChecklist(def)
+        setChecks(Object.fromEntries(def.map((c: string) => [c, true])))
+      }
+      if (data?.trading_setups) {
+        setProfileSetups(data.trading_setups)
+      }
+    }
+    load()
+  }, [])
 
   const now = format(new Date(), "yyyy-MM-dd'T'HH:mm")
 
@@ -42,6 +64,7 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
     sl: '',
     tp: '',
     notes: '',
+    setup_tag: '',
   })
 
   const f = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
@@ -66,6 +89,7 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
         sl: form.sl ? parseFloat(form.sl) : undefined,
         tp: form.tp ? parseFloat(form.tp) : undefined,
         notes: form.notes,
+        setup_tag: form.setup_tag,
         pre_trade_checklist: checks,
       }),
     })
@@ -174,7 +198,7 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
                 type="datetime-local"
                 value={form.open_time}
                 onChange={e => f('open_time', e.target.value)}
-                className="bg-white/5 border-white/10 h-11"
+                className="bg-white/5 border-white/10 h-11 [color-scheme:dark]"
                 required
               />
             </div>
@@ -184,7 +208,7 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
                 type="datetime-local"
                 value={form.close_time}
                 onChange={e => f('close_time', e.target.value)}
-                className="bg-white/5 border-white/10 h-11"
+                className="bg-white/5 border-white/10 h-11 [color-scheme:dark]"
               />
             </div>
           </div>
@@ -210,25 +234,56 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
               ↓ Pre-Trade Checklist (Optional)
             </button>
             <div className="space-y-2">
-              {PRE_TRADE_CHECKS.map(c => (
+              {profileChecklist.length === 0 ? (
+                <p className="text-xs text-[#64748B]">No checklist items configured in Settings.</p>
+              ) : (
+                profileChecklist.map(item => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setChecks(p => ({ ...p, [item]: !p[item] }))}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border text-sm transition-all',
+                      checks[item]
+                        ? 'border-[#22C55E]/30 bg-[#22C55E]/10 text-foreground'
+                        : 'border-white/5 bg-white/2 text-[#64748B]'
+                    )}
+                  >
+                    <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', checks[item] ? 'bg-[#22C55E]' : 'bg-white/5')}>
+                      {checks[item] && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    {item}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Setup Tag */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-[#64748B] uppercase tracking-wider">Setup / Strategy</Label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {profileSetups.map(s => (
                 <button
-                  key={c.key}
+                  key={s.name}
                   type="button"
-                  onClick={() => setChecks(p => ({ ...p, [c.key]: !p[c.key] }))}
+                  onClick={() => f('setup_tag', s.name)}
+                  title={s.description}
                   className={cn(
-                    'w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border text-sm transition-all',
-                    checks[c.key]
-                      ? 'border-[#22C55E]/30 bg-[#22C55E]/10 text-foreground'
-                      : 'border-white/5 bg-white/2 text-[#64748B]'
+                    'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors',
+                    form.setup_tag === s.name ? 'bg-primary text-white' : 'bg-white/5 text-[#64748B] hover:text-white'
                   )}
                 >
-                  <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', checks[c.key] ? 'bg-[#22C55E]' : 'bg-white/5')}>
-                    {checks[c.key] && <Check className="w-3 h-3 text-white" />}
-                  </div>
-                  {c.label}
+                  {s.name}
                 </button>
               ))}
             </div>
+            <Input
+              value={form.setup_tag}
+              onChange={e => f('setup_tag', e.target.value)}
+              className="bg-white/5 border-white/10 h-11"
+              placeholder="Or type a custom setup..."
+            />
           </div>
 
           {/* Notes */}

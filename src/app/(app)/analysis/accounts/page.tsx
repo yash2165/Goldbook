@@ -60,7 +60,7 @@ export default function AccountAnalysisPage() {
           <select 
             value={activeId} 
             onChange={e => setSelectedAccId(e.target.value)}
-            className="appearance-none bg-[#12121a] border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-sm font-semibold focus:outline-none focus:border-primary/50 transition-colors cursor-pointer"
+            className="appearance-none bg-[#12121a] border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-sm font-semibold focus:outline-none focus:border-primary/50 transition-colors cursor-pointer [color-scheme:dark]"
           >
             {accounts.map(acc => (
               <option key={acc.id} value={acc.id}>
@@ -141,10 +141,10 @@ export default function AccountAnalysisPage() {
                 <MetricRow label="Total Trades" value={stats.totalTrades} />
                 <MetricRow label="Winning Trades" value={stats.winningTrades} />
                 <MetricRow label="Losing Trades" value={stats.losingTrades} />
-                <MetricRow label="Average Win" value={fmt(stats.averageWin)} color="text-[#22C55E]" />
-                <MetricRow label="Average Loss" value={fmt(stats.averageLoss)} color="text-[#EF4444]" />
-                <MetricRow label="Largest Win" value={fmt(stats.largestWin)} color="text-[#22C55E]" />
-                <MetricRow label="Largest Loss" value={fmt(stats.largestLoss)} color="text-[#EF4444]" />
+                <MetricRow label="Average Win" value={fmt(stats.avgWin)} color="text-[#22C55E]" />
+                <MetricRow label="Average Loss" value={fmt(stats.avgLoss)} color="text-[#EF4444]" />
+                <MetricRow label="Largest Win" value={fmt(stats.bestTrade)} color="text-[#22C55E]" />
+                <MetricRow label="Largest Loss" value={fmt(stats.worstTrade)} color="text-[#EF4444]" />
               </div>
             </div>
           </div>

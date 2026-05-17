@@ -4,10 +4,11 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAccounts } from '@/hooks/useAccounts'
 import { computeStats, fmt } from '@/lib/calculations'
-import { Send, Hash, Users, Trophy, TrendingUp, TrendingDown, Bot, Image as ImageIcon, Link as LinkIcon, Paperclip, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Send, Hash, Users, Trophy, TrendingUp, TrendingDown, Bot, Image as ImageIcon, Link as LinkIcon, Paperclip, X, Mic, UserPlus } from 'lucide-react'
 import { format } from 'date-fns'
 import { UserProfileModal } from '@/components/community/UserProfileModal'
+import { cn } from '@/lib/utils'
+import { LiveKitRoom, RoomAudioRenderer, AudioConference, ControlBar } from '@livekit/components-react'
 
 const CHANNELS = [
   { id: 'general', name: 'general', icon: Hash },
@@ -29,7 +30,7 @@ interface Message {
 }
 
 export default function CommunityPage() {
-  const [tab, setTab] = useState<'chat' | 'leaderboard'>('chat')
+  const [tab, setTab] = useState<'chat' | 'leaderboard' | 'friends' | 'voice'>('chat')
   const [channel, setChannel] = useState('general')
   const [messages, setMessages] = useState<Message[]>([])
   const [newMsg, setNewMsg] = useState('')
@@ -197,7 +198,25 @@ export default function CommunityPage() {
             </>
           )}
         </div>
-        <div className="px-2 pb-3 border-t border-white/5 pt-2">
+        <div className="px-2 pb-3 border-t border-white/5 pt-3 space-y-1">
+          <button
+            onClick={() => setTab('friends')}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
+              tab === 'friends' ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
+            )}
+          >
+            <Users className="w-4 h-4" /> Friends
+          </button>
+          <button
+            onClick={() => setTab('voice')}
+            className={cn(
+              'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
+              tab === 'voice' ? 'bg-[#8B5CF6]/10 text-[#8B5CF6]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
+            )}
+          >
+            <Mic className="w-4 h-4" /> Voice Rooms
+          </button>
           <button
             onClick={() => setTab('leaderboard')}
             className={cn(
@@ -250,48 +269,51 @@ export default function CommunityPage() {
                       <span>{format(new Date(msg.created_at), 'HH:mm')}</span>
                     </div>
 
-                    {msg.content && msg.content !== 'Shared a trade' && (
-                      <div className={cn(
-                        'px-3 py-2 rounded-xl text-sm leading-relaxed',
-                        msg.user_id === user?.id
-                          ? 'bg-primary text-white rounded-tr-sm'
-                          : 'bg-[#12121a] border border-white/5 text-foreground rounded-tl-sm'
-                      )}>
-                        {msg.content}
-                      </div>
-                    )}
+                    {/* Unified Message Block */}
+                    <div className={cn(
+                      'overflow-hidden rounded-2xl border flex flex-col',
+                      msg.user_id === user?.id
+                        ? 'bg-primary/10 border-primary/20 rounded-tr-sm'
+                        : 'bg-[#12121a] border-white/10 rounded-tl-sm'
+                    )}>
+                      {msg.content && msg.content !== 'Shared a trade' && (
+                        <div className={cn('px-4 py-3 text-sm leading-relaxed text-foreground', (msg.trades || msg.image_url) && 'border-b border-white/5')}>
+                          {msg.content}
+                        </div>
+                      )}
 
-                    {/* Shared Trade Embed */}
-                    {msg.trades && (
-                      <div className="bg-[#12121a] border border-white/10 rounded-xl p-3 w-64 shadow-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-sm text-white">{msg.trades.symbol}</span>
-                          <span className={cn(
-                            'text-[10px] px-1.5 py-0.5 rounded font-bold uppercase',
-                            msg.trades.direction === 'buy' ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-[#EF4444]'
-                          )}>
-                            {msg.trades.direction}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-[#64748B] mb-2">
-                          <span>Entry: {msg.trades.entry_price}</span>
-                          <span className="uppercase">{msg.trades.status}</span>
-                        </div>
-                        {msg.trades.status === 'closed' && (
-                          <div className={cn('font-bold text-sm', (msg.trades.net_profit ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                            {fmt(msg.trades.net_profit ?? 0)}
+                      {/* Shared Trade Embed */}
+                      {msg.trades && (
+                        <div className={cn('p-4 w-64 md:w-80', msg.image_url && 'border-b border-white/5 bg-black/20')}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-bold text-sm text-white">{msg.trades.symbol}</span>
+                            <span className={cn(
+                              'text-[10px] px-2 py-0.5 rounded font-bold uppercase',
+                              msg.trades.direction === 'buy' ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-[#EF4444]'
+                            )}>
+                              {msg.trades.direction}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    )}
+                          <div className="flex justify-between text-xs text-[#94A3B8] mb-2">
+                            <span>Entry: {msg.trades.entry_price}</span>
+                            <span className="uppercase">{msg.trades.status}</span>
+                          </div>
+                          {msg.trades.status === 'closed' && (
+                            <div className={cn('font-bold text-sm', (msg.trades.net_profit ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                              {fmt(msg.trades.net_profit ?? 0)}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                    {/* Attached Image */}
-                    {msg.image_url && (
-                      <div className="mt-2 rounded-xl overflow-hidden border border-white/10 w-64 md:w-80">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={msg.image_url} alt="Shared chart" className="w-full h-auto object-cover" />
-                      </div>
-                    )}
+                      {/* Attached Image */}
+                      {msg.image_url && (
+                        <div className="w-64 md:w-80">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={msg.image_url} alt="Shared chart" className="w-full h-auto object-cover max-h-64 object-top" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -326,9 +348,13 @@ export default function CommunityPage() {
               </form>
             </div>
           </>
-        ) : (
+        ) : tab === 'leaderboard' ? (
           <LeaderboardTab />
-        )}
+        ) : tab === 'friends' ? (
+          <FriendsTab friends={friends} user={user} onMessage={(dm) => { setChannel(dm); setTab('chat') }} />
+        ) : tab === 'voice' ? (
+          <VoiceTab />
+        ) : null}
       </div>
 
       {/* Share Modal */}
@@ -349,7 +375,7 @@ export default function CommunityPage() {
                 <select 
                   value={selectedTrade?.id || ''}
                   onChange={e => setSelectedTrade(myTrades.find(t => t.id === e.target.value) || null)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+                  className="w-full bg-[#12121a] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] appearance-none"
                 >
                   <option value="">-- No trade selected --</option>
                   {myTrades.map(t => (
@@ -495,6 +521,137 @@ function LeaderboardTab() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function FriendsTab({ friends, user, onMessage }: { friends: any[], user: any, onMessage: (dm: string) => void }) {
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="max-w-xl space-y-6">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Users className="w-5 h-5 text-[#22C55E]" /> Friends & Following
+        </h2>
+
+        <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
+          <h3 className="text-sm font-bold mb-4">Add a Friend</h3>
+          <div className="flex gap-2">
+            <input placeholder="Search by exact username..." className="flex-1 bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50" />
+            <button className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold flex items-center gap-2">
+              <UserPlus className="w-4 h-4" /> Add
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
+          <h3 className="text-sm font-bold mb-4">Your Friends</h3>
+          {friends.length === 0 ? (
+            <p className="text-[#64748B] text-sm">You have no friends added yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {friends.map(f => (
+                <div key={f.id} className="flex items-center justify-between p-3 bg-[#0d1017] rounded-lg border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                      {f.username.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-bold text-sm">{f.username}</span>
+                  </div>
+                  <button onClick={() => onMessage(`dm_${[user?.id, f.id].sort().join('_')}`)} className="text-xs text-primary hover:underline">Message</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VoiceTab() {
+  const [token, setToken] = useState('')
+  const [serverUrl, setServerUrl] = useState('')
+  const [connected, setConnected] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const joinRoom = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/livekit/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room: 'trading-floor' })
+      })
+      const data = await res.json()
+      if (data.token) {
+        setToken(data.token)
+        setServerUrl(data.url)
+        setConnected(true)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 h-full">
+      {!connected ? (
+        <div className="max-w-xl mx-auto mt-10">
+          <div className="bg-[#0A0A0F] border border-[#1A1A2E] rounded-3xl p-10 text-center space-y-6 shadow-2xl">
+            <div className="w-20 h-20 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center mx-auto text-[#8B5CF6] shadow-[0_0_30px_rgba(139,92,246,0.3)]">
+              <Mic className="w-10 h-10" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Trading Floor (Voice)</h2>
+              <p className="text-[#64748B] text-sm max-w-sm mx-auto leading-relaxed">
+                Join the live voice channel to discuss setups, price action, and execute trades together with the community.
+              </p>
+            </div>
+            
+            <button 
+              onClick={joinRoom}
+              disabled={loading}
+              className="px-8 py-3.5 bg-[#8B5CF6] hover:bg-[#8B5CF6]/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-[#8B5CF6]/20 transition-all hover:scale-105 w-full max-w-xs mx-auto flex justify-center items-center gap-2"
+            >
+              {loading ? 'Connecting...' : <><Mic className="w-4 h-4" /> Connect to Audio Room</>}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <LiveKitRoom
+          video={false}
+          audio={true}
+          token={token}
+          serverUrl={serverUrl}
+          data-lk-theme="default"
+          style={{ height: '100%', background: 'transparent', '--lk-bg': 'transparent', '--lk-control-bar-bg': 'rgba(255,255,255,0.05)' } as any}
+          onDisconnected={() => setConnected(false)}
+        >
+          <div className="bg-[#0A0A0F] border border-[#1A1A2E] rounded-3xl p-6 h-full flex flex-col shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-ping" />
+                <span className="text-[#F1F5F9]">Trading Floor Live</span>
+              </h2>
+              <button 
+                onClick={() => setConnected(false)} 
+                className="px-4 py-2 bg-[#EF4444]/10 text-[#EF4444] rounded-lg text-sm font-bold hover:bg-[#EF4444]/20 transition-colors border border-[#EF4444]/20"
+              >
+                Disconnect
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden rounded-xl border border-white/5 bg-black/20">
+              <AudioConference />
+            </div>
+            <RoomAudioRenderer />
+            <div className="mt-4 flex justify-center">
+              <ControlBar variation="minimal" controls={{ microphone: true, screenShare: false, camera: false, leave: false }} />
+            </div>
+          </div>
+        </LiveKitRoom>
+      )}
     </div>
   )
 }
