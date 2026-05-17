@@ -33,14 +33,15 @@ sed -i 's/dpkg --add-architecture i386/echo "Skipping i386 on ARM64"/g' "$MT5_SC
 # Run the official MetaQuotes installer script automatically
 yes | "$MT5_SCRIPT" || true
 
-# Create the /usr/bin/mt5 wrapper script to bridge Wine and the Orchestrator
+# Create the /usr/bin/mt5 wrapper script to bridge Box64, Wine x86_64, and the Orchestrator
 echo "Creating /usr/bin/mt5 launcher wrapper..."
 cat << 'EOF' > /usr/bin/mt5
 #!/bin/bash
 USER_HOME="${HOME:-/root}"
 export WINEPREFIX="$USER_HOME/.mt5"
 export WINEDLLOVERRIDES="mscoree,mshtml="
-wine "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
+export BOX64_LOG=1
+box64 /opt/wine-x86_64/bin/wine64 "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
 EOF
 chmod +x /usr/bin/mt5
 
