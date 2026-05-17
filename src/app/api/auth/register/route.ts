@@ -43,7 +43,7 @@ export async function POST(req: Request) {
           full_name: name,
           display_name: name,
         },
-        redirectTo: `${siteUrl}/onboarding`
+        redirectTo: `${siteUrl}/auth`
       }
     })
 
