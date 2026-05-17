@@ -16,6 +16,8 @@ echo "======================================================"
 
 # ── 1. System packages ─────────────────────────────────────────────────────
 echo "[1/6] Installing system packages..."
+# Preemptively clean up the incompatible 32-bit x86 architecture if present
+dpkg --remove-architecture i386 || true
 apt-get update -qq
 apt-get install -y xvfb wget python3 python3-pip python3-venv curl unzip xauth
 
@@ -24,6 +26,10 @@ echo "[2/6] Installing MetaTrader 5 Linux terminal..."
 MT5_SCRIPT="/tmp/mt5linux.sh"
 wget -q "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5linux.sh" -O "$MT5_SCRIPT"
 chmod +x "$MT5_SCRIPT"
+
+# Patch mt5linux.sh to skip adding the incompatible i386 architecture on ARM64 systems
+sed -i 's/dpkg --add-architecture i386/echo "Skipping i386 on ARM64"/g' "$MT5_SCRIPT"
+
 # Run the official MetaQuotes installer script automatically
 yes | "$MT5_SCRIPT" || true
 
