@@ -51,8 +51,11 @@ export async function POST(req: Request) {
     }, { onConflict: 'id' })
 
     // 3. Send the custom email using Resend
+    // By default, Resend only allows sending from onboarding@resend.dev until you verify a custom domain
+    const senderEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
+    
     const { error: emailError } = await resend.emails.send({
-      from: 'GoldBook Security <security@goldbook.app>', // Change to your verified Resend domain if different
+      from: `GoldBook <${senderEmail}>`,
       to: email,
       subject: 'Verify your GoldBook trading account',
       html: `
@@ -78,9 +81,10 @@ export async function POST(req: Request) {
     })
 
     if (emailError) {
+      console.error('RESEND ERROR:', emailError) // Log exact error to Vercel
       // Clean up user if email fails to send
       await supabaseAdmin.auth.admin.deleteUser(linkData.user.id)
-      return NextResponse.json({ error: 'Failed to send verification email' }, { status: 500 })
+      return NextResponse.json({ error: \`Failed to send verification email: \${emailError.message}\` }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, message: 'Verification email sent' })
