@@ -21,9 +21,11 @@ apt-get install -y xvfb wget python3 python3-pip python3-venv curl unzip xauth
 
 # ── 2. MT5 Linux terminal ──────────────────────────────────────────────────
 echo "[2/6] Installing MetaTrader 5 Linux terminal..."
-MT5_DEB="/tmp/mt5_ubuntu.deb"
-wget -q "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5_ubuntu.deb" -O "$MT5_DEB"
-dpkg -i "$MT5_DEB" || apt-get -f install -y
+MT5_SCRIPT="/tmp/mt5linux.sh"
+wget -q "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5linux.sh" -O "$MT5_SCRIPT"
+chmod +x "$MT5_SCRIPT"
+# Run the official MetaQuotes installer script automatically
+yes | "$MT5_SCRIPT" || true
 MT5_BIN=$(which mt5 || echo "/usr/bin/mt5")
 echo "   MT5 binary: $MT5_BIN"
 
