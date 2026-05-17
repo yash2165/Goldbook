@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-// We use the service role key here to bypass RLS and generate secure admin links
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Configure Nodemailer with Gmail SMTP transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_APP_PASS,
+  },
+})
 
 export async function POST(req: Request) {
   try {
@@ -18,8 +24,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // 1. Generate an admin signup link (this bypasses Supabase's 3/hr email limit)
-    // The action_link contains the secure token that verifies the email
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASS) {
+      console.error('Email credentials missing from env variables')
+      return NextResponse.json({ error: 'Mail server configuration missing' }, { status: 500 })
+    }
+
+    // 1. Generate secure Supabase signup link
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',
       email,
@@ -40,22 +50,19 @@ export async function POST(req: Request) {
     const actionLink = linkData.properties?.action_link
 
     if (!actionLink) {
-      return NextResponse.json({ error: 'Failed to generate secure link' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to generate secure verification link' }, { status: 500 })
     }
 
-    // 2. Create the user's profile securely on the server
+    // 2. Pre-create the user's profile securely
     await supabaseAdmin.from('profiles').upsert({
       id: linkData.user.id,
       display_name: name,
       username: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
     }, { onConflict: 'id' })
 
-    // 3. Send the custom email using Resend
-    // By default, Resend only allows sending from onboarding@resend.dev until you verify a custom domain
-    const senderEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
-    
-    const { error: emailError } = await resend.emails.send({
-      from: `GoldBook <${senderEmail}>`,
+    // 3. Send email via Nodemailer & Gmail
+    const mailOptions = {
+      from: `"GoldBook" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Verify your GoldBook trading account',
       html: `
@@ -77,14 +84,16 @@ export async function POST(req: Request) {
             Securely powered by GoldBook Infrastructure. If you did not request this, please ignore this email.
           </p>
         </div>
-      `
-    })
+      `,
+    }
 
-    if (emailError) {
-      console.error('RESEND ERROR:', emailError) // Log exact error to Vercel
-      // Clean up user if email fails to send
+    try {
+      await transporter.sendMail(mailOptions)
+    } catch (emailError: any) {
+      console.error('NODEMAILER GMAIL ERROR:', emailError)
+      // Rollback user creation if email fails
       await supabaseAdmin.auth.admin.deleteUser(linkData.user.id)
-      return NextResponse.json({ error: \`Failed to send verification email: \${emailError.message}\` }, { status: 500 })
+      return NextResponse.json({ error: `Failed to send verification email: ${emailError.message}` }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, message: 'Verification email sent' })
