@@ -37,39 +37,23 @@ export default function AuthPage() {
       }
       router.push('/dashboard')
     } else {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: name,
-            display_name: name,
-          }
-        }
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name })
       })
-      if (signUpError) {
-        setError(signUpError.message)
-        setLoading(false)
-        return
-      }
-      
-      // If email confirmation is required, notify user
-      if (data?.user && data.user.identities?.length === 0) {
-        setError('This email is already registered.')
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to register')
         setLoading(false)
         return
       }
 
-      // Upsert profile for the new user just to be safe
-      if (data?.user) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          display_name: name,
-          username: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
-        }, { onConflict: 'id' })
-      }
-
-      router.push('/onboarding')
+      setError('Verification email sent! Please check your inbox.')
+      setLoading(false)
+      // We don't route immediately because they need to verify their email first.
     }
   }
 
