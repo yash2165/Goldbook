@@ -5,6 +5,9 @@
 -- 1. Add source field to trades (manual vs mt5)
 ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'mt5';
 
+-- 1b. Add sync_token to mt5_accounts
+ALTER TABLE public.mt5_accounts ADD COLUMN IF NOT EXISTS sync_token TEXT;
+
 -- 2. Add pre-trade checklist JSONB
 ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS pre_trade_checklist JSONB;
 
