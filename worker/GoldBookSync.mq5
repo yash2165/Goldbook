@@ -18,17 +18,45 @@ input int    HistoryDays = 90;
 int g_last_web_error = 0;
 int g_last_http_status = 0;
 
+string g_api_url = "";
+string g_sync_token = "";
+
 //+------------------------------------------------------------------+
 void OnStart()
 {
-   if(SyncToken == "")
+   g_api_url = ApiUrl;
+   g_sync_token = SyncToken;
+
+   // Read config file from MQL5/Files/sync_config.txt if it exists
+   int file_handle = FileOpen("sync_config.txt", FILE_READ|FILE_ANSI|FILE_TXT);
+   if(file_handle != INVALID_HANDLE)
+   {
+      while(!FileIsEnding(file_handle))
+      {
+         string line = FileReadString(file_handle);
+         int eq_idx = StringFind(line, "=");
+         if(eq_idx > 0)
+         {
+            string key = StringSubstr(line, 0, eq_idx);
+            string val = StringSubstr(line, eq_idx + 1);
+            StringTrimLeft(key); StringTrimRight(key);
+            StringTrimLeft(val); StringTrimRight(val);
+            
+            if(key == "ApiUrl") g_api_url = val;
+            else if(key == "SyncToken") g_sync_token = val;
+         }
+      }
+      FileClose(file_handle);
+   }
+
+   if(g_sync_token == "")
    {
       Print("GoldBook: SyncToken is empty — aborting.");
       TerminalClose(2);
       return;
    }
 
-   Print("GoldBook: Starting sync for token=", SyncToken);
+   Print("GoldBook: Starting sync for token=", g_sync_token);
 
    g_last_web_error = 0;
    g_last_http_status = 0;
@@ -71,7 +99,7 @@ bool SyncBalance()
         "\"currency\":\"%s\","
         "\"name\":\"%s\""
       "}",
-      SyncToken,
+      g_sync_token,
       AccountInfoDouble(ACCOUNT_BALANCE),
       AccountInfoDouble(ACCOUNT_EQUITY),
       AccountInfoDouble(ACCOUNT_MARGIN),
@@ -182,7 +210,7 @@ void SyncClosedDeals()
 
    string json = StringFormat(
       "{\"type\":\"trades\",\"sync_token\":\"%s\",\"trades\":%s}",
-      SyncToken, arr
+      g_sync_token, arr
    );
    if(!Post(json))
       Print("GoldBook: Trade sync failed (non-fatal).");
@@ -229,7 +257,7 @@ void SyncOpenPositions()
 
    string json = StringFormat(
       "{\"type\":\"positions\",\"sync_token\":\"%s\",\"positions\":%s}",
-      SyncToken, arr
+      g_sync_token, arr
    );
    if(!Post(json))
       Print("GoldBook: Positions sync failed (non-fatal).");
@@ -248,7 +276,7 @@ bool Post(const string &body)
 
    ResetLastError();
    int status = WebRequest(
-      "POST", ApiUrl,
+      "POST", g_api_url,
       "Content-Type: application/json\r\n",
       5000, post, result, resHeaders
    );

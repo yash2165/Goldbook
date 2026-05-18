@@ -303,6 +303,21 @@ def sync_account(acc: dict) -> dict:
         log.error(f"[{login}] Failed to prepare data dir: {e}")
         return {"login": login, "status": "error", "reason": str(e)}
 
+    # Write isolated parameters file for the MQL5 script to read
+    try:
+        files_dir = data_dir / "MQL5" / "Files"
+        files_dir.mkdir(parents=True, exist_ok=True)
+        config_file = files_dir / "sync_config.txt"
+        config_content = (
+            f"ApiUrl={GOLDBOOK_URL}\r\n"
+            f"SyncToken={sync_token}\r\n"
+        )
+        config_file.write_text(config_content, encoding="utf-8")
+        log.info(f"[{login}] Wrote MQL5/Files/sync_config.txt (ApiUrl={GOLDBOOK_URL})")
+    except Exception as e:
+        log.error(f"[{login}] Failed to write MQL5/Files/sync_config.txt: {e}")
+        return {"login": login, "status": "error", "reason": f"config_write_failed: {e}"}
+
     env = os.environ.copy()
     env["DISPLAY"] = DISPLAY
     wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
