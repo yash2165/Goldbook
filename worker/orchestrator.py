@@ -109,6 +109,7 @@ def prepare_data_dir(acc: dict) -> Path:
     """
     Create an isolated portable data dir for this MT5 account.
     Copies the GoldBookSync.mq5 script into MQL5/Scripts/.
+    Copies the whitelisted terminal.ini and settings.ini.
     Writes the config/common.ini with login credentials.
     """
     data_dir = MT5_DATA_ROOT / str(acc["id"])
@@ -120,16 +121,28 @@ def prepare_data_dir(acc: dict) -> Path:
     if SCRIPT_SRC.exists():
         shutil.copy2(SCRIPT_SRC, dst_script)
 
-    # Write MT5 login config
-    config_dir = data_dir / "config"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / "common.ini").write_text(
-        "[Common]\n"
-        f"Login={acc['mt5_login']}\n"
-        f"Password={acc['investor_password']}\n"
-        f"Server={acc['broker_server']}\n"
-        "AutoConfirm=1\n"
-    )
+    # Copy global whitelisted terminal.ini and settings.ini to both config and Config folders
+    global_config_path = Path("/root/.mt5/drive_c/Program Files/MetaTrader 5/Config")
+    
+    for folder_name in ["config", "Config"]:
+        c_dir = data_dir / folder_name
+        c_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Copy the settings if they exist globally
+        if global_config_path.exists():
+            for file_name in ["terminal.ini", "settings.ini"]:
+                src_file = global_config_path / file_name
+                if src_file.exists():
+                    shutil.copy2(src_file, c_dir / file_name)
+
+        # Write MT5 login config
+        (c_dir / "common.ini").write_text(
+            "[Common]\n"
+            f"Login={acc['mt5_login']}\n"
+            f"Password={acc['investor_password']}\n"
+            f"Server={acc['broker_server']}\n"
+            "AutoConfirm=1\n"
+        )
 
     return data_dir
 
