@@ -234,8 +234,11 @@ def prepare_data_dir(acc: dict) -> Path:
 
     wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
     candidates.append(wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
+    candidates.append(wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
     candidates.append(Path.home() / ".mt5" / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
+    candidates.append(Path.home() / ".mt5" / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
     candidates.append(Path.home() / ".wine" / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
+    candidates.append(Path.home() / ".wine" / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
 
     for p in candidates:
         try:
@@ -244,6 +247,11 @@ def prepare_data_dir(acc: dict) -> Path:
                 break
         except Exception:
             continue
+            
+    if global_config_path:
+        log.info(f"[{acc['mt5_login']}] Found global config folder at: {global_config_path}")
+    else:
+        log.warning(f"[{acc['mt5_login']}] ⚠️ Global MT5 config folder not found! Whitelist files will NOT be copied to the portable instance.")
     
     for folder_name in ["config", "Config"]:
         c_dir = data_dir / folder_name
