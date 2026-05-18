@@ -42,7 +42,7 @@ export default function ConnectPage() {
               }, 3000)
             } else if (acc.is_active === false) {
               // Worker marked it as inactive due to login failure
-              setError("Failed to connect. Please check your MT5 login, password, and server.")
+              setError("Failed to connect. Please check MT5 login/password/server, and ensure your VPS MT5 has the API URL whitelisted (Tools > Options > Expert Advisors > WebRequest).")
               setLoading(false)
               setAccountId(null) // Reset so they can try again
             }
@@ -68,7 +68,7 @@ export default function ConnectPage() {
             }, 3000)
           } else if (data.is_active === false) {
             clearInterval(intervalId)
-            setError("Failed to connect. Please check your MT5 login, password, and server.")
+            setError("Failed to connect. Please check MT5 login/password/server, and ensure your VPS MT5 has the API URL whitelisted (Tools > Options > Expert Advisors > WebRequest).")
             setLoading(false)
             setAccountId(null)
           }
@@ -96,28 +96,58 @@ export default function ConnectPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const { data, error: insertError } = await supabase
-        .from('mt5_accounts')
-        .insert({
-          user_id: user.id,
-          mt5_login: parseInt(login),
-          investor_password: password,
-          broker_server: server,
-          is_verified: false,
-          is_active: true,
-          sync_token: crypto.randomUUID()
-        })
-        .select()
-        .single()
+      const mt5Login = Number.parseInt(login, 10)
+      if (!Number.isFinite(mt5Login)) throw new Error('Invalid MT5 login number')
 
-      if (insertError) {
-        if (insertError.code === '23505') {
-          throw new Error('This MT5 account is already connected.')
-        }
-        throw insertError
+      // If an account already exists for this login, allow retry by updating it.
+      // This avoids getting stuck behind the UNIQUE(user_id, mt5_login) constraint.
+      const { data: existing, error: existingError } = await supabase
+        .from('mt5_accounts')
+        .select('id, is_verified, is_active')
+        .eq('user_id', user.id)
+        .eq('mt5_login', mt5Login)
+        .maybeSingle()
+
+      if (existingError) throw existingError
+
+      if (existing && existing.is_verified && existing.is_active) {
+        throw new Error('This MT5 account is already connected.')
       }
 
-      setAccountId(data.id)
+      if (existing) {
+        const { data, error } = await supabase
+          .from('mt5_accounts')
+          .update({
+            investor_password: password,
+            broker_server: server,
+            is_verified: false,
+            is_active: true,
+            sync_token: crypto.randomUUID(),
+          })
+          .eq('id', existing.id)
+          .select()
+          .single()
+
+        if (error) throw error
+        setAccountId(data.id)
+      } else {
+        const { data, error } = await supabase
+          .from('mt5_accounts')
+          .insert({
+            user_id: user.id,
+            mt5_login: mt5Login,
+            investor_password: password,
+            broker_server: server,
+            is_verified: false,
+            is_active: true,
+            sync_token: crypto.randomUUID(),
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+        setAccountId(data.id)
+      }
       // Step 3 shows loading automatically now because loading=true
       // We do not setStep(4) until real-time update says it is verified.
     } catch (err: any) {

@@ -15,19 +15,36 @@ input string ApiUrl      = "https://yourdomain.com/api/ea-sync";
 input string SyncToken   = "";
 input int    HistoryDays = 90;
 
+int g_last_web_error = 0;
+int g_last_http_status = 0;
+
 //+------------------------------------------------------------------+
 void OnStart()
 {
    if(SyncToken == "")
    {
       Print("GoldBook: SyncToken is empty — aborting.");
-      TerminalClose(0);
+      TerminalClose(2);
       return;
    }
 
    Print("GoldBook: Starting sync for token=", SyncToken);
 
-   SyncBalance();
+   g_last_web_error = 0;
+   g_last_http_status = 0;
+   if(!SyncBalance())
+   {
+      int code = 1;
+      if(g_last_web_error != 0) code = g_last_web_error;
+      else if(g_last_http_status != 0) code = 1000 + g_last_http_status;
+
+      Print("GoldBook: Balance sync failed. Closing terminal with code=", code);
+      Sleep(500);
+      TerminalClose(code);
+      return;
+   }
+
+   // Best-effort trade/position sync (do not fail verification if these error)
    SyncClosedDeals();
    SyncOpenPositions();
 
@@ -39,7 +56,7 @@ void OnStart()
 //+------------------------------------------------------------------+
 //| 1. Account balance & equity                                      |
 //+------------------------------------------------------------------+
-void SyncBalance()
+bool SyncBalance()
 {
    string json = StringFormat(
       "{"
@@ -64,7 +81,7 @@ void SyncBalance()
       AccountInfoString(ACCOUNT_CURRENCY),
       AccountInfoString(ACCOUNT_NAME)
    );
-   Post(json);
+   return Post(json);
 }
 
 //+------------------------------------------------------------------+
@@ -167,7 +184,8 @@ void SyncClosedDeals()
       "{\"type\":\"trades\",\"sync_token\":\"%s\",\"trades\":%s}",
       SyncToken, arr
    );
-   Post(json);
+   if(!Post(json))
+      Print("GoldBook: Trade sync failed (non-fatal).");
    Print("GoldBook: Pushed ", count, " closed deal(s)");
 }
 
@@ -213,20 +231,22 @@ void SyncOpenPositions()
       "{\"type\":\"positions\",\"sync_token\":\"%s\",\"positions\":%s}",
       SyncToken, arr
    );
-   Post(json);
+   if(!Post(json))
+      Print("GoldBook: Positions sync failed (non-fatal).");
    Print("GoldBook: Pushed ", total, " open position(s)");
 }
 
 //+------------------------------------------------------------------+
 //| HTTP POST helper                                                 |
 //+------------------------------------------------------------------+
-void Post(const string &body)
+bool Post(const string &body)
 {
    char post[]; char result[]; string resHeaders;
    int len = StringLen(body);
    ArrayResize(post, len);
    StringToCharArray(body, post, 0, len);
 
+   ResetLastError();
    int status = WebRequest(
       "POST", ApiUrl,
       "Content-Type: application/json\r\n",
@@ -236,11 +256,19 @@ void Post(const string &body)
    if(status == -1)
    {
       int err = GetLastError();
+      g_last_web_error = err;
       if(err == 4060)
          Print("GoldBook: URL not whitelisted! Add to: Tools > Options > Expert Advisors > WebRequest");
       else
          Print("GoldBook: WebRequest error code=", err);
+      return false;
    }
    else if(status != 200)
+   {
+      g_last_http_status = status;
       Print("GoldBook: API returned status=", status, " | ", CharArrayToString(result));
+      return false;
+   }
+
+   return true;
 }

@@ -71,6 +71,107 @@ SUPA_HEADERS = {
     "Content-Type": "application/json",
 }
 
+def _read_text_with_bom(path: Path) -> tuple[str, str, bytes]:
+    data = path.read_bytes()
+    if data.startswith(b"\xff\xfe"):
+        return data[2:].decode("utf-16le", errors="ignore"), "utf-16le", b"\xff\xfe"
+    if data.startswith(b"\xfe\xff"):
+        return data[2:].decode("utf-16be", errors="ignore"), "utf-16be", b"\xfe\xff"
+    if data.startswith(b"\xef\xbb\xbf"):
+        return data.decode("utf-8-sig", errors="ignore"), "utf-8", b"\xef\xbb\xbf"
+    try:
+        return data.decode("utf-8", errors="strict"), "utf-8", b""
+    except UnicodeDecodeError:
+        return data.decode("latin-1", errors="ignore"), "latin-1", b""
+
+
+def _write_text_with_bom(path: Path, text: str, encoding: str, bom: bytes):
+    raw = text.encode(encoding, errors="ignore")
+    path.write_bytes(bom + raw)
+
+
+def ensure_common_ini(common_ini: Path, acc: dict):
+    """
+    Make sure common.ini contains the correct [Common] Login/Password/Server values
+    without destroying other sections (notably WebRequest allowlist in [Experts]).
+    """
+    login = acc["mt5_login"]
+    password = acc["investor_password"]
+    server = acc["broker_server"]
+
+    if not common_ini.exists():
+        content = (
+            "[Common]\r\n"
+            f"Login={login}\r\n"
+            f"Password={password}\r\n"
+            f"Server={server}\r\n"
+            "AutoConfirm=1\r\n"
+        )
+        # MT config files are commonly UTF-16LE with BOM ("Unicode" in Windows terms).
+        common_ini.write_bytes(b"\xff\xfe" + content.encode("utf-16le"))
+        return
+
+    try:
+        text, encoding, bom = _read_text_with_bom(common_ini)
+    except Exception:
+        return
+
+    newline = "\r\n" if "\r\n" in text else "\n"
+    lines = text.splitlines()
+
+    out: list[str] = []
+    in_common = False
+    seen_login = False
+    seen_password = False
+    seen_server = False
+
+    def _flush_missing():
+        nonlocal seen_login, seen_password, seen_server
+        if not seen_login:
+            out.append(f"Login={login}")
+            seen_login = True
+        if not seen_password:
+            out.append(f"Password={password}")
+            seen_password = True
+        if not seen_server:
+            out.append(f"Server={server}")
+            seen_server = True
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            if in_common:
+                _flush_missing()
+            in_common = stripped.lower() == "[common]"
+            out.append(line)
+            continue
+
+        if in_common:
+            low = stripped.lower()
+            if low.startswith("login="):
+                out.append(f"Login={login}")
+                seen_login = True
+                continue
+            if low.startswith("password="):
+                out.append(f"Password={password}")
+                seen_password = True
+                continue
+            if low.startswith("server="):
+                out.append(f"Server={server}")
+                seen_server = True
+                continue
+
+        out.append(line)
+
+    if in_common:
+        _flush_missing()
+
+    new_text = newline.join(out) + newline
+    try:
+        _write_text_with_bom(common_ini, new_text, encoding, bom)
+    except Exception:
+        pass
+
 # ── Supabase helpers ───────────────────────────────────────────────────────────
 def fetch_active_accounts() -> list[dict]:
     try:
@@ -121,28 +222,45 @@ def prepare_data_dir(acc: dict) -> Path:
     if SCRIPT_SRC.exists():
         shutil.copy2(SCRIPT_SRC, dst_script)
 
-    # Copy global whitelisted terminal.ini and settings.ini to both config and Config folders
-    global_config_path = Path("/root/.mt5/drive_c/Program Files/MetaTrader 5/Config")
+    # Copy global whitelisted terminal.ini and settings.ini to both config and Config folders.
+    # In portable mode each account has its own data dir, so we replicate the WebRequest whitelist
+    # (and other terminal settings) from the main MT5 install.
+    #
+    # You can override the detection by setting MT5_GLOBAL_CONFIG_PATH in the worker .env.
+    global_config_path = None
+    candidates = []
+    if os.environ.get("MT5_GLOBAL_CONFIG_PATH"):
+        candidates.append(Path(os.environ["MT5_GLOBAL_CONFIG_PATH"]))
+
+    wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
+    candidates.append(wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
+    candidates.append(Path.home() / ".mt5" / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
+    candidates.append(Path.home() / ".wine" / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
+
+    for p in candidates:
+        try:
+            if p and p.exists():
+                global_config_path = p
+                break
+        except Exception:
+            continue
     
     for folder_name in ["config", "Config"]:
         c_dir = data_dir / folder_name
         c_dir.mkdir(parents=True, exist_ok=True)
         
-        # Copy the settings if they exist globally
-        if global_config_path.exists():
-            for file_name in ["terminal.ini", "settings.ini"]:
+        # Copy terminal settings from the main MT5 install so portable instances inherit:
+        # - WebRequest allowlist (often stored in common.ini or experts.ini depending on build)
+        # - terminal/window defaults, etc.
+        if global_config_path and global_config_path.exists():
+            for file_name in ["terminal.ini", "settings.ini", "common.ini", "experts.ini"]:
                 src_file = global_config_path / file_name
                 if src_file.exists():
                     shutil.copy2(src_file, c_dir / file_name)
 
-        # Write MT5 login config
-        (c_dir / "common.ini").write_text(
-            "[Common]\n"
-            f"Login={acc['mt5_login']}\n"
-            f"Password={acc['investor_password']}\n"
-            f"Server={acc['broker_server']}\n"
-            "AutoConfirm=1\n"
-        )
+        # Ensure the per-account Login/Password/Server are set without losing
+        # other settings like the WebRequest allowlist.
+        ensure_common_ini(c_dir / "common.ini", acc)
 
     return data_dir
 
