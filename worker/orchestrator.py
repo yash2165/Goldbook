@@ -345,10 +345,19 @@ def sync_account(acc: dict) -> dict:
     try:
         proc = subprocess.Popen(
             cmd, env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
         )
-        proc.wait(timeout=MT5_TIMEOUT)
+        try:
+            stdout_data, stderr_data = proc.communicate(timeout=MT5_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout_data, stderr_data = proc.communicate()
+            elapsed = round(time.time() - t_start, 1)
+            log.warning(f"⏱  [{login}] Timed out after {elapsed}s — killed")
+            return {"login": login, "status": "timeout", "elapsed": elapsed}
+
         elapsed = round(time.time() - t_start, 1)
 
         if proc.returncode == 0:
@@ -356,14 +365,12 @@ def sync_account(acc: dict) -> dict:
             return {"login": login, "status": "ok", "elapsed": elapsed}
         else:
             log.warning(f"⚠️  [{login}] MT5 exited with code {proc.returncode} ({elapsed}s)")
+            if stdout_data:
+                log.warning(f"[{login}] MT5 stdout:\n{stdout_data}")
+            if stderr_data:
+                log.warning(f"[{login}] MT5 stderr:\n{stderr_data}")
             report_error(account_id)
             return {"login": login, "status": "mt5_error", "code": proc.returncode}
-
-    except subprocess.TimeoutExpired:
-        elapsed = round(time.time() - t_start, 1)
-        log.warning(f"⏱  [{login}] Timed out after {elapsed}s — killing")
-        proc.kill()
-        return {"login": login, "status": "timeout", "elapsed": elapsed}
 
     except FileNotFoundError:
         log.error(f"MT5 binary not found: {MT5_BINARY}. Run setup_ubuntu.sh first.")
