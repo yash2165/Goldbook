@@ -209,11 +209,18 @@ def report_error(account_id: str):
 def prepare_data_dir(acc: dict) -> Path:
     """
     Create an isolated portable data dir for this MT5 account.
-    Copies the GoldBookSync.mq5 script into MQL5/Scripts/.
-    Copies the whitelisted terminal.ini and settings.ini.
-    Writes the config/common.ini with login credentials.
+    Replicates the main MetaTrader 5 installation into this directory
+    so it can be run as a true standalone portable sandbox.
     """
     data_dir = MT5_DATA_ROOT / str(acc["id"])
+    wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
+    global_install_dir = wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
+
+    # Replicate the full MT5 install into the data folder if terminal64.exe doesn't exist
+    if not (data_dir / "terminal64.exe").exists() and global_install_dir.exists():
+        log.info(f"[{acc['mt5_login']}] Replicating MT5 installation to isolated directory: {data_dir}")
+        shutil.copytree(global_install_dir, data_dir, dirs_exist_ok=True)
+
     scripts_dir = data_dir / "MQL5" / "Scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -232,13 +239,12 @@ def prepare_data_dir(acc: dict) -> Path:
     if os.environ.get("MT5_GLOBAL_CONFIG_PATH"):
         candidates.append(Path(os.environ["MT5_GLOBAL_CONFIG_PATH"]))
 
-    wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
+    candidates.append(global_install_dir / "Config")
+    candidates.append(global_install_dir / "config")
     candidates.append(wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
     candidates.append(wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
     candidates.append(Path.home() / ".mt5" / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
     candidates.append(Path.home() / ".mt5" / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
-    candidates.append(Path.home() / ".wine" / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
-    candidates.append(Path.home() / ".wine" / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
 
     for p in candidates:
         try:
@@ -299,10 +305,17 @@ def sync_account(acc: dict) -> dict:
 
     env = os.environ.copy()
     env["DISPLAY"] = DISPLAY
+    wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
+    env["WINEPREFIX"] = str(wineprefix)
+    env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
+    env["BOX64_LOG"] = "1"
 
+    # Run the copied isolated executable directly via box64 & wine64 in true portable mode!
     cmd = [
-        MT5_BINARY,
-        f"/portable:{data_dir}",
+        "box64",
+        "/opt/wine-x86_64/bin/wine64",
+        str(data_dir / "terminal64.exe"),
+        "/portable",
         f"/login:{login}",
         f"/password:{acc['investor_password']}",
         f"/server:{server}",
