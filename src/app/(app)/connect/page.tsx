@@ -23,8 +23,10 @@ export default function ConnectPage() {
 
   useEffect(() => {
     let channel: RealtimeChannel
+    let intervalId: NodeJS.Timeout
 
     if (accountId) {
+      // 1. Supabase Realtime Subscription
       channel = supabase
         .channel(`mt5_account_status`)
         .on(
@@ -47,10 +49,36 @@ export default function ConnectPage() {
           }
         )
         .subscribe()
+
+      // 2. Polling Fallback (runs every 3 seconds in case Realtime replication is disabled)
+      intervalId = setInterval(async () => {
+        const { data, error } = await supabase
+          .from('mt5_accounts')
+          .select('is_verified, current_balance, is_active')
+          .eq('id', accountId)
+          .single()
+
+        if (!error && data) {
+          if (data.is_verified) {
+            clearInterval(intervalId)
+            setRealBalance(data.current_balance)
+            setStep(4)
+            setTimeout(() => {
+              router.push('/dashboard')
+            }, 3000)
+          } else if (data.is_active === false) {
+            clearInterval(intervalId)
+            setError("Failed to connect. Please check your MT5 login, password, and server.")
+            setLoading(false)
+            setAccountId(null)
+          }
+        }
+      }, 3000)
     }
 
     return () => {
       if (channel) supabase.removeChannel(channel)
+      if (intervalId) clearInterval(intervalId)
     }
   }, [accountId, router, supabase])
 
