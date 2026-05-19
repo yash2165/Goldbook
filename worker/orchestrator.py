@@ -341,6 +341,9 @@ def sync_account(acc: dict) -> dict:
         env["WINEPREFIX"] = str(wineprefix)
         env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
         env["BOX64_LOG"] = "1"
+        env["HOME"] = "/root"
+        env["USER"] = "root"
+        env["BOX64_MAXCPU"] = "4"
 
         # Execute using the native global installed MT5 in its own original folder!
         cmd = [
