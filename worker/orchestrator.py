@@ -450,11 +450,16 @@ def boost_stack_limit():
     try:
         import resource
         soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
-        target = 64 * 1024 * 1024  # 64 MB
+        
+        # CRITICAL: We must set a finite target (e.g. 16MB) because a limit of RLIM_INFINITY (-1)
+        # causes Box64 to choke on parsing and allocate a tiny 4KB (one page) stack!
+        target = 16 * 1024 * 1024  # 16 MB
+        
         if hard != resource.RLIM_INFINITY and hard < target:
             target = hard
+            
         resource.setrlimit(resource.RLIMIT_STACK, (target, hard))
-        log.info(f"Boosted process stack limit to {target // (1024*1024)}MB (soft: {soft}, hard: {hard})")
+        log.info(f"Boosted process stack limit to {target // (1024*1024)}MB (finite limit to avoid Box64 infinity bug)")
     except Exception as e:
         log.warning(f"Could not boost process stack limit: {e}")
 
