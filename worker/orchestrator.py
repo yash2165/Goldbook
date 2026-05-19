@@ -445,8 +445,23 @@ def ensure_xvfb():
         log.info(f"Xvfb already running on {DISPLAY}")
 
 
+# ── Boost Stack Limit helper ──────────────────────────────────────────────────
+def boost_stack_limit():
+    try:
+        import resource
+        soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
+        target = 64 * 1024 * 1024  # 64 MB
+        if hard != resource.RLIM_INFINITY and hard < target:
+            target = hard
+        resource.setrlimit(resource.RLIMIT_STACK, (target, hard))
+        log.info(f"Boosted process stack limit to {target // (1024*1024)}MB (soft: {soft}, hard: {hard})")
+    except Exception as e:
+        log.warning(f"Could not boost process stack limit: {e}")
+
+
 # ── Main loop ─────────────────────────────────────────────────────────────────
 def main():
+    boost_stack_limit()
     ensure_xvfb()
 
     log.info("🚀 GoldBook Parallel Orchestrator started")
