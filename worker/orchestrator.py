@@ -344,6 +344,7 @@ def sync_account(acc: dict) -> dict:
         env["HOME"] = "/root"
         env["USER"] = "root"
         env["BOX64_MAXCPU"] = "4"
+        env["BOX64_DYNAREC"] = "0"
 
         # Execute using the native global installed MT5 in its own original folder!
         cmd = [
