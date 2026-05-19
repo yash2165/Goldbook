@@ -308,12 +308,42 @@ def sync_account(acc: dict) -> dict:
 
     with global_sync_lock:
         try:
-            # 1. Place the GoldBookSync.mq5 script directly into the global Scripts folder
+            # 1. Place the GoldBookSync.mq5 script directly into the global Scripts folder if changed
             scripts_dir = global_install_dir / "MQL5" / "Scripts"
             scripts_dir.mkdir(parents=True, exist_ok=True)
             dst_script = scripts_dir / "GoldBookSync.mq5"
+            dst_ex5 = scripts_dir / "GoldBookSync.ex5"
+            
+            should_compile = False
             if SCRIPT_SRC.exists():
-                shutil.copy2(SCRIPT_SRC, dst_script)
+                src_content = SCRIPT_SRC.read_bytes()
+                # Only copy if different to preserve file modification time
+                if not dst_script.exists() or dst_script.read_bytes() != src_content:
+                    shutil.copy2(SCRIPT_SRC, dst_script)
+                    should_compile = True
+            
+            # Pre-compile the script ahead of time using JIT (BOX64_DYNAREC=1) for 1-second compilation speed!
+            if not dst_ex5.exists() or should_compile:
+                log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 with JIT ahead of time...")
+                comp_env = os.environ.copy()
+                comp_env["DISPLAY"] = DISPLAY
+                comp_env["WINEPREFIX"] = str(wineprefix)
+                comp_env["HOME"] = "/root"
+                comp_env["USER"] = "root"
+                comp_env["BOX64_DYNAREC"] = "1" # Blazing fast JIT compilation!
+                comp_cmd = [
+                    "box64",
+                    "/opt/wine-x86_64/bin/wine64",
+                    str(global_install_dir / "metaeditor64.exe"),
+                    "/portable",
+                    f"/compile:{dst_script}",
+                    "/log"
+                ]
+                try:
+                    subprocess.run(comp_cmd, env=comp_env, timeout=20, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    log.info(f"[{login}] Pre-compilation successful!")
+                except Exception as e:
+                    log.warning(f"[{login}] Ahead-of-time JIT compilation failed (will fall back to auto-compilation): {e}")
 
             # 2. Place the sync_config.txt directly into the global Files folder
             files_dir = global_install_dir / "MQL5" / "Files"
