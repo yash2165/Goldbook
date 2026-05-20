@@ -90,41 +90,26 @@ CREATE POLICY "Users own their AI reports" ON public.ai_reports
 -- Safely add tables to the publication
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' 
-    AND schemaname = 'public' 
-    AND tablename = 'trades'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.trades;
-  END IF;
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.trades;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' 
-    AND schemaname = 'public' 
-    AND tablename = 'messages'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-  END IF;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' 
-    AND schemaname = 'public' 
-    AND tablename = 'ai_reports'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.ai_reports;
-  END IF;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.ai_reports;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' 
-    AND schemaname = 'public' 
-    AND tablename = 'mt5_accounts'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.mt5_accounts;
-  END IF;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.mt5_accounts;
+EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 -- 9. Add is_deleted for soft-delete functionality
