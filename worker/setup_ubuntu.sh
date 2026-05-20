@@ -6,7 +6,7 @@ WORKER_DIR="/opt/goldbook-worker"
 WINEPREFIX="/root/.mt5"
 DISPLAY_NUM=":99"
 CHROOT_DIR="/opt/amd64-chroot"
-CHROOT_CMD="/usr/local/bin/amd64-chroot"
+CHROOT_CMD="/usr/bin/amd64-chroot"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -21,7 +21,15 @@ apt-get install -y qemu-user-static binfmt-support debootstrap xvfb wget curl un
 
 echo "[2/8] Creating AMD64 Chroot Environment (Takes 3-5 minutes)..."
 if [ ! -d "$CHROOT_DIR/etc" ]; then
-    debootstrap --arch=amd64 noble "$CHROOT_DIR" http://archive.ubuntu.com/ubuntu/
+    echo "   Running debootstrap stage 1 (foreign)..."
+    debootstrap --arch=amd64 --foreign noble "$CHROOT_DIR" http://archive.ubuntu.com/ubuntu/
+    
+    echo "   Copying qemu-x86_64-static into chroot..."
+    mkdir -p "$CHROOT_DIR/usr/bin"
+    cp /usr/bin/qemu-x86_64-static "$CHROOT_DIR/usr/bin/"
+    
+    echo "   Running debootstrap stage 2 (inside chroot)..."
+    chroot "$CHROOT_DIR" /debootstrap/debootstrap --second-stage
 else
     echo "   Chroot directory already exists — skipping bootstrap."
 fi
@@ -164,6 +172,7 @@ WorkingDirectory=$WORKER_DIR
 EnvironmentFile=$WORKER_DIR/.env
 Environment="DISPLAY=$DISPLAY_NUM"
 Environment="WINEPREFIX=/root/.mt5"
+ExecStartPre=/usr/bin/amd64-chroot echo "Mounting chroot filesystems"
 ExecStart=$WORKER_DIR/venv/bin/python orchestrator.py
 Restart=always
 RestartSec=10

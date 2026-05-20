@@ -332,7 +332,7 @@ def sync_account(acc: dict) -> dict:
                 comp_env["HOME"] = "/root"
                 comp_env["USER"] = "root"
                 comp_cmd = [
-                    "/usr/local/bin/amd64-chroot",
+                    "/usr/bin/amd64-chroot",
                     "wine",
                     str(global_install_dir / "metaeditor64.exe"),
                     "/portable",
@@ -379,7 +379,7 @@ def sync_account(acc: dict) -> dict:
 
     # Execute using the ISOLATED terminal via Hangover 11.4 wine64
     cmd = [
-        "/usr/local/bin/amd64-chroot",
+        "/usr/bin/amd64-chroot",
                     "wine",
         str(data_dir / "terminal64.exe"),
         "/portable",
