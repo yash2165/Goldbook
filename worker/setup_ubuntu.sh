@@ -1,34 +1,71 @@
 #!/bin/bash
-# =============================================================================
-# GoldBook — Ubuntu VPS Setup Script (Fixed for ARM64 + Hangover 11.4)
-# Oracle Free Tier (24 GB ARM) / Any Ubuntu 20.04+ VPS
-# Run as: sudo bash setup_ubuntu.sh
-# =============================================================================
+# GoldBook MT5 Parallel Orchestrator — VPS Setup (QEMU Chroot Method)
+# This script sets up an amd64 environment on an ARM64 host using qemu-user-static and debootstrap.
 
 WORKER_DIR="/opt/goldbook-worker"
 WINEPREFIX="/root/.mt5"
 DISPLAY_NUM=":99"
-# Hangover 11.4 installs the x86_64 wine translation layer here:
-WINE64="/opt/wine-x86_64/bin/wine64"
-export WINEPREFIX DISPLAY="$DISPLAY_NUM"
+CHROOT_DIR="/opt/amd64-chroot"
+CHROOT_CMD="/usr/local/bin/amd64-chroot"
+
+export DEBIAN_FRONTEND=noninteractive
 
 echo "======================================================"
 echo "  GoldBook MT5 Parallel Orchestrator — VPS Setup"
+echo "  Method: QEMU-User-Static + Debootstrap (Amd64)"
 echo "======================================================"
 
-# ── 1. System packages ─────────────────────────────────────────────────────
-echo "[1/7] Installing system packages..."
-dpkg --remove-architecture i386 2>/dev/null || true
-apt-get update -qq --fix-missing || true
-apt-get install -y xvfb wget python3 python3-pip python3-venv curl unzip xauth cabextract
+echo "[1/8] Installing Host Dependencies..."
+apt-get update
+apt-get install -y qemu-user-static binfmt-support debootstrap xvfb wget curl unzip python3 python3-pip python3-venv 2>/dev/null || true
 
-# ── 2. Start Xvfb FIRST — Wine requires a display to initialise ────────────
-echo "[2/7] Starting Xvfb virtual display on $DISPLAY_NUM..."
-# Remove stale lock if Xvfb is not actually running
+echo "[2/8] Creating AMD64 Chroot Environment (Takes 3-5 minutes)..."
+if [ ! -d "$CHROOT_DIR/etc" ]; then
+    debootstrap --arch=amd64 noble "$CHROOT_DIR" http://archive.ubuntu.com/ubuntu/
+else
+    echo "   Chroot directory already exists — skipping bootstrap."
+fi
+
+echo "[3/8] Configuring Chroot Mounts and Wrapper..."
+cat << 'EOF' > "$CHROOT_CMD"
+#!/bin/bash
+CHROOT_DIR="/opt/amd64-chroot"
+# Ensure essential filesystems are mounted
+for dir in dev proc sys dev/pts tmp root; do
+    mkdir -p "$CHROOT_DIR/$dir"
+    if ! mountpoint -q "$CHROOT_DIR/$dir"; then
+        mount --bind "/$dir" "$CHROOT_DIR/$dir"
+    fi
+done
+# Copy resolv.conf for internet access
+cp /etc/resolv.conf "$CHROOT_DIR/etc/resolv.conf"
+exec chroot "$CHROOT_DIR" "$@"
+EOF
+chmod +x "$CHROOT_CMD"
+
+# Run once to mount everything
+$CHROOT_CMD echo "   Chroot mounts active."
+
+echo "[4/8] Installing Standard Wine (x86_64) inside Chroot..."
+cat << 'EOF' > "$CHROOT_DIR/tmp/install_wine.sh"
+#!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+dpkg --add-architecture i386
+apt-get update
+apt-get install -y software-properties-common wget curl xvfb gnupg2
+mkdir -pm755 /etc/apt/keyrings
+wget -qO /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+wget -qNP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
+apt-get update
+apt-get install -y --install-recommends winehq-stable winbind cabextract
+EOF
+chmod +x "$CHROOT_DIR/tmp/install_wine.sh"
+$CHROOT_CMD /tmp/install_wine.sh
+
+echo "[5/8] Starting Xvfb virtual display on $DISPLAY_NUM..."
 if [ -f /tmp/.X99-lock ] && ! pgrep -x Xvfb > /dev/null; then
   rm -f /tmp/.X99-lock
 fi
-# Only start if not already running
 if ! pgrep -x Xvfb > /dev/null; then
   Xvfb "$DISPLAY_NUM" -screen 0 1280x800x24 -nolisten tcp &
   sleep 3
@@ -37,116 +74,33 @@ else
   echo "   Xvfb already running — OK"
 fi
 
-# ── 3. Install Hangover 11.4 via .deb packages ─────────────────────────────
-echo "[3/7] Installing Hangover 11.4 (ARM64 native Wine)..."
+export DISPLAY="$DISPLAY_NUM"
 
-# Remove any existing wine packages that conflict with hangover-wine
-echo "   Removing conflicting Wine packages..."
-apt-get remove -y wine wine-stable wine32 wine64 winehq-stable winehq-staging \
-  wine-staging wine-staging-amd64 wine-staging-i386 libwine 2>/dev/null || true
-# Do NOT run autoremove, as it deletes libsdl2 and libosmesa which Hangover needs!
-
-# Explicitly install GUI dependencies for Hangover/MT5
-apt-get install -y libsdl2-2.0-0 libosmesa6 libxss1 fonts-wine
-
-# Clean up any previous broken installations
-rm -rf /opt/hangover /tmp/hangover_debs 2>/dev/null || true
-rm -rf ~/.wine ~/.mt5 /root/.wine /root/.mt5 2>/dev/null || true
-
-mkdir -p /tmp/hangover_debs
-HANGOVER_TAR="/tmp/hangover.tar"
-
-echo "   Downloading Hangover 11.4 tar (~234 MB)..."
-wget -q --show-progress \
-  "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_noble_arm64.tar" \
-  -O "$HANGOVER_TAR"
-
-echo "   Extracting .deb packages from tar..."
-tar -xf "$HANGOVER_TAR" -C /tmp/hangover_debs/
-
-echo "   Installing Hangover .deb packages..."
-# Install all .deb files found inside the tar
-dpkg -i /tmp/hangover_debs/*.deb 2>&1 || apt-get install -f -y 2>&1 || true
-
-# Verify wine64 is now installed and working
-echo "   Verifying Hangover x86_64 wine..."
-if [ -f "$WINE64" ]; then
-  echo "   ✅ Hangover x86_64 wine found: $WINE64"
-  "$WINE64" --version 2>&1 || echo "   version check failed but binary exists"
-else
-  echo "   ❌ $WINE64 NOT FOUND — listing /opt/wine-x86_64/bin:"
-  ls /opt/wine-x86_64/bin/ 2>/dev/null || echo "   /opt/wine-x86_64/bin does not exist"
-  exit 1
-fi
-
-# ── 4. Pre-initialise the Wine prefix WITH the display running ─────────────
-echo "[4/7] Initialising Wine prefix at $WINEPREFIX..."
+echo "[6/8] Initialising Wine prefix at $WINEPREFIX..."
 mkdir -p "$WINEPREFIX"
-
-# Run wineboot using the x86_64 Hangover wine — REQUIRED before MT5 can be installed
-DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" wineboot --init 2>&1
-WINEBOOT_EXIT=$?
-echo "   wineboot exit code: $WINEBOOT_EXIT"
-
-# Give wineserver time to fully settle
+$CHROOT_CMD /bin/bash -c "export DISPLAY=$DISPLAY_NUM; export WINEPREFIX=$WINEPREFIX; wineboot --init"
 sleep 5
-"$WINE64" wineserver --wait 2>/dev/null || true
-echo "   Wine prefix initialised."
 
-# ── 5. Install MetaTrader 5 using the WINDOWS installer (bypasses mt5linux.sh)
-echo "[5/7] Installing MetaTrader 5..."
+echo "[7/8] Installing MetaTrader 5..."
+wget -q -O /tmp/mt5setup.exe "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe"
+cp /tmp/mt5setup.exe "$CHROOT_DIR/tmp/"
 
-MT5_INSTALLER="/tmp/mt5setup.exe"
-echo "   Downloading MT5 Windows installer..."
-wget -q --show-progress \
-  "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe" \
-  -O "$MT5_INSTALLER"
-
-echo "   Running MT5 silent install via Hangover x86_64 wine..."
+echo "   Running MT5 silent install via standard Wine inside chroot..."
 echo "   (This takes 2-5 minutes — do not interrupt)"
+$CHROOT_CMD /bin/bash -c "export DISPLAY=$DISPLAY_NUM; export WINEPREFIX=$WINEPREFIX; wine /tmp/mt5setup.exe /silent" &
+MT5_PID=$!
 
-DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" \
-"$WINE64" "$MT5_INSTALLER" /silent 2>&1 &
-MT5_INSTALL_PID=$!
+wait $MT5_PID || true
+sleep 10 # Extra buffer for post-install background tasks
 
-# Wait up to 5 minutes for MT5 to install
-SECONDS_WAITED=0
-while kill -0 $MT5_INSTALL_PID 2>/dev/null; do
-  sleep 5
-  SECONDS_WAITED=$((SECONDS_WAITED + 5))
-  echo "   Waiting for MT5 installer... ${SECONDS_WAITED}s"
-  if [ $SECONDS_WAITED -ge 300 ]; then
-    echo "   ⚠ MT5 install taking >5 min, checking if already installed..."
-    break
-  fi
-done
-
-# Check if MT5 installed successfully
-MT5_EXE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
-if [ -f "$MT5_EXE" ]; then
-  echo "   ✅ MT5 installed at: $MT5_EXE"
+if [ -f "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" ]; then
+    echo "   ✅ MT5 Installed Successfully!"
 else
-  echo "   ❌ terminal64.exe not found. Searching for it..."
-  find "$WINEPREFIX" -name "terminal64.exe" 2>/dev/null | head -5
-  echo ""
-  echo "   MT5 may have installed to a different path."
-  echo "   Check: ls '$WINEPREFIX/drive_c/Program Files/'"
+    echo "   ❌ terminal64.exe not found. Installation may have failed."
+    ls -l "$WINEPREFIX/drive_c/Program Files/" || true
 fi
 
-# ── 6. Create /usr/bin/mt5 wrapper ─────────────────────────────────────────
-echo "[6/7] Creating /usr/bin/mt5 launcher..."
-cat > /usr/bin/mt5 << 'WRAPPER'
-#!/bin/bash
-export DISPLAY="${DISPLAY:-:99}"
-export WINEPREFIX="${WINEPREFIX:-/root/.mt5}"
-export WINEDLLOVERRIDES="mscoree,mshtml="
-# Use Hangover's x86_64 wine to run the x86_64 MT5 terminal
-exec /opt/wine-x86_64/bin/wine64 "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
-WRAPPER
-chmod +x /usr/bin/mt5
-
-# ── 7. Python worker environment ────────────────────────────────────────────
-echo "[7/7] Setting up Python worker environment..."
+echo "[8/8] Setting up Python worker environment..."
 mkdir -p "$WORKER_DIR"
 python3 -m venv "$WORKER_DIR/venv"
 "$WORKER_DIR/venv/bin/pip" install -q requests python-dotenv
