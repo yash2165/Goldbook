@@ -8,6 +8,8 @@
 WORKER_DIR="/opt/goldbook-worker"
 WINEPREFIX="/root/.mt5"
 DISPLAY_NUM=":99"
+# Hangover x86_64 wine — this is the binary that translates x86_64 Windows apps on ARM64
+WINE64="/opt/wine-x86_64/bin/wine64"
 export WINEPREFIX DISPLAY="$DISPLAY_NUM"
 
 echo "======================================================"
@@ -64,23 +66,28 @@ echo "   Installing Hangover .deb packages..."
 dpkg -i /tmp/hangover_debs/*.deb 2>&1 || apt-get install -f -y 2>&1 || true
 
 # Verify wine64 is now installed and working
-echo "   Verifying Hangover wine64..."
-WINE64_PATH=$(which wine64 2>/dev/null || echo "NOT FOUND")
-echo "   wine64 path: $WINE64_PATH"
-wine64 --version 2>&1 || echo "   ⚠ wine64 --version failed (may still work)"
+echo "   Verifying Hangover x86_64 wine..."
+if [ -f "$WINE64" ]; then
+  echo "   ✅ Hangover x86_64 wine found: $WINE64"
+  "$WINE64" --version 2>&1 || echo "   version check failed but binary exists"
+else
+  echo "   ❌ $WINE64 NOT FOUND — listing /opt/wine-x86_64/bin:"
+  ls /opt/wine-x86_64/bin/ 2>/dev/null || echo "   /opt/wine-x86_64/bin does not exist"
+  exit 1
+fi
 
 # ── 4. Pre-initialise the Wine prefix WITH the display running ─────────────
 echo "[4/7] Initialising Wine prefix at $WINEPREFIX..."
 mkdir -p "$WINEPREFIX"
 
-# Run wineboot with display — this is REQUIRED before MT5 can be installed
-WINEDLLOVERRIDES="mscoree,mshtml=" wine64 wineboot --init 2>&1
+# Run wineboot using the x86_64 Hangover wine — REQUIRED before MT5 can be installed
+WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" wineboot --init 2>&1
 WINEBOOT_EXIT=$?
 echo "   wineboot exit code: $WINEBOOT_EXIT"
 
 # Give wineserver time to fully settle
 sleep 5
-wineserver --wait 2>/dev/null || true
+"$WINE64" wineserver --wait 2>/dev/null || true
 echo "   Wine prefix initialised."
 
 # ── 5. Install MetaTrader 5 using the WINDOWS installer (bypasses mt5linux.sh)
@@ -92,11 +99,11 @@ wget -q --show-progress \
   "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe" \
   -O "$MT5_INSTALLER"
 
-echo "   Running MT5 silent install via Hangover wine64..."
+echo "   Running MT5 silent install via Hangover x86_64 wine..."
 echo "   (This takes 2-5 minutes — do not interrupt)"
 
 WINEDLLOVERRIDES="mscoree,mshtml=" \
-wine64 "$MT5_INSTALLER" /silent 2>&1 &
+"$WINE64" "$MT5_INSTALLER" /silent 2>&1 &
 MT5_INSTALL_PID=$!
 
 # Wait up to 5 minutes for MT5 to install
@@ -130,7 +137,8 @@ cat > /usr/bin/mt5 << 'WRAPPER'
 export DISPLAY="${DISPLAY:-:99}"
 export WINEPREFIX="${WINEPREFIX:-/root/.mt5}"
 export WINEDLLOVERRIDES="mscoree,mshtml="
-exec wine64 "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
+# Use Hangover's x86_64 wine to run the x86_64 MT5 terminal
+exec /opt/wine-x86_64/bin/wine64 "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
 WRAPPER
 chmod +x /usr/bin/mt5
 
