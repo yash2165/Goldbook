@@ -1,81 +1,31 @@
 #!/bin/bash
-# GoldBook MT5 Parallel Orchestrator — VPS Setup (QEMU Chroot Method)
-# This script sets up an amd64 environment on an ARM64 host using qemu-user-static and debootstrap.
+# GoldBook MT5 Parallel Orchestrator — VPS Setup (Hangover 11.4)
+# Optimised for Oracle Cloud ARM64 (Ampere A1)
+
+set -e
 
 WORKER_DIR="/opt/goldbook-worker"
 WINEPREFIX="/root/.mt5"
 DISPLAY_NUM=":99"
-CHROOT_DIR="/opt/amd64-chroot"
-CHROOT_CMD="/usr/bin/amd64-chroot"
-
-export DEBIAN_FRONTEND=noninteractive
+WINE64="/opt/wine-x86_64/bin/wine64"
+export WINEPREFIX DISPLAY="$DISPLAY_NUM"
 
 echo "======================================================"
 echo "  GoldBook MT5 Parallel Orchestrator — VPS Setup"
-echo "  Method: QEMU-User-Static + Debootstrap (Amd64)"
+echo "  Method: Hangover 11.4 (Fixed for Oracle ARM64)"
 echo "======================================================"
 
-echo "[1/8] Installing Host Dependencies..."
+echo "[1/8] Cleaning up previous QEMU/Chroot attempts..."
+rm -rf /opt/amd64-chroot /usr/bin/amd64-chroot /usr/local/bin/amd64-chroot 2>/dev/null || true
+apt-get remove --purge -y qemu-user-static binfmt-support debootstrap schroot 2>/dev/null || true
+apt-get autoremove -y 2>/dev/null || true
+
+echo "[2/8] Installing Host Dependencies..."
 apt-get update
-apt-get install -y qemu-user-static binfmt-support debootstrap xvfb wget curl unzip python3 python3-pip python3-venv 2>/dev/null || true
+# Note: DELIBERATELY REMOVED 'fonts-wine' as it conflicts with Hangover and breaks apt!
+apt-get install -y xvfb wget curl unzip python3 python3-pip python3-venv xauth cabextract libsdl2-2.0-0 libosmesa6 libxss1
 
-echo "[2/8] Configuring Chroot Mounts and Wrapper..."
-cat << 'EOF' > "$CHROOT_CMD"
-#!/bin/bash
-CHROOT_DIR="/opt/amd64-chroot"
-# Ensure essential filesystems are mounted
-for dir in dev proc sys dev/pts tmp root; do
-    mkdir -p "$CHROOT_DIR/$dir"
-    if ! mountpoint -q "$CHROOT_DIR/$dir"; then
-        mount --bind "/$dir" "$CHROOT_DIR/$dir"
-    fi
-done
-# Copy resolv.conf for internet access
-if [ -f /etc/resolv.conf ]; then
-    cp /etc/resolv.conf "$CHROOT_DIR/etc/resolv.conf"
-fi
-exec chroot "$CHROOT_DIR" "$@"
-EOF
-chmod +x "$CHROOT_CMD"
-
-echo "[3/8] Creating AMD64 Chroot Environment (Ubuntu 22.04 Jammy)..."
-if [ ! -d "$CHROOT_DIR/etc" ]; then
-    echo "   Running debootstrap stage 1 (foreign)..."
-    debootstrap --arch=amd64 --foreign jammy "$CHROOT_DIR" http://archive.ubuntu.com/ubuntu/
-    
-    echo "   Copying qemu-x86_64-static into chroot..."
-    mkdir -p "$CHROOT_DIR/usr/bin"
-    cp /usr/bin/qemu-x86_64-static "$CHROOT_DIR/usr/bin/"
-    
-    echo "   Activating mounts for stage 2..."
-    $CHROOT_CMD echo "Mounts active."
-    
-    echo "   Running debootstrap stage 2 (inside chroot)..."
-    chroot "$CHROOT_DIR" /debootstrap/debootstrap --second-stage
-else
-    echo "   Chroot directory already exists — skipping bootstrap."
-    $CHROOT_CMD echo "Mounts active."
-fi
-
-
-
-echo "[4/8] Installing Standard Wine (x86_64) inside Chroot..."
-cat << 'EOF' > "$CHROOT_DIR/tmp/install_wine.sh"
-#!/bin/bash
-export DEBIAN_FRONTEND=noninteractive
-dpkg --add-architecture i386
-apt-get update
-apt-get install -y software-properties-common wget curl xvfb gnupg2
-mkdir -pm755 /etc/apt/keyrings
-wget -qO /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-wget -qNP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
-apt-get update
-apt-get install -y --install-recommends winehq-stable winbind cabextract
-EOF
-chmod +x "$CHROOT_DIR/tmp/install_wine.sh"
-$CHROOT_CMD /tmp/install_wine.sh
-
-echo "[5/8] Starting Xvfb virtual display on $DISPLAY_NUM..."
+echo "[3/8] Starting Xvfb virtual display on $DISPLAY_NUM..."
 if [ -f /tmp/.X99-lock ] && ! pgrep -x Xvfb > /dev/null; then
   rm -f /tmp/.X99-lock
 fi
@@ -87,121 +37,98 @@ else
   echo "   Xvfb already running — OK"
 fi
 
-export DISPLAY="$DISPLAY_NUM"
+echo "[4/8] Installing Hangover 11.4..."
+rm -rf /opt/hangover /tmp/hangover_debs 2>/dev/null || true
+mkdir -p /tmp/hangover_debs
 
-echo "[6/8] Initialising Wine prefix at $WINEPREFIX..."
+if [ ! -f "/tmp/hangover.tar" ]; then
+    echo "   Downloading Hangover 11.4 tar (~234 MB)..."
+    wget -q --show-progress -O /tmp/hangover.tar "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_arm64.tar"
+fi
+
+echo "   Extracting & Installing Hangover..."
+tar -xf /tmp/hangover.tar -C /tmp/hangover_debs
+# Force overwrite to prevent any lingering font conflicts
+dpkg -i --force-overwrite /tmp/hangover_debs/*.deb 2>/dev/null || apt-get install -f -y
+
+if [ ! -f "$WINE64" ]; then
+    echo "   ❌ Hangover installation failed!"
+    exit 1
+fi
+
+echo "[5/8] Initialising Wine Prefix (Forcing X11)..."
+rm -rf "$WINEPREFIX"
 mkdir -p "$WINEPREFIX"
-$CHROOT_CMD /bin/bash -c "export DISPLAY=$DISPLAY_NUM; export WINEPREFIX=$WINEPREFIX; wineboot --init"
+
+# Force X11 instead of Wayland to prevent nodrv_CreateWindow crashes
+DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" reg add "HKCU\Software\Wine\Drivers" /v Graphics /d "x11" /f 2>/dev/null || true
+DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" wineboot --init 2>&1
 sleep 5
 
-echo "[7/8] Installing MetaTrader 5..."
-wget -q -O /tmp/mt5setup.exe "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe"
-cp /tmp/mt5setup.exe "$CHROOT_DIR/tmp/"
+echo "[6/8] Installing MetaTrader 5..."
+MT5_INSTALLER="/tmp/mt5setup.exe"
+if [ ! -f "$MT5_INSTALLER" ]; then
+    wget -q --show-progress -O "$MT5_INSTALLER" "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe"
+fi
 
-echo "   Running MT5 silent install via standard Wine inside chroot..."
-echo "   (This takes 2-5 minutes — do not interrupt)"
-$CHROOT_CMD /bin/bash -c "export DISPLAY=$DISPLAY_NUM; export WINEPREFIX=$WINEPREFIX; wine /tmp/mt5setup.exe /silent" &
+echo "   Running silent install (Takes 1-3 minutes)..."
+DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" "$MT5_INSTALLER" /silent 2>&1 &
 MT5_PID=$!
 
-wait $MT5_PID || true
-sleep 10 # Extra buffer for post-install background tasks
+# Wait loop
+TIMEOUT=300
+ELAPSED=0
+while kill -0 $MT5_PID 2>/dev/null; do
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+    if [ $ELAPSED -ge $TIMEOUT ]; then
+        kill -9 $MT5_PID 2>/dev/null || true
+        break
+    fi
+done
+sleep 10
 
 if [ -f "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" ]; then
     echo "   ✅ MT5 Installed Successfully!"
 else
-    echo "   ❌ terminal64.exe not found. Installation may have failed."
-    ls -l "$WINEPREFIX/drive_c/Program Files/" || true
+    echo "   ❌ terminal64.exe not found."
+    exit 1
 fi
 
-echo "[8/8] Setting up Python worker environment..."
+echo "[7/8] Setting up Python Worker..."
 mkdir -p "$WORKER_DIR"
-python3 -m venv "$WORKER_DIR/venv"
-"$WORKER_DIR/venv/bin/pip" install -q requests python-dotenv
-
-# Copy worker files
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cp "$SCRIPT_DIR/orchestrator.py"  "$WORKER_DIR/"
-cp "$SCRIPT_DIR/GoldBookSync.mq5" "$WORKER_DIR/"
-
-# .env template
-ENV_FILE="$WORKER_DIR/.env"
-if [ ! -f "$ENV_FILE" ]; then
-cat > "$ENV_FILE" << 'ENVEOF'
-# ── Supabase ──────────────────────────────────────────────────
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
-
-# ── GoldBook API ──────────────────────────────────────────────
-API_BASE=https://yourdomain.com/api
-GOLDBOOK_API_URL=https://yourdomain.com/api/ea-sync
-WORKER_SECRET=your-secret-here
-
-# ── MT5 / Wine ────────────────────────────────────────────────
-MT5_BINARY=/usr/bin/mt5
-DISPLAY=:99
-WINEPREFIX=/root/.mt5
-
-# ── Tuning (24GB Oracle VPS → 20 users) ──────────────────────
-SYNC_INTERVAL_SECONDS=30
-MT5_TIMEOUT_SECONDS=90
-MAX_PARALLEL=20
-ENVEOF
-  echo "   ⚠️  Edit $ENV_FILE with your credentials before starting!"
-else
-  echo "   .env already exists — skipping."
+cp -r orchestrator.py requirements.txt "$WORKER_DIR/"
+if [ ! -d "$WORKER_DIR/venv" ]; then
+    python3 -m venv "$WORKER_DIR/venv"
+    "$WORKER_DIR/venv/bin/pip" install -r "$WORKER_DIR/requirements.txt"
 fi
 
-# ── Systemd services ────────────────────────────────────────────────────────
-cat > /etc/systemd/system/xvfb-goldbook.service << EOF
+cat << 'EOF' > "$WORKER_DIR/.env"
+GOLDBOOK_API_URL=http://your-nextjs-app.com/api
+WORKER_SECRET=your_secure_worker_secret
+MT5_SERVER_IP=127.0.0.1
+EOF
+
+cat << 'EOF' > /etc/systemd/system/goldbook-worker.service
 [Unit]
-Description=Xvfb Virtual Display for GoldBook MT5
+Description=GoldBook MT5 Parallel Orchestrator
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/Xvfb $DISPLAY_NUM -screen 0 1280x800x24 -nolisten tcp
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat > /etc/systemd/system/goldbook-worker.service << EOF
-[Unit]
-Description=GoldBook MT5 Parallel Orchestrator
-After=network.target xvfb-goldbook.service
-Requires=xvfb-goldbook.service
-
-[Service]
-WorkingDirectory=$WORKER_DIR
-EnvironmentFile=$WORKER_DIR/.env
-Environment="DISPLAY=$DISPLAY_NUM"
+Type=simple
+User=root
+WorkingDirectory=/opt/goldbook-worker
+Environment="DISPLAY=:99"
 Environment="WINEPREFIX=/root/.mt5"
-ExecStartPre=/usr/bin/amd64-chroot echo "Mounting chroot filesystems"
-ExecStart=$WORKER_DIR/venv/bin/python orchestrator.py
+ExecStart=/opt/goldbook-worker/venv/bin/python orchestrator.py
 Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable xvfb-goldbook goldbook-worker
-systemctl start xvfb-goldbook
+systemctl enable goldbook-worker 2>/dev/null || true
 
-# ── Summary ─────────────────────────────────────────────────────────────────
-echo ""
-echo "======================================================"
-echo "  Setup Complete!"
-echo "======================================================"
-echo ""
-echo "  Verify MT5 installed:"
-echo "    ls '$WINEPREFIX/drive_c/Program Files/MetaTrader 5/'"
-echo ""
-echo "  ① Edit credentials:   nano $ENV_FILE"
-echo "  ② Start worker:       sudo systemctl start goldbook-worker"
-echo "  ③ Live logs:          sudo journalctl -u goldbook-worker -f"
-echo ""
+echo "[8/8] Setup Complete! MT5 is installed and ready."
