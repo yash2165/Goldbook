@@ -22,15 +22,27 @@ apt-get install -y xvfb wget python3 python3-pip python3-venv curl unzip xauth c
 
 # ── 2. Start Xvfb FIRST — Wine requires a display to initialise ────────────
 echo "[2/7] Starting Xvfb virtual display on $DISPLAY_NUM..."
-pkill -x Xvfb 2>/dev/null || true
-sleep 1
-Xvfb "$DISPLAY_NUM" -screen 0 1280x800x24 -nolisten tcp &
-XVFB_PID=$!
-sleep 3
-echo "   Xvfb started (PID $XVFB_PID)"
+# Remove stale lock if Xvfb is not actually running
+if [ -f /tmp/.X99-lock ] && ! pgrep -x Xvfb > /dev/null; then
+  rm -f /tmp/.X99-lock
+fi
+# Only start if not already running
+if ! pgrep -x Xvfb > /dev/null; then
+  Xvfb "$DISPLAY_NUM" -screen 0 1280x800x24 -nolisten tcp &
+  sleep 3
+  echo "   Xvfb started (PID $!)"
+else
+  echo "   Xvfb already running — OK"
+fi
 
 # ── 3. Install Hangover 11.4 via .deb packages ─────────────────────────────
 echo "[3/7] Installing Hangover 11.4 (ARM64 native Wine)..."
+
+# Remove any existing wine packages that conflict with hangover-wine
+echo "   Removing conflicting Wine packages..."
+apt-get remove -y wine wine-stable wine32 wine64 winehq-stable winehq-staging \
+  wine-staging wine-staging-amd64 wine-staging-i386 libwine 2>/dev/null || true
+apt-get autoremove -y 2>/dev/null || true
 
 # Clean up any previous broken installations
 rm -rf /opt/hangover /tmp/hangover_debs 2>/dev/null || true
