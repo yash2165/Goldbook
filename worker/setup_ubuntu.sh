@@ -19,22 +19,7 @@ echo "[1/8] Installing Host Dependencies..."
 apt-get update
 apt-get install -y qemu-user-static binfmt-support debootstrap xvfb wget curl unzip python3 python3-pip python3-venv 2>/dev/null || true
 
-echo "[2/8] Creating AMD64 Chroot Environment (Takes 3-5 minutes)..."
-if [ ! -d "$CHROOT_DIR/etc" ]; then
-    echo "   Running debootstrap stage 1 (foreign)..."
-    debootstrap --arch=amd64 --foreign noble "$CHROOT_DIR" http://archive.ubuntu.com/ubuntu/
-    
-    echo "   Copying qemu-x86_64-static into chroot..."
-    mkdir -p "$CHROOT_DIR/usr/bin"
-    cp /usr/bin/qemu-x86_64-static "$CHROOT_DIR/usr/bin/"
-    
-    echo "   Running debootstrap stage 2 (inside chroot)..."
-    chroot "$CHROOT_DIR" /debootstrap/debootstrap --second-stage
-else
-    echo "   Chroot directory already exists — skipping bootstrap."
-fi
-
-echo "[3/8] Configuring Chroot Mounts and Wrapper..."
+echo "[2/8] Configuring Chroot Mounts and Wrapper..."
 cat << 'EOF' > "$CHROOT_CMD"
 #!/bin/bash
 CHROOT_DIR="/opt/amd64-chroot"
@@ -46,13 +31,33 @@ for dir in dev proc sys dev/pts tmp root; do
     fi
 done
 # Copy resolv.conf for internet access
-cp /etc/resolv.conf "$CHROOT_DIR/etc/resolv.conf"
+if [ -f /etc/resolv.conf ]; then
+    cp /etc/resolv.conf "$CHROOT_DIR/etc/resolv.conf"
+fi
 exec chroot "$CHROOT_DIR" "$@"
 EOF
 chmod +x "$CHROOT_CMD"
 
-# Run once to mount everything
-$CHROOT_CMD echo "   Chroot mounts active."
+echo "[3/8] Creating AMD64 Chroot Environment (Ubuntu 22.04 Jammy)..."
+if [ ! -d "$CHROOT_DIR/etc" ]; then
+    echo "   Running debootstrap stage 1 (foreign)..."
+    debootstrap --arch=amd64 --foreign jammy "$CHROOT_DIR" http://archive.ubuntu.com/ubuntu/
+    
+    echo "   Copying qemu-x86_64-static into chroot..."
+    mkdir -p "$CHROOT_DIR/usr/bin"
+    cp /usr/bin/qemu-x86_64-static "$CHROOT_DIR/usr/bin/"
+    
+    echo "   Activating mounts for stage 2..."
+    $CHROOT_CMD echo "Mounts active."
+    
+    echo "   Running debootstrap stage 2 (inside chroot)..."
+    chroot "$CHROOT_DIR" /debootstrap/debootstrap --second-stage
+else
+    echo "   Chroot directory already exists — skipping bootstrap."
+    $CHROOT_CMD echo "Mounts active."
+fi
+
+
 
 echo "[4/8] Installing Standard Wine (x86_64) inside Chroot..."
 cat << 'EOF' > "$CHROOT_DIR/tmp/install_wine.sh"
@@ -63,7 +68,7 @@ apt-get update
 apt-get install -y software-properties-common wget curl xvfb gnupg2
 mkdir -pm755 /etc/apt/keyrings
 wget -qO /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-wget -qNP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
+wget -qNP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
 apt-get update
 apt-get install -y --install-recommends winehq-stable winbind cabextract
 EOF
