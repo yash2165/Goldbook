@@ -8,8 +8,9 @@
 WORKER_DIR="/opt/goldbook-worker"
 WINEPREFIX="/root/.mt5"
 DISPLAY_NUM=":99"
-# Hangover x86_64 wine — this is the binary that translates x86_64 Windows apps on ARM64
-WINE64="/opt/wine-x86_64/bin/wine64"
+# Hangover replaces /usr/bin/wine and /usr/bin/wine64 system-wide.
+# Per official Hangover docs: "run x86_64 apps using the wine command just as you would with standard Wine"
+WINE64="/usr/bin/wine64"
 export WINEPREFIX DISPLAY="$DISPLAY_NUM"
 
 echo "======================================================"
@@ -137,8 +138,8 @@ cat > /usr/bin/mt5 << 'WRAPPER'
 export DISPLAY="${DISPLAY:-:99}"
 export WINEPREFIX="${WINEPREFIX:-/root/.mt5}"
 export WINEDLLOVERRIDES="mscoree,mshtml="
-# Use Hangover's x86_64 wine to run the x86_64 MT5 terminal
-exec /opt/wine-x86_64/bin/wine64 "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
+# Use Hangover wine64 (replaces /usr/bin/wine64 system-wide after deb install)
+exec /usr/bin/wine64 "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
 WRAPPER
 chmod +x /usr/bin/mt5
 
