@@ -44,7 +44,10 @@ echo "[3/7] Installing Hangover 11.4 (ARM64 native Wine)..."
 echo "   Removing conflicting Wine packages..."
 apt-get remove -y wine wine-stable wine32 wine64 winehq-stable winehq-staging \
   wine-staging wine-staging-amd64 wine-staging-i386 libwine 2>/dev/null || true
-apt-get autoremove -y 2>/dev/null || true
+# Do NOT run autoremove, as it deletes libsdl2 and libosmesa which Hangover needs!
+
+# Explicitly install GUI dependencies for Hangover/MT5
+apt-get install -y libsdl2-2.0-0 libosmesa6 libxss1 fonts-wine
 
 # Clean up any previous broken installations
 rm -rf /opt/hangover /tmp/hangover_debs 2>/dev/null || true
@@ -81,7 +84,7 @@ echo "[4/7] Initialising Wine prefix at $WINEPREFIX..."
 mkdir -p "$WINEPREFIX"
 
 # Run wineboot using the x86_64 Hangover wine — REQUIRED before MT5 can be installed
-WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" wineboot --init 2>&1
+DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" wineboot --init 2>&1
 WINEBOOT_EXIT=$?
 echo "   wineboot exit code: $WINEBOOT_EXIT"
 
@@ -102,7 +105,7 @@ wget -q --show-progress \
 echo "   Running MT5 silent install via Hangover x86_64 wine..."
 echo "   (This takes 2-5 minutes — do not interrupt)"
 
-WINEDLLOVERRIDES="mscoree,mshtml=" \
+DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" \
 "$WINE64" "$MT5_INSTALLER" /silent 2>&1 &
 MT5_INSTALL_PID=$!
 
