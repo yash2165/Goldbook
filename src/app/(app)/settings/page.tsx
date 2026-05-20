@@ -263,7 +263,9 @@ export default function SettingsPage() {
                       className="w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] text-white appearance-none"
                     >
                       <option value="">Select Country</option>
-                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      {Array.from(new Set([...COUNTRIES, profile.country])).filter(Boolean).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
                     </select>
                   </div>
                   
@@ -274,7 +276,9 @@ export default function SettingsPage() {
                       onChange={e => setProfile(p => ({ ...p, timezone: e.target.value }))}
                       className="w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] text-white appearance-none"
                     >
-                      {TIMEZONES.map(t => <option key={t} value={t}>{t}</option>)}
+                      {Array.from(new Set([...TIMEZONES, profile.timezone])).filter(Boolean).map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

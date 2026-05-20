@@ -6,25 +6,19 @@
 //|   1. Orchestrator launches MT5 with /script:GoldBookSync        |
 //|   2. This script runs automatically on MT5 startup              |
 //|   3. Reads account balance, open positions, closed deals         |
-//|   4. POSTs everything to /api/ea-sync via WebRequest            |
+//|   4. Writes everything to MQL5/Files/sync_result.json           |
 //|   5. Calls TerminalClose(0) so MT5 exits and the thread is done |
 //+------------------------------------------------------------------+
 #property script_show_inputs
 
-input string ApiUrl      = "https://yourdomain.com/api/ea-sync";
 input string SyncToken   = "";
 input int    HistoryDays = 90;
 
-int g_last_web_error = 0;
-int g_last_http_status = 0;
-
-string g_api_url = "";
 string g_sync_token = "";
 
 //+------------------------------------------------------------------+
 void OnStart()
 {
-   g_api_url = ApiUrl;
    g_sync_token = SyncToken;
 
    // Read config file from MQL5/Files/sync_config.txt if it exists
@@ -41,9 +35,7 @@ void OnStart()
             string val = StringSubstr(line, eq_idx + 1);
             StringTrimLeft(key); StringTrimRight(key);
             StringTrimLeft(val); StringTrimRight(val);
-            
-            if(key == "ApiUrl") g_api_url = val;
-            else if(key == "SyncToken") g_sync_token = val;
+            if(key == "SyncToken") g_sync_token = val;
          }
       }
       FileClose(file_handle);
@@ -58,25 +50,33 @@ void OnStart()
 
    Print("GoldBook: Starting sync for token=", g_sync_token);
 
-   g_last_web_error = 0;
-   g_last_http_status = 0;
-   if(!SyncBalance())
-   {
-      int code = 1;
-      if(g_last_web_error != 0) code = g_last_web_error;
-      else if(g_last_http_status != 0) code = 1000 + g_last_http_status;
+   string account_json = GetBalanceJson();
+   string trades_json = GetClosedDealsJson();
+   string positions_json = GetOpenPositionsJson();
 
-      Print("GoldBook: Balance sync failed. Closing terminal with code=", code);
-      Sleep(500);
-      TerminalClose(code);
-      return;
+   // Combine into a single massive JSON array
+   string final_json = "[";
+   final_json += account_json;
+   
+   if (trades_json != "") final_json += "," + trades_json;
+   if (positions_json != "") final_json += "," + positions_json;
+   
+   final_json += "]";
+
+   // Write to result file
+   int out_handle = FileOpen("sync_result.json", FILE_WRITE|FILE_TXT|FILE_ANSI);
+   if(out_handle != INVALID_HANDLE)
+   {
+      FileWriteString(out_handle, final_json);
+      FileClose(out_handle);
+      Print("GoldBook: Data written to sync_result.json");
+   }
+   else
+   {
+      Print("GoldBook: Failed to write sync_result.json. Error=", GetLastError());
    }
 
-   // Best-effort trade/position sync (do not fail verification if these error)
-   SyncClosedDeals();
-   SyncOpenPositions();
-
-   Print("GoldBook: All data pushed. Closing terminal.");
+   Print("GoldBook: All data processed. Closing terminal.");
    Sleep(500);
    TerminalClose(0);
 }
@@ -84,9 +84,9 @@ void OnStart()
 //+------------------------------------------------------------------+
 //| 1. Account balance & equity                                      |
 //+------------------------------------------------------------------+
-bool SyncBalance()
+string GetBalanceJson()
 {
-   string json = StringFormat(
+   return StringFormat(
       "{"
         "\"type\":\"account\","
         "\"sync_token\":\"%s\","
@@ -109,23 +109,18 @@ bool SyncBalance()
       AccountInfoString(ACCOUNT_CURRENCY),
       AccountInfoString(ACCOUNT_NAME)
    );
-   return Post(json);
 }
 
 //+------------------------------------------------------------------+
 //| 2. Closed deals from last HistoryDays                           |
 //+------------------------------------------------------------------+
-void SyncClosedDeals()
+string GetClosedDealsJson()
 {
    datetime fromDate = TimeCurrent() - (datetime)(HistoryDays * 86400);
-   if(!HistorySelect(fromDate, TimeCurrent()))
-   {
-      Print("GoldBook: HistorySelect failed, error=", GetLastError());
-      return;
-   }
+   if(!HistorySelect(fromDate, TimeCurrent())) return "";
 
    int total = HistoryDealsTotal();
-   if(total == 0) return;
+   if(total == 0) return "";
 
    // ── Pass 1: collect all ENTRY_IN deals ───────────────────────
    ulong  inPosId[]; double inPrice[]; long inTime[]; int inType[];
@@ -206,23 +201,22 @@ void SyncClosedDeals()
    }
    arr += "]";
 
-   if(count == 0) return;
+   if(count == 0) return "";
 
-   string json = StringFormat(
+   return StringFormat(
       "{\"type\":\"trades\",\"sync_token\":\"%s\",\"trades\":%s}",
       g_sync_token, arr
    );
-   if(!Post(json))
-      Print("GoldBook: Trade sync failed (non-fatal).");
-   Print("GoldBook: Pushed ", count, " closed deal(s)");
 }
 
 //+------------------------------------------------------------------+
 //| 3. Currently open positions                                      |
 //+------------------------------------------------------------------+
-void SyncOpenPositions()
+string GetOpenPositionsJson()
 {
    int total = PositionsTotal();
+   if(total == 0) return "";
+   
    string arr = "[";
    bool first = true;
 
@@ -255,48 +249,8 @@ void SyncOpenPositions()
    }
    arr += "]";
 
-   string json = StringFormat(
+   return StringFormat(
       "{\"type\":\"positions\",\"sync_token\":\"%s\",\"positions\":%s}",
       g_sync_token, arr
    );
-   if(!Post(json))
-      Print("GoldBook: Positions sync failed (non-fatal).");
-   Print("GoldBook: Pushed ", total, " open position(s)");
-}
-
-//+------------------------------------------------------------------+
-//| HTTP POST helper                                                 |
-//+------------------------------------------------------------------+
-bool Post(const string &body)
-{
-   char post[]; char result[]; string resHeaders;
-   int len = StringLen(body);
-   ArrayResize(post, len);
-   StringToCharArray(body, post, 0, len);
-
-   ResetLastError();
-   int status = WebRequest(
-      "POST", g_api_url,
-      "Content-Type: application/json\r\n",
-      5000, post, result, resHeaders
-   );
-
-   if(status == -1)
-   {
-      int err = GetLastError();
-      g_last_web_error = err;
-      if(err == 4060)
-         Print("GoldBook: URL not whitelisted! Add to: Tools > Options > Expert Advisors > WebRequest");
-      else
-         Print("GoldBook: WebRequest error code=", err);
-      return false;
-   }
-   else if(status != 200)
-   {
-      g_last_http_status = status;
-      Print("GoldBook: API returned status=", status, " | ", CharArrayToString(result));
-      return false;
-   }
-
-   return true;
 }

@@ -48,6 +48,7 @@ export async function POST(req: Request) {
         current_balance: balance,
         current_equity: equity,
         is_verified: true,
+        last_error: null,
         last_synced_at: new Date().toISOString(),
         ...extra,
       })

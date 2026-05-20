@@ -21,27 +21,44 @@ dpkg --remove-architecture i386 || true
 apt-get update -qq
 apt-get install -y xvfb wget python3 python3-pip python3-venv curl unzip xauth
 
-# ── 2. MT5 Linux terminal ──────────────────────────────────────────────────
-echo "[2/6] Installing MetaTrader 5 Linux terminal..."
+# ── 2. Hangover 11.4 & MT5 Linux terminal ───────────────────────────────────
+echo "[2/6] Installing Hangover 11.4 (ARM64 native wine) & MetaTrader 5..."
+
+# Wipe existing wine prefixes to prevent architecture mismatches
+rm -rf ~/.wine ~/.mt5 /root/.wine /root/.mt5 || true
+
+# Download and unpack Hangover 11.4
+HANGOVER_TAR="/tmp/hangover.tar"
+wget -q "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_noble_arm64.tar" -O "$HANGOVER_TAR"
+mkdir -p /opt/hangover
+tar -xf "$HANGOVER_TAR" -C /opt/hangover --strip-components=1 || tar -xf "$HANGOVER_TAR" -C /opt/hangover
+
+# Symlink Hangover to /usr/bin so installers and scripts find it naturally
+ln -sf /opt/hangover/bin/wine64 /usr/bin/wine64
+ln -sf /opt/hangover/bin/wine /usr/bin/wine
+
+# Fetch the official MT5 installer script
 MT5_SCRIPT="/tmp/mt5linux.sh"
 wget -q "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5linux.sh" -O "$MT5_SCRIPT"
 chmod +x "$MT5_SCRIPT"
 
-# Patch mt5linux.sh to skip adding the incompatible i386 architecture on ARM64 systems
+# Patch mt5linux.sh to skip adding i386 architecture and skip installing generic wine-stable package
 sed -i 's/dpkg --add-architecture i386/echo "Skipping i386 on ARM64"/g' "$MT5_SCRIPT"
+sed -i 's/apt-get install -y wine-stable/echo "Skipping standard wine package installation"/g' "$MT5_SCRIPT"
+sed -i 's/apt-get install -y wine/echo "Skipping generic wine package installation"/g' "$MT5_SCRIPT"
 
-# Run the official MetaQuotes installer script automatically
+# Run the official MetaQuotes installer script using our Hangover symlinks
+export WINEPREFIX="/root/.mt5"
 yes | "$MT5_SCRIPT" || true
 
-# Create the /usr/bin/mt5 wrapper script to bridge Box64, Wine x86_64, and the Orchestrator
+# Create the /usr/bin/mt5 wrapper script to execute native wine64 with Hangover
 echo "Creating /usr/bin/mt5 launcher wrapper..."
 cat << 'EOF' > /usr/bin/mt5
 #!/bin/bash
 USER_HOME="${HOME:-/root}"
 export WINEPREFIX="$USER_HOME/.mt5"
 export WINEDLLOVERRIDES="mscoree,mshtml="
-export BOX64_LOG=1
-box64 /opt/wine-x86_64/bin/wine64 "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
+/opt/hangover/bin/wine64 "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" "$@"
 EOF
 chmod +x /usr/bin/mt5
 

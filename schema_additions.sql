@@ -7,6 +7,7 @@ ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'mt5';
 
 -- 1b. Add sync_token to mt5_accounts
 ALTER TABLE public.mt5_accounts ADD COLUMN IF NOT EXISTS sync_token TEXT;
+ALTER TABLE public.mt5_accounts ADD COLUMN IF NOT EXISTS last_error TEXT;
 
 -- 2. Add pre-trade checklist JSONB
 ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS pre_trade_checklist JSONB;
@@ -114,6 +115,15 @@ BEGIN
     AND tablename = 'ai_reports'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.ai_reports;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'mt5_accounts'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.mt5_accounts;
   END IF;
 END $$;
 

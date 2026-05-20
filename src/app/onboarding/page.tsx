@@ -11,6 +11,7 @@ export default function OnboardingPage() {
     username: '',
     display_name: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    country: '',
     experience_level: '',
     forex_pairs: [] as string[]
   })
@@ -48,6 +49,7 @@ export default function OnboardingPage() {
         username: profile.username,
         display_name: profile.display_name,
         timezone: profile.timezone,
+        country: profile.country,
         experience_level: profile.experience_level,
         forex_pairs: profile.forex_pairs,
         onboarding_completed: true,
@@ -107,8 +109,30 @@ export default function OnboardingPage() {
                 <option value={Intl.DateTimeFormat().resolvedOptions().timeZone}>Local ({Intl.DateTimeFormat().resolvedOptions().timeZone})</option>
               </select>
             </div>
+            <div>
+              <label className="text-xs text-[#64748B] uppercase tracking-wider font-semibold mb-1.5 block">Country</label>
+              <select
+                value={profile.country}
+                onChange={e => setProfile({...profile, country: e.target.value})}
+                className="w-full bg-[#12121a] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] appearance-none"
+              >
+                <option value="">Select Country</option>
+                <option value="United States">United States</option>
+                <option value="United Kingdom">United Kingdom</option>
+                <option value="Canada">Canada</option>
+                <option value="Australia">Australia</option>
+                <option value="India">India</option>
+                <option value="Germany">Germany</option>
+                <option value="France">France</option>
+                <option value="Singapore">Singapore</option>
+                <option value="United Arab Emirates">United Arab Emirates</option>
+                <option value="South Africa">South Africa</option>
+                <option value="New Zealand">New Zealand</option>
+                <option value="Brazil">Brazil</option>
+              </select>
+            </div>
             <button
-              disabled={!profile.display_name || !profile.username}
+              disabled={!profile.display_name || !profile.username || !profile.country}
               onClick={() => setStep(2)}
               className="w-full py-3 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold transition-all disabled:opacity-50 mt-6"
             >

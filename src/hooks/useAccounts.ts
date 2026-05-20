@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 export interface MT5Account {
@@ -16,6 +16,8 @@ export interface MT5Account {
   is_verified: boolean
   is_active: boolean
   last_synced_at: string | null
+  last_error: string | null
+  sync_token: string | null
 }
 
 export function useAccounts() {
@@ -24,24 +26,72 @@ export function useAccounts() {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
+  const fetchAccounts = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setLoading(false); return }
+
+    const { data } = await supabase
+      .from('mt5_accounts')
+      .select('*')
+      .eq('user_id', user.id)
+
+    const accs = (data as MT5Account[]) ?? []
+    setAccounts(accs)
+    
+    // Maintain active account selection if possible, otherwise default to first active account, or first account
+    setActiveAccount(prev => {
+      if (prev) {
+        const updated = accs.find(a => a.id === prev.id)
+        if (updated) return updated
+      }
+      const firstActive = accs.find(a => a.is_active)
+      return firstActive || accs[0] || null
+    })
+    
+    setLoading(false)
+  }, [supabase])
+
   useEffect(() => {
-    async function fetchAccounts() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
-
-      const { data } = await supabase
-        .from('mt5_accounts')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-
-      const accs = (data as MT5Account[]) ?? []
-      setAccounts(accs)
-      if (accs.length > 0) setActiveAccount(accs[0])
-      setLoading(false)
-    }
     fetchAccounts()
-  }, [])
 
-  return { accounts, activeAccount, setActiveAccount, loading }
+    let channel: any
+
+    const setupRealtime = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      channel = supabase
+        .channel('mt5_accounts_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'mt5_accounts',
+            filter: `user_id=eq.${user.id}`
+          },
+          () => {
+            // Trigger a re-fetch of accounts upon any Postgres change (INSERT, UPDATE, DELETE)
+            fetchAccounts()
+          }
+        )
+        .subscribe()
+    }
+
+    setupRealtime()
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [supabase, fetchAccounts])
+
+  return { 
+    accounts, 
+    activeAccount, 
+    setActiveAccount, 
+    loading, 
+    refreshAccounts: fetchAccounts 
+  }
 }

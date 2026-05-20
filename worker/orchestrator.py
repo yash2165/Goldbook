@@ -194,7 +194,7 @@ def fetch_active_accounts() -> list[dict]:
     return []
 
 
-def report_error(account_id: str):
+def report_error(account_id: str, error_message: str):
     """Tell the API this account's login failed so the UI shows an error."""
     try:
         requests.post(
@@ -202,6 +202,7 @@ def report_error(account_id: str):
             json={
                 "type": "account_error",
                 "account_id": account_id,
+                "error_message": error_message,
                 "worker_secret": WORKER_SECRET,
             },
             timeout=8,
@@ -287,12 +288,12 @@ def prepare_data_dir(acc: dict) -> Path:
 # ── Single account sync (runs in its own thread) ──────────────────────────────
 def sync_account(acc: dict) -> dict:
     """
-    Launches a dedicated MT5 terminal process for this account.
-    The GoldBookSync MQL5 script runs automatically, pushes data to the API,
-    then calls TerminalClose() so the process exits cleanly.
-
-    Returns a result dict for logging.
+    Launches a dedicated MT5 terminal process for this account using Hangover 11.4.
+    Uses File Polling: The MT5 script writes to sync_result.json, and this Python
+    script reads it and sends it to the API. This bypasses all Wine HTTP bugs!
     """
+    import os, signal, json
+    
     login      = acc.get("mt5_login", "?")
     server     = acc.get("broker_server", "?")
     account_id = acc["id"]
@@ -300,6 +301,7 @@ def sync_account(acc: dict) -> dict:
 
     if not sync_token:
         log.warning(f"Account {login} missing sync_token — skipping")
+        report_error(account_id, "Missing sync token configuration on backend.")
         return {"login": login, "status": "skipped", "reason": "no sync_token"}
 
     # Resolve global MT5 directories
@@ -308,7 +310,7 @@ def sync_account(acc: dict) -> dict:
 
     with global_sync_lock:
         try:
-            # 1. Place the GoldBookSync.mq5 script directly into the global Scripts folder if changed
+            # 1. Place the GoldBookSync.mq5 script directly into the global Scripts folder
             scripts_dir = global_install_dir / "MQL5" / "Scripts"
             scripts_dir.mkdir(parents=True, exist_ok=True)
             dst_script = scripts_dir / "GoldBookSync.mq5"
@@ -317,117 +319,148 @@ def sync_account(acc: dict) -> dict:
             should_compile = False
             if SCRIPT_SRC.exists():
                 src_content = SCRIPT_SRC.read_bytes()
-                # Only copy if different to preserve file modification time
                 if not dst_script.exists() or dst_script.read_bytes() != src_content:
                     shutil.copy2(SCRIPT_SRC, dst_script)
                     should_compile = True
             
-            # Pre-compile the script ahead of time using JIT (BOX64_DYNAREC=1) for 1-second compilation speed!
+            # Pre-compile the script ahead of time using Hangover 11.4 wine64
             if not dst_ex5.exists() or should_compile:
-                log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 with JIT ahead of time...")
+                log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 with Hangover native compilation ahead of time...")
                 comp_env = os.environ.copy()
                 comp_env["DISPLAY"] = DISPLAY
                 comp_env["WINEPREFIX"] = str(wineprefix)
                 comp_env["HOME"] = "/root"
                 comp_env["USER"] = "root"
-                comp_env["BOX64_DYNAREC"] = "1" # Blazing fast JIT compilation!
                 comp_cmd = [
-                    "box64",
-                    "/opt/wine-x86_64/bin/wine64",
+                    "/opt/hangover/bin/wine64",
                     str(global_install_dir / "metaeditor64.exe"),
                     "/portable",
-                    f"/compile:{dst_script}",
+                    "/compile:C:\\Program Files\\MetaTrader 5\\MQL5\\Scripts\\GoldBookSync.mq5",
                     "/log"
                 ]
                 try:
-                    subprocess.run(comp_cmd, env=comp_env, timeout=20, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    log.info(f"[{login}] Pre-compilation successful!")
+                    subprocess.run(comp_cmd, env=comp_env, timeout=25, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception as e:
-                    log.warning(f"[{login}] Ahead-of-time JIT compilation failed (will fall back to auto-compilation): {e}")
-
-            # 2. Place the sync_config.txt directly into the global Files folder
-            files_dir = global_install_dir / "MQL5" / "Files"
-            files_dir.mkdir(parents=True, exist_ok=True)
-            config_file = files_dir / "sync_config.txt"
-            config_content = (
-                f"ApiUrl={GOLDBOOK_URL}\r\n"
-                f"SyncToken={sync_token}\r\n"
-            )
-            config_file.write_text(config_content, encoding="utf-8")
-            log.info(f"[{login}] Wrote global MQL5/Files/sync_config.txt (ApiUrl={GOLDBOOK_URL})")
-
-            # 3. Write account credentials into the global common.ini
-            for folder_name in ["config", "Config"]:
-                c_dir = global_install_dir / folder_name
-                c_dir.mkdir(parents=True, exist_ok=True)
-                ensure_common_ini(c_dir / "common.ini", acc)
+                    log.warning(f"[{login}] Ahead-of-time Hangover compilation failed: {e}")
 
         except Exception as e:
             log.error(f"[{login}] Failed preparing global configs: {e}")
+            report_error(account_id, f"Configuration prep failed: {e}")
             return {"login": login, "status": "error", "reason": f"config_prep_failed: {e}"}
 
-        env = os.environ.copy()
-        env["DISPLAY"] = DISPLAY
-        env["WINEPREFIX"] = str(wineprefix)
-        env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
-        env["BOX64_LOG"] = "1"
-        env["HOME"] = "/root"
-        env["USER"] = "root"
-        env["BOX64_MAXCPU"] = "4"
-        env["BOX64_DYNAREC"] = "0"
+    # 2. Isolate Account in its own data directory! (Fixes MT5 parallel race conditions)
+    data_dir = prepare_data_dir(acc)
+    
+    # Copy the compiled .ex5 to the isolated directory
+    isolated_scripts = data_dir / "MQL5" / "Scripts"
+    isolated_scripts.mkdir(parents=True, exist_ok=True)
+    if dst_ex5.exists():
+        shutil.copy2(dst_ex5, isolated_scripts / "GoldBookSync.ex5")
 
-        # Execute using the native global installed MT5 in its own original folder!
-        cmd = [
-            "box64",
-            "/opt/wine-x86_64/bin/wine64",
-            str(global_install_dir / "terminal64.exe"),
-            "/portable",
-            f"/login:{login}",
-            f"/password:{acc['investor_password']}",
-            f"/server:{server}",
-            f"/script:GoldBookSync",
-            "/skipupdate",
-            "/nosplash",
-        ]
+    # 3. Write sync_config.txt to the isolated directory
+    files_dir = data_dir / "MQL5" / "Files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    config_file = files_dir / "sync_config.txt"
+    config_content = f"SyncToken={sync_token}\r\n"
+    config_file.write_text(config_content, encoding="utf-8")
+    
+    # Ensure any old result file is deleted before we start
+    result_file = files_dir / "sync_result.json"
+    if result_file.exists():
+        result_file.unlink()
 
-        t_start = time.time()
+    env = os.environ.copy()
+    env["DISPLAY"] = DISPLAY
+    env["WINEPREFIX"] = str(wineprefix)
+    env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
+    env["HOME"] = "/root"
+    env["USER"] = "root"
+
+    # Execute using the ISOLATED terminal via Hangover 11.4 wine64
+    cmd = [
+        "/opt/hangover/bin/wine64",
+        str(data_dir / "terminal64.exe"),
+        "/portable",
+        f"/login:{login}",
+        f"/password:{acc['investor_password']}",
+        f"/server:{server}",
+        f"/script:GoldBookSync",
+        "/skipupdate",
+        "/nosplash",
+    ]
+
+    t_start = time.time()
+    last_err_msg = ""
+    try:
+        proc = subprocess.Popen(
+            cmd, env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True, # Critical to allow killing the entire process tree safely
+            cwd=str(data_dir)
+        )
+        
+        synced = False
+        while time.time() - t_start < MT5_TIMEOUT:
+            if result_file.exists():
+                time.sleep(0.5) # Give MQL5 a moment to finish writing the file
+                try:
+                    # Read the massive JSON array dumped by MQL5
+                    data_str = result_file.read_text(encoding="utf-8-sig")
+                    payloads = json.loads(data_str)
+                    
+                    # POST each event to the API, mimicking the old WebRequest behavior
+                    for item in payloads:
+                        requests.post(
+                            GOLDBOOK_URL, 
+                            json=item, 
+                            headers={"Content-Type": "application/json"},
+                            timeout=10
+                        )
+                    synced = True
+                    break
+                except Exception as e:
+                    last_err_msg = f"Error parsing or sending result JSON: {e}"
+                    log.error(f"[{login}] {last_err_msg}")
+                    break
+            
+            # If process died prematurely
+            if proc.poll() is not None:
+                last_err_msg = "MT5 terminal closed prematurely (possible crash, bad login details, or incorrect broker server)."
+                log.warning(f"[{login}] {last_err_msg}")
+                break
+                
+            time.sleep(1.0) # Poll every 1 second
+ 
+        # Forcefully kill the entire process tree (wine64, terminal64.exe, wineserver)
         try:
-            proc = subprocess.Popen(
-                cmd, env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            try:
-                stdout_data, stderr_data = proc.communicate(timeout=MT5_TIMEOUT)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                stdout_data, stderr_data = proc.communicate()
-                elapsed = round(time.time() - t_start, 1)
-                log.warning(f"⏱  [{login}] Timed out after {elapsed}s — killed")
-                return {"login": login, "status": "timeout", "elapsed": elapsed}
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except Exception:
+            pass
 
-            elapsed = round(time.time() - t_start, 1)
+        elapsed = round(time.time() - t_start, 1)
 
-            if proc.returncode == 0:
-                log.info(f"✅ [{login}@{server}] synced in {elapsed}s")
-                return {"login": login, "status": "ok", "elapsed": elapsed}
-            else:
-                log.warning(f"⚠️  [{login}] MT5 exited with code {proc.returncode} ({elapsed}s)")
-                if stdout_data:
-                    log.warning(f"[{login}] MT5 stdout:\n{stdout_data}")
-                if stderr_data:
-                    log.warning(f"[{login}] MT5 stderr:\n{stderr_data}")
-                report_error(account_id)
-                return {"login": login, "status": "mt5_error", "code": proc.returncode}
+        if synced:
+            log.info(f"✅ [{login}@{server}] Synced via file polling in {elapsed}s")
+            return {"login": login, "status": "ok", "elapsed": elapsed}
+        else:
+            if not last_err_msg:
+                last_err_msg = f"Sync timed out after {MT5_TIMEOUT} seconds (MT5 did not finish scanning or failed to connect)."
+            log.warning(f"⚠️  [{login}] Sync failed: {last_err_msg}")
+            report_error(account_id, last_err_msg)
+            return {"login": login, "status": "timeout", "reason": last_err_msg}
 
-        except FileNotFoundError:
-            log.error(f"MT5 terminal64.exe not found in: {global_install_dir}")
-            return {"login": login, "status": "error", "reason": "binary_not_found"}
+    except FileNotFoundError:
+        err_msg = f"MT5 terminal64.exe not found in isolated directory: {data_dir}"
+        log.error(err_msg)
+        report_error(account_id, err_msg)
+        return {"login": login, "status": "error", "reason": "binary_not_found"}
 
-        except Exception as e:
-            log.error(f"[{login}] Unexpected error: {e}", exc_info=True)
-            return {"login": login, "status": "error", "reason": str(e)}
+    except Exception as e:
+        err_msg = f"Unexpected worker execution exception: {e}"
+        log.error(f"[{login}] {err_msg}", exc_info=True)
+        report_error(account_id, err_msg)
+        return {"login": login, "status": "error", "reason": str(e)}
 
 
 # ── Parallel sync cycle ────────────────────────────────────────────────────────
