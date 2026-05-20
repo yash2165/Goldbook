@@ -332,7 +332,7 @@ def sync_account(acc: dict) -> dict:
                 comp_env["HOME"] = "/root"
                 comp_env["USER"] = "root"
                 comp_cmd = [
-                    "/usr/bin/wine64",
+                    "/opt/wine-x86_64/bin/wine64",
                     str(global_install_dir / "metaeditor64.exe"),
                     "/portable",
                     "/compile:C:\\Program Files\\MetaTrader 5\\MQL5\\Scripts\\GoldBookSync.mq5",
@@ -378,7 +378,7 @@ def sync_account(acc: dict) -> dict:
 
     # Execute using the ISOLATED terminal via Hangover 11.4 wine64
     cmd = [
-        "/usr/bin/wine64",
+        "/opt/wine-x86_64/bin/wine64",
         str(data_dir / "terminal64.exe"),
         "/portable",
         f"/login:{login}",
