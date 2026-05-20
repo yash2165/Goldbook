@@ -43,7 +43,7 @@ mkdir -p /tmp/hangover_debs
 
 if [ ! -f "/tmp/hangover.tar" ]; then
     echo "   Downloading Hangover 11.4 tar (~234 MB)..."
-    wget -q --show-progress -O /tmp/hangover.tar "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_arm64.tar"
+    wget -q --show-progress -O /tmp/hangover.tar "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_noble_arm64.tar"
 fi
 
 echo "   Extracting & Installing Hangover..."
