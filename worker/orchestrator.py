@@ -401,22 +401,18 @@ def sync_account(acc: dict) -> dict:
 
     acc_wineprefix = Path(f"/root/.mt5_sandboxes/{account_id}")
 
-    # Ensure isolated WINEPREFIX is initialized and configured
+    # Ensure isolated WINEPREFIX is initialized by copying the master prefix
     if not acc_wineprefix.exists():
-        log.info(f"[{login}] Initializing fresh isolated WINEPREFIX at {acc_wineprefix} ...")
-        acc_wineprefix.mkdir(parents=True, exist_ok=True)
-        init_env = os.environ.copy()
-        init_env["DISPLAY"] = DISPLAY
-        init_env["WINEPREFIX"] = str(acc_wineprefix)
-        init_env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
-        init_env["HOME"] = "/root"
-        init_env["USER"] = "root"
-        # Run wineboot
-        subprocess.run(["/usr/bin/wine", "wineboot"], env=init_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        # Force X11 graphics driver
-        subprocess.run([
-            "/usr/bin/wine", "reg", "add", "HKCU\\Software\\Wine\\Drivers", "/v", "Graphics", "/d", "x11", "/f"
-        ], env=init_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        log.info(f"[{login}] Creating fresh isolated WINEPREFIX by replicating master prefix to {acc_wineprefix} ...")
+        try:
+            acc_wineprefix.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(global_wineprefix, acc_wineprefix, symlinks=True)
+            # Remove any old account data directories copied from the master prefix
+            shutil.rmtree(acc_wineprefix / "drive_c" / "mt5data", ignore_errors=True)
+        except Exception as e:
+            log.error(f"[{login}] Failed to replicate master WINEPREFIX: {e}")
+            report_error(account_id, f"Failed to initialize isolated WINEPREFIX: {e}")
+            return {"login": login, "status": "error", "reason": f"prefix_replication_failed: {e}"}
 
     with global_sync_lock:
         try:
