@@ -108,6 +108,9 @@ sleep 10
 MT5_EXE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
 if [ -f "$MT5_EXE" ]; then
     echo "   ✅ MT5 Installed at: $MT5_EXE"
+    # Cleanly stop any automatically spawned MT5 processes in the prefix to release file locks
+    wineserver -k 2>/dev/null || true
+    sleep 2
 else
     echo "   ❌ terminal64.exe not found. Searching..."
     find "$WINEPREFIX" -name "terminal64.exe" 2>/dev/null || true
