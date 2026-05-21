@@ -7,7 +7,7 @@ set -e
 WORKER_DIR="/opt/goldbook-worker"
 WINEPREFIX="/root/.mt5"
 DISPLAY_NUM=":99"
-WINE64="/opt/wine-x86_64/bin/wine64"
+WINE64="/usr/bin/wine64"
 export WINEPREFIX DISPLAY="$DISPLAY_NUM"
 
 echo "======================================================"
