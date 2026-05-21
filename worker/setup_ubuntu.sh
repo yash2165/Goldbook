@@ -121,7 +121,10 @@ fi
 
 echo "[7/7] Setting up Python Worker..."
 mkdir -p "$WORKER_DIR"
-cp -r orchestrator.py requirements.txt "$WORKER_DIR/" 2>/dev/null || true
+# Copy orchestrator and sync script from the worker folder or current folder
+cp -f worker/orchestrator.py worker/GoldBookSync.mq5 "$WORKER_DIR/" 2>/dev/null || \
+cp -f orchestrator.py GoldBookSync.mq5 "$WORKER_DIR/" 2>/dev/null || true
+
 if [ ! -d "$WORKER_DIR/venv" ]; then
     python3 -m venv "$WORKER_DIR/venv"
     "$WORKER_DIR/venv/bin/pip" install -q -r "$WORKER_DIR/requirements.txt" 2>/dev/null || \
