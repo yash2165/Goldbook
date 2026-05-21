@@ -28,6 +28,29 @@ export default function TradesPage() {
     refetch()
   }
 
+  const handleClearAll = async () => {
+    if (!activeAccount) {
+      alert('No active account selected.')
+      return
+    }
+    if (!confirm('Are you sure you want to clear ALL trades for the active account? This action cannot be undone.')) return
+    
+    try {
+      const { error } = await supabase
+        .from('trades')
+        .update({ is_deleted: true })
+        .eq('account_id', activeAccount.id)
+      
+      if (error) {
+        alert('Failed to clear trades: ' + error.message)
+      } else {
+        refetch()
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message)
+    }
+  }
+
   const filtered = trades.filter(t => {
     if (filterDir !== 'all' && t.direction !== filterDir) return false
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
@@ -62,7 +85,11 @@ export default function TradesPage() {
               <Link2 className="w-4 h-4" /> Connect MT4/MT5
             </button>
           </Link>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/8 border border-white/10 rounded-lg text-sm font-medium text-[#EF4444] hover:text-[#EF4444] transition-colors">
+          <button 
+            onClick={handleClearAll}
+            disabled={loading || trades.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/8 border border-white/10 rounded-lg text-sm font-medium text-[#EF4444] hover:text-[#EF4444] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
             <Trash2 className="w-4 h-4" /> Clear All
           </button>
           <button

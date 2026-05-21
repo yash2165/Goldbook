@@ -15,6 +15,36 @@ export function TopBar() {
   const router = useRouter()
   const supabase = createClient()
 
+  // Dropdown states & debouncing
+  const [isAccountOpen, setIsAccountOpen] = useState(false)
+  const [accountTimeoutId, setAccountTimeoutId] = useState<NodeJS.Timeout | null>(null)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [profileTimeoutId, setProfileTimeoutId] = useState<NodeJS.Timeout | null>(null)
+
+  const handleAccountMouseEnter = () => {
+    if (accountTimeoutId) clearTimeout(accountTimeoutId)
+    setIsAccountOpen(true)
+  }
+
+  const handleAccountMouseLeave = () => {
+    const id = setTimeout(() => {
+      setIsAccountOpen(false)
+    }, 150)
+    setAccountTimeoutId(id)
+  }
+
+  const handleProfileMouseEnter = () => {
+    if (profileTimeoutId) clearTimeout(profileTimeoutId)
+    setIsProfileOpen(true)
+  }
+
+  const handleProfileMouseLeave = () => {
+    const id = setTimeout(() => {
+      setIsProfileOpen(false)
+    }, 150)
+    setProfileTimeoutId(id)
+  }
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
@@ -30,6 +60,13 @@ export function TopBar() {
     }
     loadProfile()
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (accountTimeoutId) clearTimeout(accountTimeoutId)
+      if (profileTimeoutId) clearTimeout(profileTimeoutId)
+    }
+  }, [accountTimeoutId, profileTimeoutId])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -69,7 +106,11 @@ export function TopBar() {
 
         {/* Account selector */}
         {accounts.length > 0 && (
-          <div className="relative group">
+          <div 
+            className="relative"
+            onMouseEnter={handleAccountMouseEnter}
+            onMouseLeave={handleAccountMouseLeave}
+          >
             <button className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/8 rounded-lg border border-white/5 text-sm transition-colors">
               <span className="w-2 h-2 rounded-full bg-primary" />
               <span className="font-medium">
@@ -78,40 +119,56 @@ export function TopBar() {
               <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
             </button>
 
-            {accounts.length > 1 && (
-              <div className="absolute right-0 top-full mt-1 w-56 bg-[#12121a] border border-white/5 rounded-lg shadow-xl py-1 hidden group-hover:block z-50">
-                {accounts.map(acc => (
-                  <button
-                    key={acc.id}
-                    onClick={() => setActiveAccount(acc)}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
-                  >
-                    <div className="font-medium">{acc.nickname ?? `MT5 #${acc.mt5_login}`}</div>
-                    <div className="text-xs text-[#64748B]">{acc.broker_server}</div>
-                  </button>
-                ))}
+            {accounts.length > 1 && isAccountOpen && (
+              <div className="absolute right-0 top-full pt-1 w-56 z-50">
+                <div className="bg-[#12121a] border border-white/5 rounded-lg shadow-xl py-1">
+                  {accounts.map(acc => (
+                    <button
+                      key={acc.id}
+                      onClick={() => {
+                        setActiveAccount(acc)
+                        setIsAccountOpen(false)
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
+                    >
+                      <div className="font-medium">{acc.nickname ?? `MT5 #${acc.mt5_login}`}</div>
+                      <div className="text-xs text-[#64748B]">{acc.broker_server}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
 
         {/* Profile Dropdown */}
-        <div className="relative group ml-2">
+        <div 
+          className="relative ml-2"
+          onMouseEnter={handleProfileMouseEnter}
+          onMouseLeave={handleProfileMouseLeave}
+        >
           <button className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-sm font-bold text-primary transition-transform hover:scale-105">
             {profile?.username?.charAt(0).toUpperCase() || profile?.display_name?.charAt(0).toUpperCase() || profile?.email?.charAt(0).toUpperCase() || '?'}
           </button>
-          <div className="absolute right-0 top-full mt-2 w-56 bg-[#12121a] border border-white/10 rounded-xl shadow-2xl py-1 hidden group-hover:block z-50">
-            <div className="px-4 py-3 border-b border-white/5">
-              <p className="text-sm font-bold truncate">{profile?.username || profile?.display_name || 'Trader'}</p>
-              <p className="text-xs text-[#64748B] truncate">{profile?.email}</p>
+          {isProfileOpen && (
+            <div className="absolute right-0 top-full pt-2 w-56 z-50">
+              <div className="bg-[#12121a] border border-white/10 rounded-xl shadow-2xl py-1">
+                <div className="px-4 py-3 border-b border-white/5">
+                  <p className="text-sm font-bold truncate">{profile?.username || profile?.display_name || 'Trader'}</p>
+                  <p className="text-xs text-[#64748B] truncate">{profile?.email}</p>
+                </div>
+                <Link href="/profile" className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-foreground transition-colors">
+                  <User className="w-4 h-4" /> View Profile
+                </Link>
+                <Link href="/settings" className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-foreground transition-colors">
+                  <Settings className="w-4 h-4" /> Settings
+                </Link>
+                <button onClick={handleSignOut} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors">
+                  <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+              </div>
             </div>
-            <Link href="/settings" className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-foreground transition-colors">
-              <User className="w-4 h-4" /> Profile & Settings
-            </Link>
-            <button onClick={handleSignOut} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors">
-              <LogOut className="w-4 h-4" /> Sign Out
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </header>

@@ -104,7 +104,9 @@ export default function SettingsPage() {
       .update({ 
         username: profile.username,
         display_name: profile.display_name,
+        trading_style: profile.trading_style,
         country: profile.country,
+        bio: profile.bio,
         timezone: profile.timezone,
         pre_trade_checklist: profile.pre_trade_checklist,
         trading_setups: profile.trading_setups,
@@ -302,6 +304,19 @@ export default function SettingsPage() {
                   <div className="space-y-1.5">
                     <Label className="text-xs text-[#64748B] uppercase tracking-wider">Display Name</Label>
                     <Input value={profile.display_name} onChange={e => setProfile(p => ({ ...p, display_name: e.target.value }))} className="bg-[#0d1017] border-white/10 h-11" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider">Trading Style</Label>
+                    <Input value={profile.trading_style} onChange={e => setProfile(p => ({ ...p, trading_style: e.target.value }))} placeholder="E.g. Scalper, Day Trader, Swing" className="bg-[#0d1017] border-white/10 h-11" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider">Bio</Label>
+                    <textarea 
+                      value={profile.bio} 
+                      onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} 
+                      placeholder="Share a short bio..." 
+                      className="w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50 transition-colors text-white h-24 resize-none"
+                    />
                   </div>
                 </div>
               </div>
