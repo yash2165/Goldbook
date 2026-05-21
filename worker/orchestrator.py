@@ -293,9 +293,27 @@ def harvest_logs(data_dir: Path, login: str) -> str:
     harvested = []
     
     # 1. MQL5 Script Logs
-    mql_logs_dir = data_dir / "MQL5" / "Logs"
-    if mql_logs_dir.exists():
-        log_files = sorted(mql_logs_dir.glob("*.log"), key=lambda f: f.stat().st_mtime)
+    mql_candidates = [
+        data_dir / "MQL5" / "Logs",
+        data_dir / "MQL5" / "logs",
+        data_dir / "mql5" / "Logs",
+        data_dir / "mql5" / "logs"
+    ]
+    mql_logs_dir = None
+    for d in mql_candidates:
+        if d.exists():
+            mql_logs_dir = d
+            break
+            
+    if mql_logs_dir:
+        log_files = []
+        try:
+            for p in mql_logs_dir.iterdir():
+                if p.is_file() and p.name.lower().endswith(".log"):
+                    log_files.append(p)
+        except Exception:
+            pass
+        log_files = sorted(log_files, key=lambda f: f.stat().st_mtime)
         if log_files:
             latest_file = log_files[-1]
             try:
@@ -307,9 +325,25 @@ def harvest_logs(data_dir: Path, login: str) -> str:
                 harvested.append(f"Failed to read MQL5 log {latest_file.name}: {e}")
                 
     # 2. MT5 Terminal Logs
-    term_logs_dir = data_dir / "Logs"
-    if term_logs_dir.exists():
-        log_files = sorted(term_logs_dir.glob("*.log"), key=lambda f: f.stat().st_mtime)
+    term_candidates = [
+        data_dir / "Logs",
+        data_dir / "logs"
+    ]
+    term_logs_dir = None
+    for d in term_candidates:
+        if d.exists():
+            term_logs_dir = d
+            break
+            
+    if term_logs_dir:
+        log_files = []
+        try:
+            for p in term_logs_dir.iterdir():
+                if p.is_file() and p.name.lower().endswith(".log"):
+                    log_files.append(p)
+        except Exception:
+            pass
+        log_files = sorted(log_files, key=lambda f: f.stat().st_mtime)
         if log_files:
             latest_file = log_files[-1]
             try:
@@ -386,9 +420,17 @@ def sync_account(acc: dict) -> dict:
 
             # Verify compilation succeeded
             if not dst_ex5.exists():
-                comp_log_path = scripts_dir / "GoldBookSync.log"
+                comp_log_path = None
+                try:
+                    for p in scripts_dir.iterdir():
+                        if p.is_file() and p.name.lower() == "goldbooksync.log":
+                            comp_log_path = p
+                            break
+                except Exception:
+                    pass
+                
                 log_content = ""
-                if comp_log_path.exists():
+                if comp_log_path and comp_log_path.exists():
                     try:
                         log_content, _, _ = _read_text_with_bom(comp_log_path)
                     except Exception as le:
