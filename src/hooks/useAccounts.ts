@@ -54,14 +54,16 @@ export function useAccounts() {
   useEffect(() => {
     fetchAccounts()
 
+    let active = true
     let channel: any
 
     const setupRealtime = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user || !active) return
 
+      const channelId = `mt5_accounts_realtime_${Math.random().toString(36).substring(2, 9)}`
       channel = supabase
-        .channel('mt5_accounts_realtime')
+        .channel(channelId)
         .on(
           'postgres_changes',
           {
@@ -71,8 +73,7 @@ export function useAccounts() {
             filter: `user_id=eq.${user.id}`
           },
           () => {
-            // Trigger a re-fetch of accounts upon any Postgres change (INSERT, UPDATE, DELETE)
-            fetchAccounts()
+            if (active) fetchAccounts()
           }
         )
         .subscribe()
@@ -81,6 +82,7 @@ export function useAccounts() {
     setupRealtime()
 
     return () => {
+      active = false
       if (channel) {
         supabase.removeChannel(channel)
       }

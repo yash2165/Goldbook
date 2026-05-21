@@ -231,10 +231,11 @@ export function Sidebar() {
         )}
       >
         {/* Header */}
-        <div className="h-16 flex items-center px-4 border-b border-white/5 shrink-0 overflow-hidden relative">
+        <div className="h-16 flex items-center px-4 border-b border-white/5 shrink-0 overflow-hidden relative bg-[#0A0A0F]/50">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-orange-600 rounded-lg flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,159,11,0.3)]">
-              <span className="text-white font-black text-sm">G</span>
+            <div className="w-8 h-8 bg-gradient-to-tr from-[#996515] via-[#FFD700] to-[#B8860B] rounded-lg flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,215,0,0.3)] border border-[#FFD700]/30 relative group overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span className="text-black font-extrabold text-sm drop-shadow-sm select-none">G</span>
             </div>
             <AnimatePresence>
               {!collapsed && (
@@ -242,9 +243,10 @@ export function Sidebar() {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
-                  className="font-bold text-white tracking-tight whitespace-nowrap"
+                  className="font-extrabold text-sm tracking-wider whitespace-nowrap uppercase flex items-center"
                 >
-                  GoldBook
+                  <span className="bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37] text-transparent bg-clip-text font-black">GOLD</span>
+                  <span className="text-white font-light tracking-wide ml-0.5">BOOK</span>
                 </motion.span>
               )}
             </AnimatePresence>

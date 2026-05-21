@@ -188,7 +188,7 @@ export default function PerformancePage() {
             </div>
           ) : (
             <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <AreaChart data={curve} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
@@ -256,7 +256,7 @@ export default function PerformancePage() {
             <div className="h-40 flex items-center justify-center text-[#334155] text-sm">No data yet</div>
           ) : (
             <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={dayStats} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                   <XAxis dataKey="day" stroke="#334155" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis hide />

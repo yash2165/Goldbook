@@ -34,9 +34,11 @@ export function useTrades(accountId?: string) {
   useEffect(() => {
     fetchTrades()
 
+    let active = true
     // Subscribe to real-time changes
+    const channelId = `trades_realtime_${Math.random().toString(36).substring(2, 9)}`
     const channel = supabase
-      .channel('trades-realtime')
+      .channel(channelId)
       .on(
         'postgres_changes',
         {
@@ -46,12 +48,13 @@ export function useTrades(accountId?: string) {
         },
         () => {
           // Re-fetch on any change
-          fetchTrades()
+          if (active) fetchTrades()
         }
       )
       .subscribe()
 
     return () => {
+      active = false
       supabase.removeChannel(channel)
     }
   }, [fetchTrades])

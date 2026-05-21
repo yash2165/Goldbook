@@ -29,7 +29,7 @@ export function TopBar() {
   const handleAccountMouseLeave = () => {
     const id = setTimeout(() => {
       setIsAccountOpen(false)
-    }, 150)
+    }, 300)
     setAccountTimeoutId(id)
   }
 
@@ -41,7 +41,7 @@ export function TopBar() {
   const handleProfileMouseLeave = () => {
     const id = setTimeout(() => {
       setIsProfileOpen(false)
-    }, 150)
+    }, 300)
     setProfileTimeoutId(id)
   }
 
@@ -79,7 +79,7 @@ export function TopBar() {
     : false
 
   // IST Time
-  const istTime = currentTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: true, hour: 'numeric', minute: '2-digit' })
+  const istTime = currentTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: true, hour: 'numeric', minute: '2-digit', second: '2-digit' })
   const istDate = currentTime.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short', month: 'short', day: 'numeric' })
 
   return (
@@ -120,8 +120,8 @@ export function TopBar() {
             </button>
 
             {accounts.length > 1 && isAccountOpen && (
-              <div className="absolute right-0 top-full pt-1 w-56 z-50">
-                <div className="bg-[#12121a] border border-white/5 rounded-lg shadow-xl py-1">
+              <div className="absolute right-0 top-full pt-1 w-56 z-50 before:absolute before:-top-4 before:-left-16 before:-right-4 before:h-6 before:bg-transparent">
+                <div className="bg-[#12121a] border border-white/5 rounded-lg shadow-xl py-1 relative z-10">
                   {accounts.map(acc => (
                     <button
                       key={acc.id}
@@ -151,8 +151,8 @@ export function TopBar() {
             {profile?.username?.charAt(0).toUpperCase() || profile?.display_name?.charAt(0).toUpperCase() || profile?.email?.charAt(0).toUpperCase() || '?'}
           </button>
           {isProfileOpen && (
-            <div className="absolute right-0 top-full pt-2 w-56 z-50">
-              <div className="bg-[#12121a] border border-white/10 rounded-xl shadow-2xl py-1">
+            <div className="absolute right-0 top-full pt-2 w-56 z-50 before:absolute before:-top-4 before:-left-16 before:-right-4 before:h-6 before:bg-transparent">
+              <div className="bg-[#12121a] border border-white/10 rounded-xl shadow-2xl py-1 relative z-10">
                 <div className="px-4 py-3 border-b border-white/5">
                   <p className="text-sm font-bold truncate">{profile?.username || profile?.display_name || 'Trader'}</p>
                   <p className="text-xs text-[#64748B] truncate">{profile?.email}</p>
