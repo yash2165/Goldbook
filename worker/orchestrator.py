@@ -223,6 +223,24 @@ def report_error(account_id: str, error_message: str):
         pass
 
 
+def delete_examples_dirs(root_dir: Path):
+    """Recursively deletes all directories named 'examples' (case-insensitive) under root_dir."""
+    if not root_dir.exists():
+        return
+    try:
+        for root, dirs, files in os.walk(str(root_dir)):
+            for d in dirs:
+                if d.lower() == "examples":
+                    full_path = Path(root) / d
+                    try:
+                        shutil.rmtree(full_path, ignore_errors=True)
+                        log.info(f"Deleted examples directory: {full_path}")
+                    except Exception as e:
+                        log.warning(f"Failed to delete examples directory {full_path}: {e}")
+    except Exception as e:
+        log.warning(f"Error walking directory {root_dir} to delete examples: {e}")
+
+
 # ── Per-account MT5 data directory ────────────────────────────────────────────
 def prepare_data_dir(acc: dict, acc_wineprefix: Path) -> Path:
     """
@@ -242,10 +260,9 @@ def prepare_data_dir(acc: dict, acc_wineprefix: Path) -> Path:
     if not terminal_path.exists() and global_install_dir.exists():
         log.info(f"[{acc['mt5_login']}] Replicating MT5 installation to isolated directory: {data_dir}")
         shutil.copytree(global_install_dir, data_dir, dirs_exist_ok=True)
-        # Performance optimization: delete default examples to prevent background compilation
-        shutil.rmtree(data_dir / "MQL5" / "Scripts" / "Examples", ignore_errors=True)
-        shutil.rmtree(data_dir / "MQL5" / "Experts" / "Examples", ignore_errors=True)
-        shutil.rmtree(data_dir / "MQL5" / "Indicators" / "Examples", ignore_errors=True)
+
+    # Force delete default examples recursively and case-insensitively inside the isolated data directory
+    delete_examples_dirs(data_dir)
 
     scripts_dir = data_dir / "MQL5" / "Scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
@@ -769,6 +786,13 @@ def boost_stack_limit():
 def main():
     boost_stack_limit()
     ensure_xvfb()
+
+    # Pre-clean the global MT5 install directory examples to prevent compiling them
+    global_wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
+    global_install_dir = global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
+    if global_install_dir.exists():
+        log.info("Cleaning up global MT5 install examples directory ahead of time...")
+        delete_examples_dirs(global_install_dir)
 
     log.info("🚀 GoldBook Parallel Orchestrator started")
     log.info(f"   MT5 binary     : {MT5_BINARY}")
