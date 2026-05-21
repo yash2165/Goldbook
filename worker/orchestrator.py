@@ -399,6 +399,10 @@ def sync_account(acc: dict) -> dict:
                     should_compile = True
             
             # Pre-compile the script ahead of time using Hangover 11.4 wine64
+            metaeditor_path = global_install_dir / "metaeditor64.exe"
+            if not metaeditor_path.exists() and (global_install_dir / "metaeditor.exe").exists():
+                metaeditor_path = global_install_dir / "metaeditor.exe"
+
             if not dst_ex5.exists() or should_compile:
                 log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 with Hangover native compilation ahead of time...")
                 comp_env = os.environ.copy()
@@ -408,15 +412,29 @@ def sync_account(acc: dict) -> dict:
                 comp_env["USER"] = "root"
                 comp_cmd = [
                     "/usr/bin/wine",
-                    str(global_install_dir / "metaeditor64.exe"),
+                    str(metaeditor_path),
                     "/portable",
-                    "/compile:C:\\Program Files\\MetaTrader 5\\MQL5\\Scripts\\GoldBookSync.mq5",
+                    "/compile:MQL5\\Scripts\\GoldBookSync.mq5",
                     "/log"
                 ]
+                comp_stdout = ""
+                comp_stderr = ""
+                comp_rc = "N/A"
                 try:
-                    subprocess.run(comp_cmd, env=comp_env, timeout=25, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    res = subprocess.run(
+                        comp_cmd, 
+                        env=comp_env, 
+                        timeout=25, 
+                        capture_output=True,
+                        text=True,
+                        cwd=str(global_install_dir)
+                    )
+                    comp_stdout = res.stdout or ""
+                    comp_stderr = res.stderr or ""
+                    comp_rc = res.returncode
                 except Exception as e:
-                    log.warning(f"[{login}] Ahead-of-time Hangover compilation failed: {e}")
+                    log.warning(f"[{login}] Ahead-of-time Hangover compilation failed to execute: {e}")
+                    comp_stderr = str(e)
 
             # Verify compilation succeeded
             if not dst_ex5.exists():
@@ -436,7 +454,25 @@ def sync_account(acc: dict) -> dict:
                     except Exception as le:
                         log_content = f"(Failed to read compiler log: {le})"
                 else:
-                    log_content = "(No compilation log file found next to GoldBookSync.mq5)"
+                    files_in_install_dir = []
+                    try:
+                        import os
+                        files_in_install_dir = os.listdir(str(global_install_dir))
+                    except Exception as le:
+                        files_in_install_dir = [f"Error listing dir: {le}"]
+                        
+                    log_content = (
+                        f"(No compilation log file found next to GoldBookSync.mq5)\n"
+                        f"Command run: {comp_cmd if 'comp_cmd' in locals() else 'N/A'}\n"
+                        f"Return code: {comp_rc}\n"
+                        f"Process stdout: {comp_stdout}\n"
+                        f"Process stderr: {comp_stderr}\n"
+                        f"Global install dir exists: {global_install_dir.exists()}\n"
+                        f"MetaEditor path exists: {metaeditor_path.exists()} ({metaeditor_path})\n"
+                        f"Scripts dir exists: {scripts_dir.exists()} ({scripts_dir})\n"
+                        f"GoldBookSync.mq5 exists: {dst_script.exists()} ({dst_script})\n"
+                        f"Files in install dir: {files_in_install_dir}\n"
+                    )
                 
                 err_msg = f"Failed to compile GoldBookSync.mq5. MetaEditor log:\n{log_content}"
                 log.error(f"[{login}] {err_msg}")
