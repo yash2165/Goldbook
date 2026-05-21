@@ -38,23 +38,30 @@ else
 fi
 
 echo "[4/8] Installing Hangover 11.4..."
-rm -rf /tmp/hangover_debs 2>/dev/null || true
+# Purge old install so postinstall script runs fresh (not as upgrade)
+apt-get purge -y hangover-wine hangover-libarm64ecfex hangover-libwow64fex hangover-wowbox64 2>/dev/null || true
+# Remove broken symlinks left over
+rm -f /usr/bin/wine64 /usr/bin/wine 2>/dev/null || true
+rm -rf /tmp/hangover_debs
 mkdir -p /tmp/hangover_debs
 
 echo "   Downloading Hangover 11.4 tar (~234 MB)..."
 rm -f /tmp/hangover.tar
 wget -q --show-progress -O /tmp/hangover.tar "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_noble_arm64.tar"
 
-echo "   Extracting & Installing Hangover..."
+echo "   Extracting & Installing Hangover (fresh install)..."
 tar -xf /tmp/hangover.tar -C /tmp/hangover_debs
-# Force overwrite to prevent any lingering font conflicts
-dpkg -i --force-overwrite /tmp/hangover_debs/*.deb 2>/dev/null || apt-get install -f -y
+dpkg -i /tmp/hangover_debs/*.deb || apt-get install -f -y
 
-if ! command -v wine64 &>/dev/null; then
+# Find wine64 wherever Hangover put it
+WINE64=$(find /opt /usr/bin -name "wine64" 2>/dev/null | head -1)
+if [ -z "$WINE64" ]; then
     echo "   ❌ wine64 not found after Hangover install!"
+    echo "   Files installed by hangover-wine:"
+    dpkg -L hangover-wine 2>/dev/null | head -30
     exit 1
 fi
-echo "   ✅ wine64 found at: $(command -v wine64)"
+echo "   ✅ wine64 found at: $WINE64"
 
 echo "[5/8] Initialising Wine Prefix (Forcing X11)..."
 rm -rf "$WINEPREFIX"
