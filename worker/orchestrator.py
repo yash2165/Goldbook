@@ -224,15 +224,15 @@ def report_error(account_id: str, error_message: str):
 
 
 # ── Per-account MT5 data directory ────────────────────────────────────────────
-def prepare_data_dir(acc: dict) -> Path:
+def prepare_data_dir(acc: dict, acc_wineprefix: Path) -> Path:
     """
-    Create an isolated portable data dir for this MT5 account.
+    Create an isolated portable data dir for this MT5 account inside its isolated WINEPREFIX.
     Replicates the main MetaTrader 5 installation into this directory
     so it can be run as a true standalone portable sandbox.
     """
-    data_dir = MT5_DATA_ROOT / str(acc["id"])
-    wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
-    global_install_dir = wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
+    data_dir = acc_wineprefix / "drive_c" / "mt5data" / str(acc["id"])
+    global_wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
+    global_install_dir = global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
 
     # Replicate the full MT5 install into the data folder if terminal64.exe doesn't exist
     terminal_path = find_file_case_insensitive(data_dir, "terminal64.exe")
@@ -263,8 +263,8 @@ def prepare_data_dir(acc: dict) -> Path:
 
     candidates.append(global_install_dir / "Config")
     candidates.append(global_install_dir / "config")
-    candidates.append(wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
-    candidates.append(wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
+    candidates.append(global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
+    candidates.append(global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
     candidates.append(Path.home() / ".mt5" / "drive_c" / "Program Files" / "MetaTrader 5" / "Config")
     candidates.append(Path.home() / ".mt5" / "drive_c" / "Program Files" / "MetaTrader 5" / "config")
 
@@ -396,8 +396,27 @@ def sync_account(acc: dict) -> dict:
         return {"login": login, "status": "skipped", "reason": "no sync_token"}
 
     # Resolve global MT5 directories
-    wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
-    global_install_dir = wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
+    global_wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
+    global_install_dir = global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
+
+    acc_wineprefix = Path(f"/root/.mt5_sandboxes/{account_id}")
+
+    # Ensure isolated WINEPREFIX is initialized and configured
+    if not acc_wineprefix.exists():
+        log.info(f"[{login}] Initializing fresh isolated WINEPREFIX at {acc_wineprefix} ...")
+        acc_wineprefix.mkdir(parents=True, exist_ok=True)
+        init_env = os.environ.copy()
+        init_env["DISPLAY"] = DISPLAY
+        init_env["WINEPREFIX"] = str(acc_wineprefix)
+        init_env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
+        init_env["HOME"] = "/root"
+        init_env["USER"] = "root"
+        # Run wineboot
+        subprocess.run(["/usr/bin/wine", "wineboot"], env=init_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Force X11 graphics driver
+        subprocess.run([
+            "/usr/bin/wine", "reg", "add", "HKCU\\Software\\Wine\\Drivers", "/v", "Graphics", "/d", "x11", "/f"
+        ], env=init_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     with global_sync_lock:
         try:
@@ -423,7 +442,7 @@ def sync_account(acc: dict) -> dict:
                 log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 with Hangover native compilation ahead of time...")
                 comp_env = os.environ.copy()
                 comp_env["DISPLAY"] = DISPLAY
-                comp_env["WINEPREFIX"] = str(wineprefix)
+                comp_env["WINEPREFIX"] = str(global_wineprefix)
                 comp_env["HOME"] = "/root"
                 comp_env["USER"] = "root"
                 comp_cmd = [
@@ -501,7 +520,7 @@ def sync_account(acc: dict) -> dict:
             return {"login": login, "status": "error", "reason": f"config_prep_failed: {e}"}
 
     # 2. Isolate Account in its own data directory! (Fixes MT5 parallel race conditions)
-    data_dir = prepare_data_dir(acc)
+    data_dir = prepare_data_dir(acc, acc_wineprefix)
     
     # Copy the compiled .ex5 to the isolated directory
     isolated_scripts = data_dir / "MQL5" / "Scripts"
@@ -523,7 +542,7 @@ def sync_account(acc: dict) -> dict:
 
     env = os.environ.copy()
     env["DISPLAY"] = DISPLAY
-    env["WINEPREFIX"] = str(wineprefix)
+    env["WINEPREFIX"] = str(acc_wineprefix)
     env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
     env["HOME"] = "/root"
     env["USER"] = "root"
@@ -540,9 +559,6 @@ def sync_account(acc: dict) -> dict:
         "/usr/bin/wine",
         str(terminal_path),
         "/portable",
-        f"/login:{login}",
-        f"/password:{acc['investor_password']}",
-        f"/server:{server}",
         f"/script:GoldBookSync",
         "/skipupdate",
         "/nosplash",
@@ -597,6 +613,14 @@ def sync_account(acc: dict) -> dict:
         except Exception:
             pass
 
+        # Forcefully kill the wineserver associated with this prefix to release all file locks
+        try:
+            env_ws = os.environ.copy()
+            env_ws["WINEPREFIX"] = str(acc_wineprefix)
+            subprocess.run(["wineserver", "-k"], env=env_ws, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            log.warning(f"[{login}] Failed to kill wineserver on cleanup: {e}")
+
         elapsed = round(time.time() - t_start, 1)
 
         if synced:
@@ -624,17 +648,29 @@ def sync_account(acc: dict) -> dict:
             except Exception as e:
                 log.error(f"[{login}] Failed harvesting logs: {e}")
 
+            # Self-healing: Delete the isolated data_dir so that it is cleanly re-replicated
+            # from global_install_dir on the next run to avoid any corrupted state.
+            if data_dir.exists():
+                log.info(f"[{login}] Self-healing: Deleting isolated data directory due to sync failure...")
+                shutil.rmtree(data_dir, ignore_errors=True)
+
             log.warning(f"⚠️  [{login}] Sync failed: {last_err_msg}")
             report_error(account_id, last_err_msg)
             return {"login": login, "status": "timeout", "reason": last_err_msg}
 
     except FileNotFoundError:
+        # Self-healing in case it didn't copy correctly
+        if data_dir.exists():
+            shutil.rmtree(data_dir, ignore_errors=True)
         err_msg = f"MT5 terminal64.exe not found in isolated directory: {data_dir}"
         log.error(err_msg)
         report_error(account_id, err_msg)
         return {"login": login, "status": "error", "reason": "binary_not_found"}
 
     except Exception as e:
+        # Self-healing in case of other unexpected file errors
+        if data_dir.exists():
+            shutil.rmtree(data_dir, ignore_errors=True)
         err_msg = f"Unexpected worker execution exception: {e}"
         log.error(f"[{login}] {err_msg}", exc_info=True)
         report_error(account_id, err_msg)
