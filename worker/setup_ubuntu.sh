@@ -20,6 +20,8 @@ echo "[1/7] Cleaning up previous attempts..."
 rm -rf /opt/amd64-chroot /usr/bin/amd64-chroot 2>/dev/null || true
 apt-get remove --purge -y qemu-user-static binfmt-support debootstrap 2>/dev/null || true
 apt-get autoremove -y 2>/dev/null || true
+pkill -9 -x Xvfb 2>/dev/null || true
+rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
 
 echo "[2/7] Installing Host Dependencies..."
 apt-get update -qq
