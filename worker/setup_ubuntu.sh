@@ -41,10 +41,9 @@ echo "[4/8] Installing Hangover 11.4..."
 rm -rf /opt/hangover /tmp/hangover_debs 2>/dev/null || true
 mkdir -p /tmp/hangover_debs
 
-if [ ! -f "/tmp/hangover.tar" ]; then
-    echo "   Downloading Hangover 11.4 tar (~234 MB)..."
-    wget -q --show-progress -O /tmp/hangover.tar "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_noble_arm64.tar"
-fi
+echo "   Downloading Hangover 11.4 tar (~234 MB)..."
+rm -f /tmp/hangover.tar
+wget -q --show-progress -O /tmp/hangover.tar "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_noble_arm64.tar"
 
 echo "   Extracting & Installing Hangover..."
 tar -xf /tmp/hangover.tar -C /tmp/hangover_debs
