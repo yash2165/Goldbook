@@ -99,9 +99,9 @@ def find_file_case_insensitive(directory: Path, filename: str) -> Path:
         return directory / filename
     filename_lower = filename.lower()
     try:
-        for p in directory.iterdir():
-            if p.is_file() and p.name.lower() == filename_lower:
-                return p
+        for name in os.listdir(directory):
+            if name.lower() == filename_lower:
+                return directory / name
     except Exception:
         pass
     return directory / filename
@@ -551,11 +551,24 @@ def sync_account(acc: dict) -> dict:
     if not terminal_path.exists():
         raise FileNotFoundError(f"MT5 terminal executable not found in isolated directory: {data_dir}")
 
+    # 4. Generate startup.ini inside data_dir
+    try:
+        startup_ini = data_dir / "startup.ini"
+        startup_content = (
+            "[StartUp]\r\n"
+            "Script=GoldBookSync.ex5\r\n"
+            "Symbol=EURUSD\r\n"
+            "Period=M1\r\n"
+        )
+        startup_ini.write_bytes(b"\xff\xfe" + startup_content.encode("utf-16le"))
+    except Exception as e:
+        log.warning(f"[{login}] Failed to write startup.ini configuration file: {e}")
+
     cmd = [
         "/usr/bin/wine",
         str(terminal_path),
         "/portable",
-        f"/script:GoldBookSync",
+        "/config:startup.ini",
         "/skipupdate",
         "/nosplash",
     ]
