@@ -48,10 +48,9 @@ export async function POST(req: Request) {
   if (body.type === 'account_error') {
     const { account_id, error_message } = body
     
-    // Mark as failed verification, disable, and record error message
+    // Mark as failed verification, but keep active and record error message
     await supabase.from('mt5_accounts').update({
       is_verified: false,
-      is_active: false,
       last_error: error_message || 'Sync failed.'
     }).eq('id', account_id)
 
