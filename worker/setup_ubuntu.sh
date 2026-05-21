@@ -24,7 +24,8 @@ apt-get autoremove -y 2>/dev/null || true
 echo "[2/7] Installing Host Dependencies..."
 apt-get update -qq
 apt-get install -y xvfb wget curl unzip python3 python3-pip python3-venv \
-    xauth cabextract libsdl2-2.0-0 libosmesa6 libxss1
+    xauth cabextract libsdl2-2.0-0 libosmesa6 libxss1 \
+    ca-certificates libgnutls30 gnutls-bin
 
 echo "[3/7] Starting Xvfb virtual display on $DISPLAY_NUM..."
 if [ -f /tmp/.X99-lock ] && ! pgrep -x Xvfb > /dev/null; then
@@ -83,9 +84,9 @@ if [ ! -f "$MT5_INSTALLER" ]; then
       "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe"
 fi
 
-echo "   Running silent install (1-3 minutes, no output is normal)..."
+echo "   Running install with /auto flag (correct flag for Hangover)..."
 DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" \
-    "$WINE" "$MT5_INSTALLER" /silent 2>&1 &
+    "$WINE" "$MT5_INSTALLER" /auto 2>&1 &
 MT5_PID=$!
 
 # Wait up to 5 minutes
