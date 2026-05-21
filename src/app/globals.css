@@ -90,6 +90,166 @@ body {
   100% { transform: translateX(-100%); }
 }
 
-.animate-\\[marquee_20s_linear_infinite\\] {
+.animate-\[marquee_20s_linear_infinite\] {
   animation: marquee 20s linear infinite;
+}
+
+/* LiveKit Premium Overrides */
+.lk-room-container {
+  font-family: inherit !important;
+  height: 100% !important;
+  background: transparent !important;
+}
+
+.lk-video-conference {
+  background: transparent !important;
+  border: none !important;
+  height: 100% !important;
+}
+
+.lk-grid-layout {
+  gap: 16px !important;
+  padding: 8px !important;
+}
+
+.lk-participant-tile {
+  background: rgba(18, 18, 26, 0.65) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.lk-participant-tile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 215, 0, 0.25) !important;
+  box-shadow: 0 15px 40px -10px rgba(255, 215, 0, 0.08), 0 0 1px 1px rgba(255, 215, 0, 0.15) !important;
+}
+
+.lk-participant-tile[data-lk-speaking="true"] {
+  border-color: #FFD700 !important;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.15), 0 0 0 2px rgba(255, 215, 0, 0.2) !important;
+}
+
+.lk-focus-layout {
+  gap: 16px !important;
+}
+
+.lk-focused-participant {
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.lk-carousel-layout {
+  gap: 12px !important;
+}
+
+.lk-participant-tile .lk-participant-placeholder {
+  background: radial-gradient(circle at center, rgba(139, 92, 246, 0.15) 0%, rgba(7, 7, 11, 0.4) 100%) !important;
+}
+
+.lk-participant-tile .lk-participant-metadata {
+  background: linear-gradient(to top, rgba(7, 7, 11, 0.95) 0%, rgba(7, 7, 11, 0.4) 75%, transparent 100%) !important;
+  padding: 12px !important;
+}
+
+.lk-participant-tile .lk-participant-name {
+  font-weight: 800 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  font-size: 10px !important;
+  color: #F1F5F9 !important;
+}
+
+.lk-participant-tile .lk-connection-quality {
+  background: rgba(0, 0, 0, 0.6) !important;
+  border-radius: 6px !important;
+  padding: 4px !important;
+}
+
+/* Control Bar styling - floating premium pill */
+.lk-control-bar {
+  background: rgba(15, 15, 24, 0.8) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 9999px !important;
+  padding: 8px 16px !important;
+  gap: 10px !important;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  width: fit-content !important;
+}
+
+.lk-control-bar .lk-button {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 9999px !important;
+  color: #94A3B8 !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  width: 44px !important;
+  height: 44px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.lk-control-bar .lk-button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  transform: translateY(-1px);
+}
+
+.lk-control-bar .lk-button[data-lk-active="true"] {
+  background: rgba(255, 215, 0, 0.12) !important;
+  border-color: rgba(255, 215, 0, 0.3) !important;
+  color: #FFD700 !important;
+}
+
+.lk-control-bar .lk-button[data-lk-active="true"]:hover {
+  background: rgba(255, 215, 0, 0.18) !important;
+  color: #FFD700 !important;
+  border-color: rgba(255, 215, 0, 0.4) !important;
+}
+
+.lk-control-bar .lk-button.lk-disconnect-button {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
+  color: #EF4444 !important;
+}
+
+.lk-control-bar .lk-button.lk-disconnect-button:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #FFFFFF !important;
+}
+
+.lk-audio-visualizer {
+  color: #FFD700 !important;
+}
+
+.lk-screen-share-icon {
+  color: #FFD700 !important;
+}
+
+/* Custom premium scrollbar for chat */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 215, 0, 0.2);
 }
