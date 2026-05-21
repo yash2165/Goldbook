@@ -390,6 +390,7 @@ def sync_account(acc: dict) -> dict:
     import os, signal, json
     
     login      = acc.get("mt5_login", "?")
+    password   = acc.get("investor_password", "")
     server     = acc.get("broker_server", "?")
     account_id = acc["id"]
     sync_token = acc.get("sync_token")
@@ -555,10 +556,15 @@ def sync_account(acc: dict) -> dict:
     if not terminal_path.exists():
         raise FileNotFoundError(f"MT5 terminal executable not found in isolated directory: {data_dir}")
 
-    # 4. Generate startup.ini inside data_dir
+    # 4. Generate startup.ini inside data_dir containing both login credentials and startup options
     try:
         startup_ini = data_dir / "startup.ini"
         startup_content = (
+            "[Common]\r\n"
+            f"Login={login}\r\n"
+            f"Password={password}\r\n"
+            f"Server={server}\r\n"
+            "AutoConfirm=1\r\n\r\n"
             "[StartUp]\r\n"
             "Script=GoldBookSync\r\n"
             "Symbol=EURUSD\r\n"
