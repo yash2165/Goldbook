@@ -38,7 +38,7 @@ else
 fi
 
 echo "[4/8] Installing Hangover 11.4..."
-rm -rf /opt/hangover /tmp/hangover_debs 2>/dev/null || true
+rm -rf /tmp/hangover_debs 2>/dev/null || true
 mkdir -p /tmp/hangover_debs
 
 echo "   Downloading Hangover 11.4 tar (~234 MB)..."
@@ -50,10 +50,11 @@ tar -xf /tmp/hangover.tar -C /tmp/hangover_debs
 # Force overwrite to prevent any lingering font conflicts
 dpkg -i --force-overwrite /tmp/hangover_debs/*.deb 2>/dev/null || apt-get install -f -y
 
-if [ ! -f "$WINE64" ]; then
-    echo "   ❌ Hangover installation failed!"
+if ! command -v wine64 &>/dev/null; then
+    echo "   ❌ wine64 not found after Hangover install!"
     exit 1
 fi
+echo "   ✅ wine64 found at: $(command -v wine64)"
 
 echo "[5/8] Initialising Wine Prefix (Forcing X11)..."
 rm -rf "$WINEPREFIX"
