@@ -193,6 +193,11 @@ def prepare_data_dir(acc: dict, global_install_dir: Path) -> Path:
     # Clean default examples to prevent background compiling
     delete_examples_dirs(data_dir)
 
+    # Delete Sounds directory to keep the terminal completely silent
+    sounds_dir = data_dir / "Sounds"
+    if sounds_dir.exists():
+        shutil.rmtree(sounds_dir, ignore_errors=True)
+
     # Create MQL5 Scripts directory
     scripts_dir = data_dir / "MQL5" / "Scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
@@ -207,12 +212,35 @@ def prepare_data_dir(acc: dict, global_install_dir: Path) -> Path:
     if not global_config.exists():
         global_config = global_install_dir / "config"
 
+    # Try to find the latest servers.dat from AppData Roaming (which has updated broker info)
+    appdata_servers_dat = None
+    try:
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            metaquotes_root = Path(appdata) / "MetaQuotes" / "Terminal"
+            if metaquotes_root.exists():
+                candidates = []
+                for instance_dir in metaquotes_root.iterdir():
+                    if instance_dir.is_dir():
+                        s_dat = instance_dir / "config" / "servers.dat"
+                        if s_dat.exists():
+                            candidates.append(s_dat)
+                if candidates:
+                    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    appdata_servers_dat = candidates[0]
+                    log.info(f"Auto-detected active AppData servers.dat: {appdata_servers_dat}")
+    except Exception as e:
+        log.warning(f"Failed scanning AppData for servers.dat: {e}")
+
     for folder in ["config", "Config"]:
         c_dir = data_dir / folder
         c_dir.mkdir(exist_ok=True)
         if global_config.exists():
-            for f in ["terminal.ini", "settings.ini", "common.ini", "experts.ini"]:
+            for f in ["terminal.ini", "settings.ini", "common.ini", "experts.ini", "servers.dat"]:
                 src_file = global_config / f
+                if f == "servers.dat" and appdata_servers_dat:
+                    src_file = appdata_servers_dat
+                
                 if src_file.exists():
                     shutil.copy2(src_file, c_dir / f)
 
@@ -277,58 +305,42 @@ def sync_account(acc: dict, global_install_dir: Path) -> dict:
         report_error(account_id, "Missing sync token configuration on backend.")
         return {"login": login, "status": "skipped", "reason": "no sync_token"}
 
-    with global_sync_lock:
-        try:
-            # Prepare script in global directory to compile it natively
-            scripts_dir = global_install_dir / "MQL5" / "Scripts"
-            scripts_dir.mkdir(parents=True, exist_ok=True)
-            dst_script = scripts_dir / "GoldBookSync.mq5"
-            dst_ex5 = scripts_dir / "GoldBookSync.ex5"
-            
-            should_compile = False
-            if SCRIPT_SRC.exists():
-                src_content = SCRIPT_SRC.read_bytes()
-                if not dst_script.exists() or dst_script.read_bytes() != src_content:
-                    shutil.copy2(SCRIPT_SRC, dst_script)
-                    should_compile = True
-            
-            metaeditor_path = global_install_dir / "metaeditor64.exe"
-            if not metaeditor_path.exists():
-                metaeditor_path = global_install_dir / "metaeditor.exe"
-
-            # Native pre-compilation
-            if not dst_ex5.exists() or should_compile:
-                log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 natively using MetaEditor...")
-                comp_cmd = [
-                    str(metaeditor_path),
-                    "/portable",
-                    "/compile:MQL5\\Scripts\\GoldBookSync.mq5",
-                    "/log"
-                ]
-                try:
-                    subprocess.run(comp_cmd, timeout=20, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=str(global_install_dir))
-                except Exception as e:
-                    log.warning(f"[{login}] Native compilation execution failed: {e}")
-
-            if not dst_ex5.exists():
-                err_msg = "Failed to compile GoldBookSync.mq5 natively in global directory. Check MetaEditor files."
-                log.error(f"[{login}] {err_msg}")
-                report_error(account_id, err_msg)
-                return {"login": login, "status": "error", "reason": "compilation_failed"}
-
-        except Exception as e:
-            log.error(f"[{login}] Master script preparation failed: {e}")
-            report_error(account_id, f"Configuration prep failed: {e}")
-            return {"login": login, "status": "error", "reason": str(e)}
-
     # Prepare sandbox data directory
-    data_dir = prepare_data_dir(acc, global_install_dir)
-    
-    # Copy native compiled .ex5 to sandbox MQL5 Scripts
+    try:
+        data_dir = prepare_data_dir(acc, global_install_dir)
+    except Exception as e:
+        log.error(f"[{login}] Sandbox preparation failed: {e}")
+        report_error(account_id, f"Sandbox prep failed: {e}")
+        return {"login": login, "status": "error", "reason": str(e)}
+
+    # Compile the script natively inside the sandbox to avoid global permission errors
     isolated_scripts = data_dir / "MQL5" / "Scripts"
-    isolated_scripts.mkdir(parents=True, exist_ok=True)
-    if dst_ex5.exists():
-        shutil.copy2(dst_ex5, isolated_scripts / "GoldBookSync.ex5")
+    dst_script = isolated_scripts / "GoldBookSync.mq5"
+    dst_ex5 = isolated_scripts / "GoldBookSync.ex5"
+
+    metaeditor_path = global_install_dir / "metaeditor64.exe"
+    if not metaeditor_path.exists():
+        metaeditor_path = global_install_dir / "metaeditor.exe"
+
+    with global_sync_lock:
+        if not dst_ex5.exists():
+            log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 natively in sandbox...")
+            comp_cmd = [
+                str(metaeditor_path),
+                "/portable",
+                "/compile:MQL5\\Scripts\\GoldBookSync.mq5",
+                "/log"
+            ]
+            try:
+                subprocess.run(comp_cmd, timeout=30, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=str(data_dir))
+            except Exception as e:
+                log.warning(f"[{login}] Native compilation execution failed: {e}")
+
+    if not dst_ex5.exists():
+        err_msg = "Failed to compile GoldBookSync.mq5 natively in sandbox directory."
+        log.error(f"[{login}] {err_msg}")
+        report_error(account_id, err_msg)
+        return {"login": login, "status": "error", "reason": "compilation_failed"}
 
     # Write config file inside sandbox Files folder
     files_dir = data_dir / "MQL5" / "Files"
@@ -503,10 +515,13 @@ def main():
     log.info(f"   Max parallel workers    : {MAX_PARALLEL}")
     log.info("")
 
-    # Clean examples folder in global installation
+    # Clean examples folder in global installation (catch permission errors silently)
     if global_install_dir.exists():
         log.info("Wiping examples from global installation to bypass compilation delay...")
-        delete_examples_dirs(global_install_dir)
+        try:
+            delete_examples_dirs(global_install_dir)
+        except Exception as e:
+            log.warning(f"Could not clean global examples directory (skipping global wipe): {e}")
 
     while True:
         try:

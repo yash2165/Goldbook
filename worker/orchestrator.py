@@ -264,6 +264,11 @@ def prepare_data_dir(acc: dict, acc_wineprefix: Path) -> Path:
     # Force delete default examples recursively and case-insensitively inside the isolated data directory
     delete_examples_dirs(data_dir)
 
+    # Delete Sounds directory to keep the terminal completely silent
+    sounds_dir = data_dir / "Sounds"
+    if sounds_dir.exists():
+        shutil.rmtree(sounds_dir, ignore_errors=True)
+
     scripts_dir = data_dir / "MQL5" / "Scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
 
