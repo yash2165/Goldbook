@@ -1,93 +1,100 @@
 #!/bin/bash
 # GoldBook MT5 Parallel Orchestrator — VPS Setup (Hangover 11.4)
 # Optimised for Oracle Cloud ARM64 (Ampere A1)
+# CONFIRMED: hangover-wine provides /usr/bin/wine (NOT wine64) on ARM64
 
 set -e
 
 WORKER_DIR="/opt/goldbook-worker"
 WINEPREFIX="/root/.mt5"
 DISPLAY_NUM=":99"
-WINE64="/usr/bin/wine64"
+WINE="/usr/bin/wine"   # Confirmed path from dpkg -L hangover-wine
 export WINEPREFIX DISPLAY="$DISPLAY_NUM"
 
 echo "======================================================"
 echo "  GoldBook MT5 Parallel Orchestrator — VPS Setup"
-echo "  Method: Hangover 11.4 (Fixed for Oracle ARM64)"
+echo "  Method: Hangover 11.4 (ARM64, wine binary confirmed)"
 echo "======================================================"
 
-echo "[1/8] Cleaning up previous QEMU/Chroot attempts..."
-rm -rf /opt/amd64-chroot /usr/bin/amd64-chroot /usr/local/bin/amd64-chroot 2>/dev/null || true
-apt-get remove --purge -y qemu-user-static binfmt-support debootstrap schroot 2>/dev/null || true
+echo "[1/7] Cleaning up previous attempts..."
+rm -rf /opt/amd64-chroot /usr/bin/amd64-chroot 2>/dev/null || true
+apt-get remove --purge -y qemu-user-static binfmt-support debootstrap 2>/dev/null || true
 apt-get autoremove -y 2>/dev/null || true
 
-echo "[2/8] Installing Host Dependencies..."
-apt-get update
-# Note: DELIBERATELY REMOVED 'fonts-wine' as it conflicts with Hangover and breaks apt!
-apt-get install -y xvfb wget curl unzip python3 python3-pip python3-venv xauth cabextract libsdl2-2.0-0 libosmesa6 libxss1
+echo "[2/7] Installing Host Dependencies..."
+apt-get update -qq
+apt-get install -y xvfb wget curl unzip python3 python3-pip python3-venv \
+    xauth cabextract libsdl2-2.0-0 libosmesa6 libxss1
 
-echo "[3/8] Starting Xvfb virtual display on $DISPLAY_NUM..."
+echo "[3/7] Starting Xvfb virtual display on $DISPLAY_NUM..."
 if [ -f /tmp/.X99-lock ] && ! pgrep -x Xvfb > /dev/null; then
   rm -f /tmp/.X99-lock
 fi
 if ! pgrep -x Xvfb > /dev/null; then
   Xvfb "$DISPLAY_NUM" -screen 0 1280x800x24 -nolisten tcp &
   sleep 3
-  echo "   Xvfb started (PID $!)"
+  echo "   Xvfb started"
 else
   echo "   Xvfb already running — OK"
 fi
 
-echo "[4/8] Installing Hangover 11.4..."
-# Purge old install so postinstall script runs fresh (not as upgrade)
+echo "[4/7] Installing Hangover 11.4..."
+# Purge old install completely so postinstall runs fresh
 apt-get purge -y hangover-wine hangover-libarm64ecfex hangover-libwow64fex hangover-wowbox64 2>/dev/null || true
-# Remove broken symlinks left over
-rm -f /usr/bin/wine64 /usr/bin/wine 2>/dev/null || true
+# Remove any stale wine symlinks
+rm -f /usr/bin/wine /usr/bin/wine64 2>/dev/null || true
 rm -rf /tmp/hangover_debs
 mkdir -p /tmp/hangover_debs
 
-echo "   Downloading Hangover 11.4 tar (~234 MB)..."
+echo "   Downloading Hangover 11.4 (~234 MB)..."
 rm -f /tmp/hangover.tar
-wget -q --show-progress -O /tmp/hangover.tar "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_noble_arm64.tar"
+wget -q --show-progress -O /tmp/hangover.tar \
+  "https://github.com/AndreRH/hangover/releases/download/hangover-11.4/hangover_11.4_ubuntu2404_noble_arm64.tar"
 
-echo "   Extracting & Installing Hangover (fresh install)..."
+echo "   Installing Hangover packages..."
 tar -xf /tmp/hangover.tar -C /tmp/hangover_debs
 dpkg -i /tmp/hangover_debs/*.deb || apt-get install -f -y
 
-# Find wine64 wherever Hangover put it
-WINE64=$(find /opt /usr/bin -name "wine64" 2>/dev/null | head -1)
-if [ -z "$WINE64" ]; then
-    echo "   ❌ wine64 not found after Hangover install!"
-    echo "   Files installed by hangover-wine:"
-    dpkg -L hangover-wine 2>/dev/null | head -30
+# Verify using confirmed binary path
+if [ ! -f "$WINE" ]; then
+    echo "   ❌ $WINE not found! Listing installed wine files:"
+    dpkg -L hangover-wine 2>/dev/null | grep bin
     exit 1
 fi
-echo "   ✅ wine64 found at: $WINE64"
+echo "   ✅ Wine confirmed at: $WINE ($($WINE --version 2>/dev/null || echo 'version check skipped'))"
 
-echo "[5/8] Initialising Wine Prefix (Forcing X11)..."
+echo "[5/7] Initialising Wine prefix at $WINEPREFIX..."
 rm -rf "$WINEPREFIX"
 mkdir -p "$WINEPREFIX"
 
-# Force X11 instead of Wayland to prevent nodrv_CreateWindow crashes
-DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" reg add "HKCU\Software\Wine\Drivers" /v Graphics /d "x11" /f 2>/dev/null || true
-DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" wineboot --init 2>&1
+# Initialize wine prefix — on ARM64 Hangover, wineboot is called via wine
+DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE" wineboot 2>&1 || true
 sleep 5
 
-echo "[6/8] Installing MetaTrader 5..."
+# Force X11 graphics driver (prevents nodrv_CreateWindow crashes)
+DISPLAY="$DISPLAY_NUM" "$WINE" reg add "HKCU\Software\Wine\Drivers" \
+    /v Graphics /d "x11" /f 2>/dev/null || true
+sleep 2
+
+echo "[6/7] Installing MetaTrader 5..."
 MT5_INSTALLER="/tmp/mt5setup.exe"
 if [ ! -f "$MT5_INSTALLER" ]; then
-    wget -q --show-progress -O "$MT5_INSTALLER" "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe"
+    wget -q --show-progress -O "$MT5_INSTALLER" \
+      "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe"
 fi
 
-echo "   Running silent install (Takes 1-3 minutes)..."
-DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" "$WINE64" "$MT5_INSTALLER" /silent 2>&1 &
+echo "   Running silent install (1-3 minutes, no output is normal)..."
+DISPLAY="$DISPLAY_NUM" WINEDLLOVERRIDES="mscoree,mshtml=" \
+    "$WINE" "$MT5_INSTALLER" /silent 2>&1 &
 MT5_PID=$!
 
-# Wait loop
+# Wait up to 5 minutes
 TIMEOUT=300
 ELAPSED=0
 while kill -0 $MT5_PID 2>/dev/null; do
     sleep 5
     ELAPSED=$((ELAPSED + 5))
+    echo "   ...waiting ${ELAPSED}s"
     if [ $ELAPSED -ge $TIMEOUT ]; then
         kill -9 $MT5_PID 2>/dev/null || true
         break
@@ -95,26 +102,35 @@ while kill -0 $MT5_PID 2>/dev/null; do
 done
 sleep 10
 
-if [ -f "$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe" ]; then
-    echo "   ✅ MT5 Installed Successfully!"
+MT5_EXE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
+if [ -f "$MT5_EXE" ]; then
+    echo "   ✅ MT5 Installed at: $MT5_EXE"
 else
-    echo "   ❌ terminal64.exe not found."
+    echo "   ❌ terminal64.exe not found. Searching..."
+    find "$WINEPREFIX" -name "terminal64.exe" 2>/dev/null || true
+    echo "   Contents of Program Files:"
+    ls "$WINEPREFIX/drive_c/Program Files/" 2>/dev/null || echo "   (empty or missing)"
     exit 1
 fi
 
-echo "[7/8] Setting up Python Worker..."
+echo "[7/7] Setting up Python Worker..."
 mkdir -p "$WORKER_DIR"
-cp -r orchestrator.py requirements.txt "$WORKER_DIR/"
+cp -r orchestrator.py requirements.txt "$WORKER_DIR/" 2>/dev/null || true
 if [ ! -d "$WORKER_DIR/venv" ]; then
     python3 -m venv "$WORKER_DIR/venv"
-    "$WORKER_DIR/venv/bin/pip" install -r "$WORKER_DIR/requirements.txt"
+    "$WORKER_DIR/venv/bin/pip" install -q -r "$WORKER_DIR/requirements.txt" 2>/dev/null || \
+    "$WORKER_DIR/venv/bin/pip" install -q requests python-dotenv
 fi
 
+if [ ! -f "$WORKER_DIR/.env" ]; then
 cat << 'EOF' > "$WORKER_DIR/.env"
 GOLDBOOK_API_URL=http://your-nextjs-app.com/api
 WORKER_SECRET=your_secure_worker_secret
 MT5_SERVER_IP=127.0.0.1
+DISPLAY=:99
+WINEPREFIX=/root/.mt5
 EOF
+fi
 
 cat << 'EOF' > /etc/systemd/system/goldbook-worker.service
 [Unit]
@@ -125,6 +141,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/goldbook-worker
+EnvironmentFile=/opt/goldbook-worker/.env
 Environment="DISPLAY=:99"
 Environment="WINEPREFIX=/root/.mt5"
 ExecStart=/opt/goldbook-worker/venv/bin/python orchestrator.py
@@ -138,4 +155,10 @@ EOF
 systemctl daemon-reload
 systemctl enable goldbook-worker 2>/dev/null || true
 
-echo "[8/8] Setup Complete! MT5 is installed and ready."
+echo ""
+echo "======================================================"
+echo "  [8/7] Setup Complete!"
+echo "======================================================"
+echo "  Edit credentials:  nano $WORKER_DIR/.env"
+echo "  Start worker:      systemctl start goldbook-worker"
+echo "  Live logs:         journalctl -u goldbook-worker -f"
