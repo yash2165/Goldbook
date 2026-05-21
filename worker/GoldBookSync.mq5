@@ -50,6 +50,25 @@ void OnStart()
 
    Print("GoldBook: Starting sync for token=", g_sync_token);
 
+   // Wait up to 20 seconds for connection to the trade server
+   int max_wait = 20;
+   while(!TerminalInfoInteger(TERMINAL_CONNECTED) && max_wait > 0)
+   {
+      Print("GoldBook: Waiting for connection to trade server... (attempts remaining: ", max_wait, ")");
+      Sleep(1000);
+      max_wait--;
+   }
+
+   if(!TerminalInfoInteger(TERMINAL_CONNECTED))
+   {
+      Print("GoldBook: Warning — Not connected to trade server. Balance and history snapshots might be incomplete or zero.");
+   }
+   else
+   {
+      Print("GoldBook: Connected to trade server successfully. Resting 2s for history synchronisation...");
+      Sleep(2000);
+   }
+
    string account_json = GetBalanceJson();
    string trades_json = GetClosedDealsJson();
    string positions_json = GetOpenPositionsJson();

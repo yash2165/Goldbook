@@ -285,6 +285,47 @@ def prepare_data_dir(acc: dict) -> Path:
     return data_dir
 
 
+def harvest_logs(data_dir: Path, login: str) -> str:
+    """
+    Harvests the last 40 lines of the latest MT5 terminal logs and MQL5 logs
+    to diagnose connection, execution, or environment issues.
+    """
+    harvested = []
+    
+    # 1. MQL5 Script Logs
+    mql_logs_dir = data_dir / "MQL5" / "Logs"
+    if mql_logs_dir.exists():
+        log_files = sorted(mql_logs_dir.glob("*.log"), key=lambda f: f.stat().st_mtime)
+        if log_files:
+            latest_file = log_files[-1]
+            try:
+                text, _, _ = _read_text_with_bom(latest_file)
+                lines = text.splitlines()[-40:]
+                harvested.append(f"--- MQL5 Script Logs ({latest_file.name}) ---")
+                harvested.extend(lines)
+            except Exception as e:
+                harvested.append(f"Failed to read MQL5 log {latest_file.name}: {e}")
+                
+    # 2. MT5 Terminal Logs
+    term_logs_dir = data_dir / "Logs"
+    if term_logs_dir.exists():
+        log_files = sorted(term_logs_dir.glob("*.log"), key=lambda f: f.stat().st_mtime)
+        if log_files:
+            latest_file = log_files[-1]
+            try:
+                text, _, _ = _read_text_with_bom(latest_file)
+                lines = text.splitlines()[-40:]
+                harvested.append(f"--- MT5 Terminal Logs ({latest_file.name}) ---")
+                harvested.extend(lines)
+            except Exception as e:
+                harvested.append(f"Failed to read Terminal log {latest_file.name}: {e}")
+                
+    if not harvested:
+        return f"[{login}] No MT5 log files found in isolated sandbox."
+        
+    return "\n".join(harvested)
+
+
 # ── Single account sync (runs in its own thread) ──────────────────────────────
 def sync_account(acc: dict) -> dict:
     """
@@ -342,6 +383,23 @@ def sync_account(acc: dict) -> dict:
                     subprocess.run(comp_cmd, env=comp_env, timeout=25, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception as e:
                     log.warning(f"[{login}] Ahead-of-time Hangover compilation failed: {e}")
+
+            # Verify compilation succeeded
+            if not dst_ex5.exists():
+                comp_log_path = scripts_dir / "GoldBookSync.log"
+                log_content = ""
+                if comp_log_path.exists():
+                    try:
+                        log_content, _, _ = _read_text_with_bom(comp_log_path)
+                    except Exception as le:
+                        log_content = f"(Failed to read compiler log: {le})"
+                else:
+                    log_content = "(No compilation log file found next to GoldBookSync.mq5)"
+                
+                err_msg = f"Failed to compile GoldBookSync.mq5. MetaEditor log:\n{log_content}"
+                log.error(f"[{login}] {err_msg}")
+                report_error(account_id, err_msg)
+                return {"login": login, "status": "error", "reason": f"compilation_failed: {err_msg}"}
 
         except Exception as e:
             log.error(f"[{login}] Failed preparing global configs: {e}")
@@ -446,6 +504,25 @@ def sync_account(acc: dict) -> dict:
         else:
             if not last_err_msg:
                 last_err_msg = f"Sync timed out after {MT5_TIMEOUT} seconds (MT5 did not finish scanning or failed to connect)."
+            
+            # Harvest and output logs to console
+            try:
+                harvested_info = harvest_logs(data_dir, login)
+                log.warning(f"⚠️  [{login}] MT5 Logs harvested:\n{harvested_info}")
+                
+                # Append a snippet of the latest log line if helpful
+                latest_line = ""
+                lines = harvested_info.splitlines()
+                if lines:
+                    for l in reversed(lines):
+                        if l.strip() and not l.startswith("--- "):
+                            latest_line = l.strip()
+                            break
+                if latest_line:
+                    last_err_msg += f" Latest MT5 log: {latest_line}"
+            except Exception as e:
+                log.error(f"[{login}] Failed harvesting logs: {e}")
+
             log.warning(f"⚠️  [{login}] Sync failed: {last_err_msg}")
             report_error(account_id, last_err_msg)
             return {"login": login, "status": "timeout", "reason": last_err_msg}
