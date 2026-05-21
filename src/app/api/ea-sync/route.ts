@@ -71,32 +71,37 @@ export async function POST(req: Request) {
   }
 
   // ── Closed trades ────────────────────────────────────────────────────────
+  // NOTE: position_id is the stable identifier that links an open position
+  // to its closing deal. mt5_ticket differs between the two, so we use
+  // position_id as the upsert key to UPDATE the existing row instead of
+  // inserting a duplicate.
   if (type === 'trades') {
     const { trades } = body as { trades: any[] }
     if (!trades?.length) return NextResponse.json({ success: true, count: 0 })
 
     const rows = trades.map((t) => ({
-      account_id:  account.id,
-      user_id:     account.user_id,
-      mt5_ticket:  t.mt5_ticket,
-      symbol:      t.symbol,
-      direction:   t.direction,
-      lot_size:    t.lot_size,
-      entry_price: t.entry_price,
-      exit_price:  t.exit_price ?? null,
-      open_time:   t.open_time  ? new Date(t.open_time  * 1000).toISOString() : null,
-      close_time:  t.close_time ? new Date(t.close_time * 1000).toISOString() : null,
+      account_id:   account.id,
+      user_id:      account.user_id,
+      position_id:  t.position_id,          // stable key — same for open & closed
+      mt5_ticket:   t.mt5_ticket,           // the closing deal ticket (OUT)
+      symbol:       t.symbol,
+      direction:    t.direction,
+      lot_size:     t.lot_size,
+      entry_price:  t.entry_price,
+      exit_price:   t.exit_price ?? null,
+      open_time:    t.open_time  ? new Date(t.open_time  * 1000).toISOString() : null,
+      close_time:   t.close_time ? new Date(t.close_time * 1000).toISOString() : null,
       gross_profit: t.gross_profit ?? null,
-      commission:  t.commission ?? 0,
-      swap:        t.swap ?? 0,
-      net_profit:  t.net_profit ?? null,
-      status:      'closed',
-      source:      'mt5',
+      commission:   t.commission ?? 0,
+      swap:         t.swap ?? 0,
+      net_profit:   t.net_profit ?? null,
+      status:       'closed',
+      source:       'mt5',
     }))
 
     const { error } = await supabase
       .from('trades')
-      .upsert(rows, { onConflict: 'account_id,mt5_ticket', ignoreDuplicates: false })
+      .upsert(rows, { onConflict: 'account_id,position_id', ignoreDuplicates: false })
 
     if (error) {
       console.error('trades upsert error:', error)
@@ -111,20 +116,22 @@ export async function POST(req: Request) {
     const { positions } = body as { positions: any[] }
 
     if (positions?.length > 0) {
-      const openTickets = positions.map((p) => p.mt5_ticket)
+      // Use position_id (stable) to detect which open positions are gone
+      const openPositionIds = positions.map((p) => p.position_id)
 
-      // Any position no longer in the list has been closed — mark it
+      // Any open row whose position_id is no longer in the live list = closed
       await supabase
         .from('trades')
         .update({ status: 'closed' })
         .eq('account_id', account.id)
         .eq('status', 'open')
-        .not('mt5_ticket', 'in', `(${openTickets.join(',')})`)
+        .not('position_id', 'in', `(${openPositionIds.join(',')})`)
 
       const rows = positions.map((p) => ({
         account_id:  account.id,
         user_id:     account.user_id,
-        mt5_ticket:  p.mt5_ticket,
+        position_id: p.position_id,         // stable identifier for upsert
+        mt5_ticket:  p.mt5_ticket,          // position ticket (same as position_id in MT5)
         symbol:      p.symbol,
         direction:   p.direction,
         lot_size:    p.lot_size,
@@ -141,7 +148,7 @@ export async function POST(req: Request) {
 
       const { error } = await supabase
         .from('trades')
-        .upsert(rows, { onConflict: 'account_id,mt5_ticket', ignoreDuplicates: false })
+        .upsert(rows, { onConflict: 'account_id,position_id', ignoreDuplicates: false })
 
       if (error) {
         console.error('positions upsert error:', error)

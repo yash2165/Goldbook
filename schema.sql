@@ -39,7 +39,10 @@ CREATE TABLE public.trades (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id UUID REFERENCES public.mt5_accounts(id) ON DELETE CASCADE,
   user_id UUID REFERENCES public.profiles(id),
-  mt5_ticket BIGINT NOT NULL,
+  -- position_id: MT5's stable POSITION_IDENTIFIER — same for open position and its closing deal.
+  -- This is the upsert key. mt5_ticket changes between open (position ticket) and close (deal ticket).
+  position_id BIGINT,
+  mt5_ticket BIGINT,                        -- nullable: deal ticket (may differ per open/close)
   symbol TEXT NOT NULL,
   direction TEXT CHECK (direction IN ('buy','sell')),
   lot_size NUMERIC,
@@ -67,7 +70,7 @@ CREATE TABLE public.trades (
   mistakes TEXT[],
   followed_plan BOOLEAN,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(account_id, mt5_ticket)
+  UNIQUE(account_id, position_id)           -- upsert key: stable across open→close lifecycle
 );
 
 CREATE TABLE public.equity_snapshots (

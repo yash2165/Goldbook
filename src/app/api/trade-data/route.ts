@@ -60,9 +60,9 @@ export async function POST(req: Request) {
   if (body.type === 'trades') {
     const { trades } = body
     
-    // Upsert trades
+    // Upsert on position_id (stable across open→close lifecycle)
     const { error } = await supabase.from('trades').upsert(trades, {
-      onConflict: 'account_id, mt5_ticket'
+      onConflict: 'account_id,position_id'
     })
 
     if (error) {
