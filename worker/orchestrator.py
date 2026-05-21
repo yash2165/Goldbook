@@ -242,6 +242,10 @@ def prepare_data_dir(acc: dict, acc_wineprefix: Path) -> Path:
     if not terminal_path.exists() and global_install_dir.exists():
         log.info(f"[{acc['mt5_login']}] Replicating MT5 installation to isolated directory: {data_dir}")
         shutil.copytree(global_install_dir, data_dir, dirs_exist_ok=True)
+        # Performance optimization: delete default examples to prevent background compilation
+        shutil.rmtree(data_dir / "MQL5" / "Scripts" / "Examples", ignore_errors=True)
+        shutil.rmtree(data_dir / "MQL5" / "Experts" / "Examples", ignore_errors=True)
+        shutil.rmtree(data_dir / "MQL5" / "Indicators" / "Examples", ignore_errors=True)
 
     scripts_dir = data_dir / "MQL5" / "Scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
@@ -556,7 +560,7 @@ def sync_account(acc: dict) -> dict:
         startup_ini = data_dir / "startup.ini"
         startup_content = (
             "[StartUp]\r\n"
-            "Script=GoldBookSync.ex5\r\n"
+            "Script=GoldBookSync\r\n"
             "Symbol=EURUSD\r\n"
             "Period=M1\r\n"
         )
@@ -564,11 +568,12 @@ def sync_account(acc: dict) -> dict:
     except Exception as e:
         log.warning(f"[{login}] Failed to write startup.ini configuration file: {e}")
 
+    # Use the absolute Windows path for the configuration file under Wine
     cmd = [
         "/usr/bin/wine",
         str(terminal_path),
         "/portable",
-        "/config:startup.ini",
+        f"/config:C:\\mt5data\\{account_id}\\startup.ini",
         "/skipupdate",
         "/nosplash",
     ]
