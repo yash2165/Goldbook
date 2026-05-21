@@ -94,6 +94,18 @@ def _write_text_with_bom(path: Path, text: str, encoding: str, bom: bytes):
     raw = text.encode(encoding, errors="ignore")
     path.write_bytes(bom + raw)
 
+def find_file_case_insensitive(directory: Path, filename: str) -> Path:
+    if not directory.exists():
+        return directory / filename
+    filename_lower = filename.lower()
+    try:
+        for p in directory.iterdir():
+            if p.is_file() and p.name.lower() == filename_lower:
+                return p
+    except Exception:
+        pass
+    return directory / filename
+
 
 def ensure_common_ini(common_ini: Path, acc: dict):
     """
@@ -223,7 +235,11 @@ def prepare_data_dir(acc: dict) -> Path:
     global_install_dir = wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
 
     # Replicate the full MT5 install into the data folder if terminal64.exe doesn't exist
-    if not (data_dir / "terminal64.exe").exists() and global_install_dir.exists():
+    terminal_path = find_file_case_insensitive(data_dir, "terminal64.exe")
+    if not terminal_path.exists():
+        terminal_path = find_file_case_insensitive(data_dir, "terminal.exe")
+
+    if not terminal_path.exists() and global_install_dir.exists():
         log.info(f"[{acc['mt5_login']}] Replicating MT5 installation to isolated directory: {data_dir}")
         shutil.copytree(global_install_dir, data_dir, dirs_exist_ok=True)
 
@@ -399,9 +415,9 @@ def sync_account(acc: dict) -> dict:
                     should_compile = True
             
             # Pre-compile the script ahead of time using Hangover 11.4 wine64
-            metaeditor_path = global_install_dir / "metaeditor64.exe"
-            if not metaeditor_path.exists() and (global_install_dir / "metaeditor.exe").exists():
-                metaeditor_path = global_install_dir / "metaeditor.exe"
+            metaeditor_path = find_file_case_insensitive(global_install_dir, "metaeditor64.exe")
+            if not metaeditor_path.exists():
+                metaeditor_path = find_file_case_insensitive(global_install_dir, "metaeditor.exe")
 
             if not dst_ex5.exists() or should_compile:
                 log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 with Hangover native compilation ahead of time...")
@@ -513,9 +529,16 @@ def sync_account(acc: dict) -> dict:
     env["USER"] = "root"
 
     # Execute using the ISOLATED terminal via Hangover 11.4 wine64
+    terminal_path = find_file_case_insensitive(data_dir, "terminal64.exe")
+    if not terminal_path.exists():
+        terminal_path = find_file_case_insensitive(data_dir, "terminal.exe")
+
+    if not terminal_path.exists():
+        raise FileNotFoundError(f"MT5 terminal executable not found in isolated directory: {data_dir}")
+
     cmd = [
         "/usr/bin/wine",
-        str(data_dir / "terminal64.exe"),
+        str(terminal_path),
         "/portable",
         f"/login:{login}",
         f"/password:{acc['investor_password']}",
