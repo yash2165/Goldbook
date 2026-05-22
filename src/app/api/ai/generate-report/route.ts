@@ -10,6 +10,7 @@ import {
   generateAIReport,
   checkRuleViolations,
   buildEmotionStats,
+  compilePsychologicalTelemetry,
   type TradingRule,
 } from '@/lib/ai'
 import type { Trade } from '@/lib/calculations'
@@ -71,7 +72,10 @@ export async function POST(req: Request) {
     const dayStats = computeDayStats(allTrades)
     const topSymbols = computeTopSymbols(allTrades)
 
-    // ── 6. Call AI coach ────────────────────────────────────────────────────
+    // ── 6. Compute deep psychological telemetry ─────────────────────────────
+    const telemetry = compilePsychologicalTelemetry(allTrades)
+
+    // ── 7. Call AI coach ────────────────────────────────────────────────────
     const { report, provider } = await generateAIReport({
       stats,
       sessionStats,
@@ -82,9 +86,10 @@ export async function POST(req: Request) {
       ruleViolations: ruleViolations.length > 0 ? ruleViolations : undefined,
       revengeTradeCount,
       period: 'alltime',
+      telemetry,
     })
 
-    // ── 7. Save report to DB ────────────────────────────────────────────────
+    // ── 8. Save report to DB ────────────────────────────────────────────────
     await supabase.from('ai_reports').insert({
       user_id: user.id,
       account_id: accountId ?? null,
@@ -111,6 +116,9 @@ export async function POST(req: Request) {
         emotion_insights: report.emotion_insights,
         violations_count: ruleViolations.reduce((s, v) => s + v.count, 0),
         revenge_trades: revengeTradeCount,
+        cognitive_biases: report.cognitive_biases ?? [],
+        emotion_correlations: report.emotion_correlations ?? [],
+        discipline_breaches_correlation: report.discipline_breaches_correlation ?? '',
       },
       rules_violations_count: ruleViolations.reduce((s, v) => s + v.count, 0),
       rules_compliance_score: report.rules_compliance_score,

@@ -39,6 +39,24 @@ function PnlBadge({ value }: { value: number }) {
   )
 }
 
+const BEFORE_EMOTIONS = [
+  { value: 'confident', label: 'Confident', icon: '✨', activeClass: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]' },
+  { value: 'nervous', label: 'Nervous', icon: '🌀', activeClass: 'bg-purple-500/20 border-purple-500/50 text-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.2)]' },
+  { value: 'neutral', label: 'Neutral', icon: '😐', activeClass: 'bg-slate-500/20 border-slate-500/50 text-slate-400 shadow-[0_0_12px_rgba(100,116,139,0.2)]' },
+  { value: 'excited', label: 'Excited', icon: '⚡', activeClass: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.2)]' },
+  { value: 'fearful', label: 'Fearful', icon: '😨', activeClass: 'bg-red-500/20 border-red-500/50 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.2)]' },
+  { value: 'greedy', label: 'Greedy', icon: '🤑', activeClass: 'bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]' },
+]
+
+const AFTER_EMOTIONS = [
+  { value: 'satisfied', label: 'Satisfied', icon: '😊', activeClass: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]' },
+  { value: 'regret', label: 'Regret', icon: '😔', activeClass: 'bg-orange-500/20 border-orange-500/50 text-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.2)]' },
+  { value: 'neutral', label: 'Neutral', icon: '😐', activeClass: 'bg-slate-500/20 border-slate-500/50 text-slate-400 shadow-[0_0_12px_rgba(100,116,139,0.2)]' },
+  { value: 'relieved', label: 'Relieved', icon: '😌', activeClass: 'bg-teal-500/20 border-teal-500/50 text-teal-400 shadow-[0_0_12px_rgba(20,184,166,0.2)]' },
+  { value: 'frustrated', label: 'Frustrated', icon: '😤', activeClass: 'bg-red-500/20 border-red-500/50 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.2)]' },
+  { value: 'proud', label: 'Proud', icon: '🏆', activeClass: 'bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]' },
+]
+
 function TradeJournalCard({ 
   trade, 
   index, 
@@ -175,24 +193,54 @@ function TradeJournalCard({
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Emotion Before</label>
-                    <input
-                      value={emotionBefore}
-                      onChange={e => setEmotionBefore(e.target.value)}
-                      placeholder="e.g. Confident"
-                      className="w-full bg-[#12121A] border border-[#1A1A2E] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
-                    />
+                    <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Emotion Before Trade</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {BEFORE_EMOTIONS.map(em => {
+                        const isSelected = emotionBefore === em.value
+                        return (
+                          <button
+                            key={em.value}
+                            type="button"
+                            onClick={() => setEmotionBefore(em.value)}
+                            className={cn(
+                              'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300',
+                              isSelected
+                                ? em.activeClass
+                                : 'bg-[#12121A]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
+                            )}
+                          >
+                            <span className="text-base">{em.icon}</span>
+                            <span>{em.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                   <div>
-                    <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Emotion After</label>
-                    <input
-                      value={emotionAfter}
-                      onChange={e => setEmotionAfter(e.target.value)}
-                      placeholder="e.g. Relieved"
-                      className="w-full bg-[#12121A] border border-[#1A1A2E] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
-                    />
+                    <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Emotion After Trade</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {AFTER_EMOTIONS.map(em => {
+                        const isSelected = emotionAfter === em.value
+                        return (
+                          <button
+                            key={em.value}
+                            type="button"
+                            onClick={() => setEmotionAfter(em.value)}
+                            className={cn(
+                              'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300',
+                              isSelected
+                                ? em.activeClass
+                                : 'bg-[#12121A]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
+                            )}
+                          >
+                            <span className="text-base">{em.icon}</span>
+                            <span>{em.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
 

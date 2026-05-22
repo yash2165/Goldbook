@@ -28,6 +28,7 @@ import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { InteractiveBackground } from '@/components/InteractiveBackground'
+import FloatingLines from '@/components/FloatingLines'
 
 // Reusable animated container variant
 const fadeUp = (delay = 0) => ({
@@ -170,6 +171,21 @@ export default function LandingPage() {
     <div className="min-h-screen bg-[#050508] text-[#F1F5F9] overflow-x-hidden selection:bg-[#F59E0B]/30 relative font-sans">
       {/* Cinematic Glowing Backdrop */}
       <InteractiveBackground />
+
+      {/* Dynamic Animated Line Waves Backdrop */}
+      <div className="fixed inset-0 pointer-events-none -z-10 h-screen w-screen opacity-50">
+        <FloatingLines
+          linesGradient={['#FFD700', '#F59E0B', '#B8860B', '#996515']}
+          enabledWaves={['top', 'bottom', 'middle']}
+          lineCount={12}
+          lineDistance={[6, 5, 4]}
+          bendRadius={7.0}
+          bendStrength={-0.35}
+          interactive={true}
+          parallax={true}
+          animationSpeed={1.5}
+        />
+      </div>
 
       {/* Floating Lights */}
       <div className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/8 blur-[180px] rounded-full pointer-events-none mix-blend-screen" />

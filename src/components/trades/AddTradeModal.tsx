@@ -12,6 +12,24 @@ import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Portal } from '@/components/ui/Portal'
 
+const BEFORE_EMOTIONS = [
+  { value: 'confident', label: 'Confident', icon: '✨', activeClass: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]' },
+  { value: 'nervous', label: 'Nervous', icon: '🌀', activeClass: 'bg-purple-500/20 border-purple-500/50 text-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.2)]' },
+  { value: 'neutral', label: 'Neutral', icon: '😐', activeClass: 'bg-slate-500/20 border-slate-500/50 text-slate-400 shadow-[0_0_12px_rgba(100,116,139,0.2)]' },
+  { value: 'excited', label: 'Excited', icon: '⚡', activeClass: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.2)]' },
+  { value: 'fearful', label: 'Fearful', icon: '😨', activeClass: 'bg-red-500/20 border-red-500/50 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.2)]' },
+  { value: 'greedy', label: 'Greedy', icon: '🤑', activeClass: 'bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]' },
+]
+
+const AFTER_EMOTIONS = [
+  { value: 'satisfied', label: 'Satisfied', icon: '😊', activeClass: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]' },
+  { value: 'regret', label: 'Regret', icon: '😔', activeClass: 'bg-orange-500/20 border-orange-500/50 text-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.2)]' },
+  { value: 'neutral', label: 'Neutral', icon: '😐', activeClass: 'bg-slate-500/20 border-slate-500/50 text-slate-400 shadow-[0_0_12px_rgba(100,116,139,0.2)]' },
+  { value: 'relieved', label: 'Relieved', icon: '😌', activeClass: 'bg-teal-500/20 border-teal-500/50 text-teal-400 shadow-[0_0_12px_rgba(20,184,166,0.2)]' },
+  { value: 'frustrated', label: 'Frustrated', icon: '😤', activeClass: 'bg-red-500/20 border-red-500/50 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.2)]' },
+  { value: 'proud', label: 'Proud', icon: '🏆', activeClass: 'bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]' },
+]
+
 interface AddTradeModalProps {
   onClose: () => void
   onSaved: () => void
@@ -66,6 +84,9 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
     tp: '',
     notes: '',
     setup_tag: '',
+    emotion_before: '',
+    emotion_after: '',
+    rating: '0',
   })
 
   const f = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
@@ -92,6 +113,9 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
         notes: form.notes,
         setup_tag: form.setup_tag,
         pre_trade_checklist: checks,
+        emotion_before: form.emotion_before || undefined,
+        emotion_after: form.emotion_after || undefined,
+        rating: form.rating && parseInt(form.rating) > 0 ? parseInt(form.rating) : undefined,
       }),
     })
 
@@ -225,6 +249,87 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
               <Label className="text-xs text-[#22C55E]/70 uppercase tracking-wider">Take Profit</Label>
               <Input type="number" step="0.01" value={form.tp} onChange={e => f('tp', e.target.value)} className="bg-white/5 border-[#22C55E]/20 h-11" placeholder="Optional" />
             </div>
+          </div>
+
+          {/* Psychological State Tracking */}
+          <div className="space-y-4 border-t border-white/5 pt-4">
+            <Label className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider block">Psychological Mood Tracker</Label>
+            
+            <div className="space-y-2.5">
+              <Label className="text-[11px] text-[#64748B] uppercase tracking-wider block">Emotion Before Execution</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {BEFORE_EMOTIONS.map(em => {
+                  const isSelected = form.emotion_before === em.value
+                  return (
+                    <button
+                      key={em.value}
+                      type="button"
+                      onClick={() => f('emotion_before', em.value)}
+                      className={cn(
+                        'px-2 py-2.5 rounded-xl border text-[10px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300',
+                        isSelected
+                          ? em.activeClass
+                          : 'bg-white/5 border-white/5 text-[#64748B] hover:bg-white/10 hover:text-white hover:border-white/10'
+                      )}
+                    >
+                      <span className="text-base">{em.icon}</span>
+                      <span>{em.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Display post-trade emotions and rating only if trade is closed (i.e. exit price provided) */}
+            {form.exit_price && (
+              <div className="space-y-4 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] text-[#64748B] uppercase tracking-wider block">Emotion After Close</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {AFTER_EMOTIONS.map(em => {
+                      const isSelected = form.emotion_after === em.value
+                      return (
+                        <button
+                          key={em.value}
+                          type="button"
+                          onClick={() => f('emotion_after', em.value)}
+                          className={cn(
+                            'px-2 py-2.5 rounded-xl border text-[10px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300',
+                            isSelected
+                              ? em.activeClass
+                              : 'bg-white/5 border-white/5 text-[#64748B] hover:bg-white/10 hover:text-white hover:border-white/10'
+                          )}
+                        >
+                          <span className="text-base">{em.icon}</span>
+                          <span>{em.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[11px] text-[#64748B] uppercase tracking-wider block">Trade Execution Rating (1-5)</Label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => f('rating', star.toString())}
+                        className={cn(
+                          'w-9 h-9 rounded-xl flex items-center justify-center text-base font-bold transition-all',
+                          parseInt(form.rating) >= star
+                            ? 'bg-[#F59E0B] text-black shadow-[0_0_12px_rgba(245,159,11,0.4)]'
+                            : 'bg-white/5 border border-white/5 text-[#64748B] hover:bg-white/10 hover:text-white'
+                        )}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Pre-Trade Checklist */}

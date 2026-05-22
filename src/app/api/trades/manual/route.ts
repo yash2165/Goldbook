@@ -11,6 +11,7 @@ export async function POST(req: Request) {
     account_id, symbol, direction, lot_size,
     entry_price, exit_price, open_time, close_time,
     sl, tp, notes, pre_trade_checklist,
+    emotion_before, emotion_after, rating,
   } = body
 
   // Verify that the account belongs to the authenticated user to prevent parameter injection
@@ -91,6 +92,9 @@ export async function POST(req: Request) {
     source: 'manual',
     notes: notes ?? null,
     pre_trade_checklist: pre_trade_checklist ?? null,
+    emotion_before: emotion_before ?? null,
+    emotion_after: emotion_after ?? null,
+    rating: rating ?? null,
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

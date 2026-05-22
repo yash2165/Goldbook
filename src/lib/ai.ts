@@ -11,7 +11,7 @@
  *  - Revenge trading patterns (trades within 15min of a loss)
  */
 
-import type { PerformanceStats, SessionStat, DayStat } from './calculations'
+import type { PerformanceStats, SessionStat, DayStat, Trade } from './calculations'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,6 +29,39 @@ export interface RuleViolation {
   examples: string[]      // human-readable violation descriptions
 }
 
+export interface PsychologicalTelemetry {
+  lossAversionRatio: number
+  avgWinDurationSeconds: number
+  avgLossDurationSeconds: number
+  revengeSizingMultiplier: number
+  revengeTradesCount: number
+  revengeTradesTotalPnl: number
+  normalExpectancy: number
+  normalWinRate: number
+  exhaustionExpectancy: number
+  exhaustionWinRate: number
+  exhaustionTradesCount: number
+  emotionChecklistCompliance: Record<string, { totalTrades: number; avgCompliance: number }>
+}
+
+export interface CognitiveBias {
+  bias_name: "Loss Aversion" | "Revenge Trading" | "Overconfidence/FOMO" | "Mental Fatigue"
+  severity: 'critical' | 'moderate' | 'healthy'
+  evidence: string
+  description: string
+  psychological_exercise: string
+}
+
+export interface EmotionCorrelation {
+  emotion: string
+  total_trades: number
+  win_rate: number
+  avg_pnl: number
+  avg_hold_time_seconds: number
+  avg_lot_size: number
+  checklist_compliance_rate: number
+}
+
 interface AIReportInput {
   stats: PerformanceStats
   sessionStats: Record<string, SessionStat>
@@ -40,6 +73,7 @@ interface AIReportInput {
   revengeTradeCount?: number
   period: 'weekly' | 'monthly' | 'alltime'
   accountBalance?: number
+  telemetry?: PsychologicalTelemetry
 }
 
 export interface AIReportOutput {
@@ -62,6 +96,9 @@ export interface AIReportOutput {
   action_plan: string[]
   summary: string
   trades_analyzed: number
+  cognitive_biases?: CognitiveBias[]
+  emotion_correlations?: EmotionCorrelation[]
+  discipline_breaches_correlation?: string
 }
 
 // ── Prompt builder ─────────────────────────────────────────────────────────────
@@ -70,7 +107,7 @@ function buildPrompt(input: AIReportInput): string {
   const {
     stats, sessionStats, dayStats, topSymbols,
     emotionStats, activeRules, ruleViolations,
-    revengeTradeCount = 0, period,
+    revengeTradeCount = 0, period, telemetry
   } = input
 
   const bestSession = Object.entries(sessionStats).sort((a, b) => b[1].pnl - a[1].pnl)[0]?.[0] ?? 'N/A'
@@ -80,6 +117,22 @@ function buildPrompt(input: AIReportInput): string {
 
   const hasRules = activeRules && activeRules.length > 0
   const hasEmotions = emotionStats && Object.keys(emotionStats).length > 0
+  const hasTelemetry = !!telemetry
+
+  const telemetrySection = hasTelemetry ? `
+═══════════════════════════════════════════
+PSYCHOLOGICAL TELEMETRY EVIDENCE (Computed Engine)
+═══════════════════════════════════════════
+• Loss Aversion Ratio: ${telemetry.lossAversionRatio.toFixed(2)}x (Losing trades held on average for ${telemetry.avgLossDurationSeconds.toFixed(1)}s, while winning trades held for ${telemetry.avgWinDurationSeconds.toFixed(1)}s)
+• Revenge Trading Sizing Multiplier: ${telemetry.revengeSizingMultiplier.toFixed(2)}x (Average lot size change on trades taken within 15 minutes of a loss)
+• Revenge Trades Count: ${telemetry.revengeTradesCount} trade(s) | Total Revenge P&L: $${telemetry.revengeTradesTotalPnl.toFixed(2)}
+• Overtrading / Fatigue Expectancy Decay:
+  - Normal (first 4 daily trades) Expectancy: $${telemetry.normalExpectancy.toFixed(2)} | Win Rate: ${telemetry.normalWinRate.toFixed(1)}%
+  - Exhaustion (5th+ daily trade) Expectancy: $${telemetry.exhaustionExpectancy.toFixed(2)} | Win Rate: ${telemetry.exhaustionWinRate.toFixed(1)}%
+  - Exhaustion Trades Count: ${telemetry.exhaustionTradesCount}
+• Checklist Compliance by Pre-Trade Emotion:
+${Object.entries(telemetry.emotionChecklistCompliance).map(([emo, val]) => `  - "${emo}": ${val.avgCompliance.toFixed(1)}% avg compliance over ${val.totalTrades} trade(s)`).join('\n')}
+` : ''
 
   return `You are Nirikshan, GoldBook's elite trading coach and psychologist, specialized in intraday and swing trading.
 
@@ -162,6 +215,7 @@ ${ruleViolations && ruleViolations.length > 0 ? `DETECTED VIOLATIONS:
 ${ruleViolations.map(v => `• ${v.label}: violated ${v.count} time(s)\n  ${v.examples.join('\n  ')}`).join('\n')}` : 'No specific violations could be auto-detected from the data.'}
 
 Revenge trades detected: ${revengeTradeCount} (trades opened within 15 minutes of a loss)` : ''}
+${telemetrySection}
 
 ═══════════════════════════════════════════
 RESPONSE FORMAT
@@ -187,7 +241,49 @@ Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
   "emotion_insights": ${hasEmotions ? '["Emotion pattern 1", "Emotion pattern 2", "Emotion pattern 3"]' : '[]'},
   "action_plan": ["Specific action 1", "Specific action 2", "Specific action 3", "Specific action 4", "Specific action 5"],
   "summary": "3-4 paragraph personal message written DIRECTLY to the trader using 'you'. First paragraph: overall performance summary. Second paragraph: psychology and emotion patterns (if available). Third paragraph: rule compliance and discipline (if rules exist). Fourth paragraph: what to focus on this week.",
-  "trades_analyzed": ${stats.totalTrades}
+  "trades_analyzed": ${stats.totalTrades},
+  "cognitive_biases": [
+    {
+      "bias_name": "Loss Aversion",
+      "severity": "critical" | "moderate" | "healthy",
+      "evidence": "E.g., losing trades held on average 3.2x longer than wins, or average loss holding time is 1800s vs 560s for wins",
+      "description": "Short explanation of this bias in the context of their trades",
+      "psychological_exercise": "A concrete, clinical cognitive exercise to mitigate this bias during active trading"
+    },
+    {
+      "bias_name": "Revenge Trading",
+      "severity": "critical" | "moderate" | "healthy",
+      "evidence": "E.g., sizing multiplier is 1.8x on trades taken within 15 minutes of a loss, resulting in -$450 total loss",
+      "description": "Short explanation",
+      "psychological_exercise": "Concrete clinical exercise to run when facing revenge triggers"
+    },
+    {
+      "bias_name": "Overconfidence/FOMO",
+      "severity": "critical" | "moderate" | "healthy",
+      "evidence": "E.g., average checklist compliance drops to 30% when feeling excited or greedy",
+      "description": "Short explanation",
+      "psychological_exercise": "Exercise to reset emotional hyper-arousal"
+    },
+    {
+      "bias_name": "Mental Fatigue",
+      "severity": "critical" | "moderate" | "healthy",
+      "evidence": "E.g., win rate decays from 55% on normal trades to 25% on exhaustion trades (5th+ daily trade)",
+      "description": "Short explanation",
+      "psychological_exercise": "Specific strict daily limit exercise to enforce rules and avoid decision fatigue"
+    }
+  ],
+  "emotion_correlations": [
+    {
+      "emotion": "confident",
+      "total_trades": 12,
+      "win_rate": 58.3,
+      "avg_pnl": 120.5,
+      "avg_hold_time_seconds": 450,
+      "avg_lot_size": 1.2,
+      "checklist_compliance_rate": 85.0
+    }
+  ],
+  "discipline_breaches_correlation": "Citing evidence of how emotions directly degraded rule compliance or caused breaches, correlating rules to pre-trade emotional states."
 }
 
 Be BRUTALLY HONEST but constructive. Reference exact numbers. This report should feel like it was written by a world-class trading coach who studied every single trade.`
@@ -357,6 +453,148 @@ export function buildEmotionStats(
       .filter(([, v]) => v.total >= 2)  // only meaningful patterns
       .map(([emotion, v]) => [emotion, { wins: v.wins, total: v.total, avgPnl: v.totalPnl / v.total }])
   )
+}
+
+// ── Psychological Telemetry Engine ──────────────────────────────────────────
+
+export function compilePsychologicalTelemetry(trades: Trade[]): PsychologicalTelemetry {
+  const closed = trades.filter(t => t.status === 'closed' && t.net_profit !== null)
+
+  // 1. Loss Aversion Ratio
+  let winSumDuration = 0, winCount = 0
+  let lossSumDuration = 0, lossCount = 0
+
+  for (const t of closed) {
+    const openTime = t.open_time ? new Date(t.open_time).getTime() : null
+    const closeTime = t.close_time ? new Date(t.close_time).getTime() : null
+    const duration = (openTime && closeTime) ? (closeTime - openTime) / 1000 : (t.duration_seconds ?? 0)
+
+    if (duration > 0) {
+      if ((t.net_profit ?? 0) > 0) {
+        winSumDuration += duration
+        winCount++
+      } else {
+        lossSumDuration += duration
+        lossCount++
+      }
+    }
+  }
+
+  const avgWinDurationSeconds = winCount > 0 ? winSumDuration / winCount : 0
+  const avgLossDurationSeconds = lossCount > 0 ? lossSumDuration / lossCount : 0
+  const lossAversionRatio = avgWinDurationSeconds > 0 ? avgLossDurationSeconds / avgWinDurationSeconds : 1.0
+
+  // 2. Revenge Sizing Multiplier
+  let revengeTradesCount = 0
+  let revengeTradesTotalPnl = 0
+  let revengeSizingMultiplierSum = 0
+
+  const sortedByOpen = [...trades].filter(t => t.open_time).sort(
+    (a, b) => new Date(a.open_time!).getTime() - new Date(b.open_time!).getTime()
+  )
+
+  for (let i = 1; i < sortedByOpen.length; i++) {
+    const current = sortedByOpen[i]
+    if (!current.open_time) continue
+    const currentOpenTime = new Date(current.open_time).getTime()
+    
+    // Find if there is a trade that closed as a loss within 15 mins before this opened
+    const precedingLoss = sortedByOpen.slice(0, i).reverse().find(prev => {
+      if (!prev.close_time || (prev.net_profit ?? 0) >= 0) return false
+      const prevCloseTime = new Date(prev.close_time).getTime()
+      return currentOpenTime > prevCloseTime && currentOpenTime < prevCloseTime + 15 * 60 * 1000
+    })
+
+    if (precedingLoss) {
+      revengeTradesCount++
+      revengeTradesTotalPnl += current.net_profit ?? 0
+      const currentLot = current.lot_size ?? 1.0
+      const precedingLot = precedingLoss.lot_size ?? 1.0
+      revengeSizingMultiplierSum += precedingLot > 0 ? currentLot / precedingLot : 1.0
+    }
+  }
+
+  const revengeSizingMultiplier = revengeTradesCount > 0 ? revengeSizingMultiplierSum / revengeTradesCount : 1.0
+
+  // 3. Overtrading / Expectancy Decay (trades after 4th trade of the day)
+  const byDay: Record<string, Trade[]> = {}
+  for (const t of sortedByOpen) {
+    if (!t.open_time) continue
+    const dateStr = t.open_time.split('T')[0]
+    if (!byDay[dateStr]) byDay[dateStr] = []
+    byDay[dateStr].push(t)
+  }
+
+  let normalPnlSum = 0, normalClosedCount = 0, normalWins = 0
+  let exhaustionPnlSum = 0, exhaustionClosedCount = 0, exhaustionWins = 0
+
+  for (const [, dayTrades] of Object.entries(byDay)) {
+    dayTrades.forEach((t, index) => {
+      if (t.status !== 'closed' || t.net_profit === null) return
+      if (index < 4) {
+        normalPnlSum += t.net_profit
+        normalClosedCount++
+        if (t.net_profit > 0) normalWins++
+      } else {
+        exhaustionPnlSum += t.net_profit
+        exhaustionClosedCount++
+        if (t.net_profit > 0) exhaustionWins++
+      }
+    })
+  }
+
+  const normalExpectancy = normalClosedCount > 0 ? normalPnlSum / normalClosedCount : 0
+  const normalWinRate = normalClosedCount > 0 ? (normalWins / normalClosedCount) * 100 : 0
+  const exhaustionExpectancy = exhaustionClosedCount > 0 ? exhaustionPnlSum / exhaustionClosedCount : 0
+  const exhaustionWinRate = exhaustionClosedCount > 0 ? (exhaustionWins / exhaustionClosedCount) * 100 : 0
+
+  // 4. Checklist Compliance per Emotion
+  const complianceByEmotion: Record<string, { sum: number; count: number }> = {}
+
+  for (const t of closed) {
+    if (!t.emotion_before) continue
+    const emotion = t.emotion_before.toLowerCase().trim()
+
+    let compliance: number | null = null
+    if (t.pre_trade_checklist && Object.keys(t.pre_trade_checklist).length > 0) {
+      const totalItems = Object.keys(t.pre_trade_checklist).length
+      const completedItems = Object.values(t.pre_trade_checklist).filter(Boolean).length
+      compliance = (completedItems / totalItems) * 100
+    } else if (t.followed_plan !== null && t.followed_plan !== undefined) {
+      compliance = t.followed_plan ? 100 : 0
+    }
+
+    if (compliance !== null) {
+      if (!complianceByEmotion[emotion]) {
+        complianceByEmotion[emotion] = { sum: 0, count: 0 }
+      }
+      complianceByEmotion[emotion].sum += compliance
+      complianceByEmotion[emotion].count++
+    }
+  }
+
+  const emotionChecklistCompliance: Record<string, { totalTrades: number; avgCompliance: number }> = {}
+  for (const [emotion, stats] of Object.entries(complianceByEmotion)) {
+    emotionChecklistCompliance[emotion] = {
+      totalTrades: stats.count,
+      avgCompliance: stats.sum / stats.count
+    }
+  }
+
+  return {
+    lossAversionRatio,
+    avgWinDurationSeconds,
+    avgLossDurationSeconds,
+    revengeSizingMultiplier,
+    revengeTradesCount,
+    revengeTradesTotalPnl,
+    normalExpectancy,
+    normalWinRate,
+    exhaustionExpectancy,
+    exhaustionWinRate,
+    exhaustionTradesCount: exhaustionClosedCount,
+    emotionChecklistCompliance
+  }
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
