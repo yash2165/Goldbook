@@ -201,7 +201,7 @@ export function Sidebar() {
     <>
       {/* Mobile Toggle */}
       <button
-        className="md:hidden fixed top-3 left-4 z-50 p-2 bg-[#12121a] border border-white/10 rounded-lg text-white"
+        className="md:hidden fixed top-3 left-4 z-60 p-2 bg-[#12121a] border border-white/10 rounded-lg text-white"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
         {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -215,7 +215,7 @@ export function Sidebar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setMobileOpen(false)}
-            className="md:hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-40"
+            className="md:hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50"
           />
         )}
       </AnimatePresence>
@@ -226,7 +226,7 @@ export function Sidebar() {
         }}
         transition={{ type: 'spring', stiffness: 350, damping: 30 }}
         className={cn(
-          'fixed md:static inset-y-0 left-0 z-40 bg-[#0A0A0F] border-r border-[#1A1A2E] flex flex-col transition-transform duration-300',
+          'fixed md:static inset-y-0 left-0 z-50 bg-[#0A0A0F] border-r border-[#1A1A2E] flex flex-col transition-transform duration-300',
           mobileOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'
         )}
       >

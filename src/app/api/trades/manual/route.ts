@@ -13,6 +13,19 @@ export async function POST(req: Request) {
     sl, tp, notes, pre_trade_checklist,
   } = body
 
+  // Verify that the account belongs to the authenticated user to prevent parameter injection
+  if (account_id) {
+    const { data: acc } = await supabase
+      .from('mt5_accounts')
+      .select('user_id')
+      .eq('id', account_id)
+      .single()
+
+    if (!acc || acc.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden: Account does not belong to user.' }, { status: 403 })
+    }
+  }
+
   // Calculate net profit for manual trades (simplified for XAUUSD: pip value ~$10/lot)
   let net_profit: number | null = null
   let pips: number | null = null

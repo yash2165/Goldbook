@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { Switch } from '@/components/ui/switch'
+import { useToast } from '@/context/ToastContext'
 
 type Tab = 'profile' | 'security'
 
@@ -62,6 +63,7 @@ export default function SettingsPage() {
 
   const supabase = createClient()
   const router = useRouter()
+  const { success: showSuccess, error: showError } = useToast()
 
   useEffect(() => {
     async function load() {
@@ -98,15 +100,21 @@ export default function SettingsPage() {
     if (!user) return
     setSaving(true)
     
-    // Create pre_trade_checklist column if it doesn't exist (Supabase might error if column missing, handle gracefully)
+    // Sanitize values to lowercase/null to satisfy check constraints and prevent database crashes
+    const sanitizedTradingStyle = profile.trading_style ? profile.trading_style.toLowerCase().trim() : null
+    const sanitizedCountry = profile.country ? profile.country.trim() : null
+    const sanitizedBio = profile.bio ? profile.bio.trim() : null
+    const sanitizedDisplayName = profile.display_name ? profile.display_name.trim() : null
+    const sanitizedUsername = profile.username ? profile.username.trim() : null
+
     const { error } = await supabase
       .from('profiles')
       .update({ 
-        username: profile.username,
-        display_name: profile.display_name,
-        trading_style: profile.trading_style,
-        country: profile.country,
-        bio: profile.bio,
+        username: sanitizedUsername || null,
+        display_name: sanitizedDisplayName || null,
+        trading_style: sanitizedTradingStyle || null,
+        country: sanitizedCountry || null,
+        bio: sanitizedBio || null,
         timezone: profile.timezone,
         pre_trade_checklist: profile.pre_trade_checklist,
         trading_setups: profile.trading_setups,
@@ -117,10 +125,11 @@ export default function SettingsPage() {
     setSaving(false)
     if (!error) {
       setSaved(true)
+      showSuccess('Profile Updated Successfully', 'Your preferences, custom checklist, and setups have been saved.')
       setTimeout(() => setSaved(false), 2500)
     } else {
       console.error(error)
-      alert("Failed to save profile. Make sure you ran the SQL update for profiles.")
+      showError('Failed to save profile', error.message || 'Make sure you have run the SQL update in Supabase.')
     }
   }
 
@@ -307,7 +316,17 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-[#64748B] uppercase tracking-wider">Trading Style</Label>
-                    <Input value={profile.trading_style} onChange={e => setProfile(p => ({ ...p, trading_style: e.target.value }))} placeholder="E.g. Scalper, Day Trader, Swing" className="bg-[#0d1017] border-white/10 h-11" />
+                    <select
+                      value={profile.trading_style}
+                      onChange={e => setProfile(p => ({ ...p, trading_style: e.target.value }))}
+                      className="w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] text-white appearance-none h-11"
+                    >
+                      <option value="">Select Trading Style (None)</option>
+                      <option value="scalper">Scalper</option>
+                      <option value="swing">Swing</option>
+                      <option value="intraday">Intraday</option>
+                      <option value="position">Position</option>
+                    </select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-[#64748B] uppercase tracking-wider">Bio</Label>

@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Save, CheckCircle2, Shield, Target, BarChart2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/context/ToastContext'
+import { format } from 'date-fns'
 
 interface TradingRule {
   id?: string
@@ -55,15 +57,22 @@ export default function RulesPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const supabase = createClient()
+  const { success: showSuccess, error: showError } = useToast()
+
+  // Violations log states
+  const [violations, setViolations] = useState<any[]>([])
+  const [violationsLoading, setViolationsLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data } = await supabase.from('trading_rules').select('*').eq('user_id', user.id)
+      
+      // Load rules parameters
+      const { data: rulesData } = await supabase.from('trading_rules').select('*').eq('user_id', user.id)
       
       const loadedRules: Record<string, TradingRule> = {}
-      data?.forEach(r => {
+      rulesData?.forEach(r => {
         loadedRules[r.rule_type] = r
       })
 
@@ -80,7 +89,21 @@ export default function RulesPage() {
 
       setRules(loadedRules)
       setLoading(false)
+
+      // Load rule violations
+      const { data: violsData } = await supabase
+        .from('rule_violations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('detected_at', { ascending: false })
+        .limit(20)
+
+      if (violsData) {
+        setViolations(violsData)
+      }
+      setViolationsLoading(false)
     }
+    
     load()
   }, [])
 
@@ -97,7 +120,11 @@ export default function RulesPage() {
   const saveRules = async () => {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) {
+      showError('Authentication failed', 'Please sign in again.')
+      setSaving(false)
+      return
+    }
 
     const rulesToUpsert = PRIMARY_RULES.map(pr => {
       const r = rules[pr.type]
@@ -111,11 +138,17 @@ export default function RulesPage() {
       }
     })
 
-    await supabase.from('trading_rules').upsert(rulesToUpsert, { onConflict: 'id' })
+    const { error } = await supabase.from('trading_rules').upsert(rulesToUpsert, { onConflict: 'id' })
     
     setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    if (!error) {
+      setSaved(true)
+      showSuccess('Parameters Updated!', 'Your customized risk ceiling and daily boundaries are active.')
+      setTimeout(() => setSaved(false), 2500)
+    } else {
+      console.error(error)
+      showError('Failed to save rules', error.message || 'Make sure database schemas are fully updated.')
+    }
   }
 
   if (loading) {
@@ -132,7 +165,7 @@ export default function RulesPage() {
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Discipline Parameters</h1>
           <p className="text-[#94A3B8] text-sm leading-relaxed max-w-md">
-            Set your non-negotiable boundaries. Nirikshan will track your compliance with these rules across all connected accounts.
+            Set your non-negotiable boundaries. GoldBook will track your compliance with these rules across all connected accounts.
           </p>
         </div>
 
@@ -207,6 +240,67 @@ export default function RulesPage() {
               </div>
             )
           })}
+        </div>
+
+        {/* Discipline History & Violations Log */}
+        <div className="mt-12 bg-[#12121a] border border-white/5 rounded-2xl p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <Shield className="w-5 h-5 text-primary" />
+            <div>
+              <h3 className="font-bold text-white text-lg">Discipline History & Violations Log</h3>
+              <p className="text-xs text-[#64748B] mt-0.5">Your record of compliance and behavior analysis.</p>
+            </div>
+          </div>
+
+          {violationsLoading ? (
+            <div className="py-8 text-center text-[#64748B] text-sm">Loading violations log...</div>
+          ) : violations.length === 0 ? (
+            <div className="p-8 bg-[#0d1017] border border-white/5 rounded-2xl text-center space-y-3">
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto border border-primary/20 shadow-[0_0_15px_rgba(245,159,11,0.15)]">
+                <Shield className="w-6 h-6 text-primary" />
+              </div>
+              <h4 className="font-bold text-white text-sm">Perfect Discipline Streak!</h4>
+              <p className="text-xs text-[#64748B] max-w-sm mx-auto leading-relaxed">
+                You have not violated any rules in the last 30 days. Your trading behavior is pristine and professional. Keep up the high edge!
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-[#94A3B8]">
+                <thead className="text-xs uppercase text-[#64748B] border-b border-white/5">
+                  <tr>
+                    <th className="pb-3 font-semibold">Rule Type</th>
+                    <th className="pb-3 font-semibold">Violation Details</th>
+                    <th className="pb-3 font-semibold">Date & Time</th>
+                    <th className="pb-3 font-semibold">Severity</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {violations.map((v) => (
+                    <tr key={v.id} className="hover:bg-white/[0.01] transition-colors">
+                      <td className="py-3.5 pr-4 font-bold text-white uppercase tracking-wider text-[11px] truncate max-w-[150px]">
+                        {v.rule_type.replace(/_/g, ' ')}
+                      </td>
+                      <td className="py-3.5 pr-4 text-xs font-medium text-[#F1F5F9] leading-relaxed">
+                        {v.description}
+                      </td>
+                      <td className="py-3.5 pr-4 text-xs text-[#64748B] whitespace-nowrap">
+                        {format(new Date(v.detected_at), 'MMM dd, yyyy HH:mm')}
+                      </td>
+                      <td className="py-3.5">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest",
+                          v.severity === 'critical' ? 'bg-[#EF4444]/15 text-[#EF4444] border border-[#EF4444]/20' : 'bg-primary/15 text-primary border border-primary/20'
+                        )}>
+                          {v.severity || 'warning'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 

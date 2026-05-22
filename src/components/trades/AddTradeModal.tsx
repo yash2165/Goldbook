@@ -10,6 +10,7 @@ import { format } from 'date-fns'
 
 import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Portal } from '@/components/ui/Portal'
 
 interface AddTradeModalProps {
   onClose: () => void
@@ -101,8 +102,9 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-[#12121a] border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="w-full max-w-lg bg-[#12121a] border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
           <h2 className="font-bold text-lg flex items-center gap-2">
@@ -316,6 +318,7 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
         </form>
       </div>
     </div>
+    </Portal>
   )
 }
 

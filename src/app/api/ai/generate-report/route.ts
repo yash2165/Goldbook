@@ -22,6 +22,19 @@ export async function POST(req: Request) {
 
     const { accountId } = await req.json()
 
+    // Verify that the account belongs to the authenticated user to prevent parameter injection
+    if (accountId) {
+      const { data: acc } = await supabase
+        .from('mt5_accounts')
+        .select('user_id')
+        .eq('id', accountId)
+        .single()
+
+      if (!acc || acc.user_id !== user.id) {
+        return NextResponse.json({ error: 'Forbidden: Account does not belong to user.' }, { status: 403 })
+      }
+    }
+
     // ── 1. Fetch trades ─────────────────────────────────────────────────────
     let query = supabase.from('trades').select('*').eq('user_id', user.id)
     if (accountId) query = query.eq('account_id', accountId)

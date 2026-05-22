@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { X, MessageSquare, UserPlus, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Portal } from '@/components/ui/Portal'
 
 interface ProfileModalProps {
   userId: string
@@ -78,8 +79,9 @@ export function UserProfileModal({ userId, currentUserId, onClose, onMessage }: 
   if (!profile && !loading) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-md bg-[#12121a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+    <Portal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+        <div className="w-full max-w-md bg-[#12121a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
         
         {/* Cover Photo / Header area */}
         <div className="h-32 bg-gradient-to-br from-primary/20 via-[#1a1a2e] to-[#0a0a0f] relative">
@@ -177,5 +179,6 @@ export function UserProfileModal({ userId, currentUserId, onClose, onMessage }: 
         )}
       </div>
     </div>
+    </Portal>
   )
 }

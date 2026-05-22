@@ -5,6 +5,7 @@ import { useAccounts } from '@/hooks/useAccounts'
 import {
   computeStats, computeEquityCurve, computeSessionStats,
   computeDayStats, computeTopSymbols, computeDailyPnl,
+  computeSetupSessionStats,
   fmt, fmtPct,
 } from '@/lib/calculations'
 import { useState } from 'react'
@@ -61,6 +62,7 @@ export default function PerformancePage() {
   const dayStats = computeDayStats(filtered)
   const topSymbols = computeTopSymbols(filtered)
   const dailyPnl = computeDailyPnl(filtered)
+  const setupSessionStats = computeSetupSessionStats(filtered)
 
   const pf = stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)
 
@@ -368,6 +370,101 @@ export default function PerformancePage() {
             )
           })}
         </div>
+      </div>
+
+      {/* AI Strategy-Session Edge Matrix */}
+      <div className="bg-[#12121a] border border-white/5 rounded-xl p-5">
+        <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
+          <span className="w-4 h-4 rounded bg-[#F59E0B]/20 flex items-center justify-center text-[10px] text-[#F59E0B]">⚡</span>
+          AI Strategy-Session Edge Matrix
+        </h2>
+        <p className="text-xs text-[#64748B] mb-5">Analyze which setups yield the highest edge across global trading sessions</p>
+
+        {setupSessionStats.length === 0 ? (
+          <div className="py-8 text-center text-[#334155] text-sm bg-[#0d1017] border border-white/5 rounded-xl">
+            No setup tags logged in filtered trades. Add setup tags in your Journal page!
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-[#94A3B8]">
+              <thead className="text-xs uppercase text-[#64748B] border-b border-white/5">
+                <tr>
+                  <th className="pb-3 font-semibold">Setup / Strategy</th>
+                  <th className="pb-3 font-semibold text-center">Asian Session</th>
+                  <th className="pb-3 font-semibold text-center">London Session</th>
+                  <th className="pb-3 font-semibold text-center">New York Session</th>
+                  <th className="pb-3 font-semibold text-right">AI Edge Verdict</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {setupSessionStats.map((stat) => {
+                  const sessions = [
+                    { name: 'Asian', ...stat.Asian },
+                    { name: 'London', ...stat.London },
+                    { name: 'New York', ...stat['New York'] }
+                  ]
+                  
+                  const activeSessions = sessions.filter(s => s.trades > 0)
+                  
+                  let verdictText = 'Insufficient Data'
+                  let verdictClass = 'bg-white/5 text-[#64748B]'
+                  
+                  if (activeSessions.length > 0) {
+                    const sorted = [...activeSessions].sort((a, b) => b.pnl - a.pnl || b.winRate - a.winRate)
+                    const best = sorted[0]
+                    const worst = sorted[sorted.length - 1]
+                    
+                    if (best.pnl > 0 && best.winRate >= 50) {
+                      verdictText = `🔥 High Edge in ${best.name}`
+                      verdictClass = 'bg-[#22C55E]/15 text-[#22C55E] border border-[#22C55E]/20 shadow-[0_0_10px_rgba(34,197,94,0.05)]'
+                    } else if (worst.pnl < 0 && worst.winRate < 45) {
+                      verdictText = `⚠️ Poor Edge in ${worst.name}`
+                      verdictClass = 'bg-[#EF4444]/15 text-[#EF4444] border border-[#EF4444]/20 shadow-[0_0_10px_rgba(239,68,68,0.05)]'
+                    } else {
+                      verdictText = '⚡ Moderate Compliance'
+                      verdictClass = 'bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/20 shadow-[0_0_10px_rgba(245,159,11,0.05)]'
+                    }
+                  }
+
+                  return (
+                    <tr key={stat.setup} className="hover:bg-white/[0.01] transition-colors">
+                      <td className="py-4 pr-4 font-bold text-white uppercase tracking-wider text-xs">
+                        {stat.setup}
+                      </td>
+                      {(['Asian', 'London', 'New York'] as const).map((sessName) => {
+                        const cell = stat[sessName]
+                        if (cell.trades === 0) {
+                          return (
+                            <td key={sessName} className="py-4 px-2 text-center text-[11px] text-[#334155] italic">
+                              No trades
+                            </td>
+                          )
+                        }
+                        return (
+                          <td key={sessName} className="py-4 px-2 text-center">
+                            <div className="inline-block">
+                              <p className={cn("text-xs font-bold tabular-nums", cell.pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
+                                {fmt(cell.pnl)}
+                              </p>
+                              <p className="text-[10px] text-[#64748B] mt-0.5 font-medium">
+                                {cell.winRate.toFixed(0)}% Win • {cell.trades}t
+                              </p>
+                            </div>
+                          </td>
+                        )
+                      })}
+                      <td className="py-4 pl-4 text-right">
+                        <span className={cn("px-2.5 py-1 rounded text-[10px] font-extrabold uppercase tracking-widest border", verdictClass)}>
+                          {verdictText}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

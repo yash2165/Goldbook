@@ -3,10 +3,11 @@
 import { useAccounts } from '@/hooks/useAccounts'
 import { RefreshCcw, ChevronDown, User, LogOut, Settings } from 'lucide-react'
 import { format } from 'date-fns'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useToast } from '@/context/ToastContext'
 
 export function TopBar() {
   const { accounts, activeAccount, setActiveAccount } = useAccounts()
@@ -14,59 +15,108 @@ export function TopBar() {
   const [profile, setProfile] = useState<any>(null)
   const router = useRouter()
   const supabase = createClient()
+  const { warning } = useToast()
 
-  // Dropdown states & debouncing
+  // Dropdown states and refs
   const [isAccountOpen, setIsAccountOpen] = useState(false)
-  const [accountTimeoutId, setAccountTimeoutId] = useState<NodeJS.Timeout | null>(null)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [profileTimeoutId, setProfileTimeoutId] = useState<NodeJS.Timeout | null>(null)
+  const accountRef = useRef<HTMLDivElement>(null)
+  const profileRef = useRef<HTMLDivElement>(null)
 
-  const handleAccountMouseEnter = () => {
-    if (accountTimeoutId) clearTimeout(accountTimeoutId)
-    setIsAccountOpen(true)
-  }
+  // Listen for outside clicks to close dropdowns
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
+        setIsAccountOpen(false)
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
-  const handleAccountMouseLeave = () => {
-    const id = setTimeout(() => {
-      setIsAccountOpen(false)
-    }, 300)
-    setAccountTimeoutId(id)
-  }
-
-  const handleProfileMouseEnter = () => {
-    if (profileTimeoutId) clearTimeout(profileTimeoutId)
-    setIsProfileOpen(true)
-  }
-
-  const handleProfileMouseLeave = () => {
-    const id = setTimeout(() => {
-      setIsProfileOpen(false)
-    }, 300)
-    setProfileTimeoutId(id)
-  }
-
+  // Clock ticking
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
 
+  // Load profile and subscribe to realtime profile updates for timezone sync
   useEffect(() => {
+    let profileChannel: any
+
     async function loadProfile() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
         setProfile(data || { email: user.email })
+
+        // Subscribe to live profile changes (timezone update)
+        profileChannel = supabase
+          .channel(`profile-updates:${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${user.id}`,
+            },
+            (payload) => {
+              setProfile(payload.new)
+            }
+          )
+          .subscribe()
       }
     }
+
     loadProfile()
+
+    return () => {
+      if (profileChannel) {
+        supabase.removeChannel(profileChannel)
+      }
+    }
   }, [])
 
+  // Subscribe to live trading rule violations
   useEffect(() => {
-    return () => {
-      if (accountTimeoutId) clearTimeout(accountTimeoutId)
-      if (profileTimeoutId) clearTimeout(profileTimeoutId)
+    let violationsChannel: any
+
+    async function initViolationsRealtime() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      violationsChannel = supabase
+        .channel(`violations-realtime:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'rule_violations',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const violation = payload.new as any
+            warning('Discipline Breach! ⚠️', violation.description)
+          }
+        )
+        .subscribe()
     }
-  }, [accountTimeoutId, profileTimeoutId])
+
+    initViolationsRealtime()
+
+    return () => {
+      if (violationsChannel) {
+        supabase.removeChannel(violationsChannel)
+      }
+    }
+  }, [warning])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -78,15 +128,57 @@ export function TopBar() {
     ? (new Date().getTime() - new Date(activeAccount.last_synced_at).getTime()) < 3 * 60 * 1000
     : false
 
-  // IST Time
-  const istTime = currentTime.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: true, hour: 'numeric', minute: '2-digit', second: '2-digit' })
-  const istDate = currentTime.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short', month: 'short', day: 'numeric' })
+  // Format Timezone Label
+  const tz = profile?.timezone || 'UTC'
+  
+  function getTimezoneLabel(timezoneStr: string) {
+    if (timezoneStr === 'Asia/Kolkata') return 'IST'
+    if (timezoneStr === 'America/New_York') return 'EST'
+    if (timezoneStr === 'Europe/London') return 'GMT'
+    if (timezoneStr === 'Asia/Tokyo') return 'JST'
+    if (timezoneStr === 'Australia/Sydney') return 'AEST'
+    if (timezoneStr === 'Asia/Dubai') return 'GST'
+    return timezoneStr.split('/').pop()?.replace('_', ' ') || timezoneStr
+  }
+
+  let displayTime = ''
+  let displayDate = ''
+  try {
+    displayTime = currentTime.toLocaleTimeString('en-US', { 
+      timeZone: tz, 
+      hour12: true, 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    })
+    displayDate = currentTime.toLocaleDateString('en-US', { 
+      timeZone: tz, 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric' 
+    })
+  } catch (err) {
+    // Fallback to UTC clock
+    displayTime = currentTime.toLocaleTimeString('en-US', { 
+      timeZone: 'UTC', 
+      hour12: true, 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    })
+    displayDate = currentTime.toLocaleDateString('en-US', { 
+      timeZone: 'UTC', 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric' 
+    })
+  }
 
   return (
-    <header className="h-14 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-sm flex items-center justify-between px-6 shrink-0">
+    <header className="h-14 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-sm flex items-center justify-between px-6 shrink-0 relative z-40">
       <div className="flex items-center gap-4">
         <div className="text-sm font-medium text-white/90">
-          {istDate} <span className="text-[#64748B] ml-2">{istTime} IST</span>
+          {displayDate} <span className="text-[#64748B] ml-2">{displayTime} {getTimezoneLabel(tz)}</span>
         </div>
       </div>
 
@@ -106,12 +198,11 @@ export function TopBar() {
 
         {/* Account selector */}
         {accounts.length > 0 && (
-          <div 
-            className="relative"
-            onMouseEnter={handleAccountMouseEnter}
-            onMouseLeave={handleAccountMouseLeave}
-          >
-            <button className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/8 rounded-lg border border-white/5 text-sm transition-colors">
+          <div className="relative" ref={accountRef}>
+            <button 
+              onClick={() => setIsAccountOpen(!isAccountOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/8 rounded-lg border border-white/5 text-sm transition-colors"
+            >
               <span className="w-2 h-2 rounded-full bg-primary" />
               <span className="font-medium">
                 {activeAccount?.nickname ?? `MT5 #${activeAccount?.mt5_login}`}
@@ -120,8 +211,8 @@ export function TopBar() {
             </button>
 
             {accounts.length > 1 && isAccountOpen && (
-              <div className="absolute right-0 top-full pt-1 w-56 z-50 before:absolute before:-top-4 before:-left-16 before:-right-4 before:h-6 before:bg-transparent">
-                <div className="bg-[#12121a] border border-white/5 rounded-lg shadow-xl py-1 relative z-10">
+              <div className="absolute right-0 top-full pt-1.5 w-56 z-50">
+                <div className="bg-[#12121a] border border-white/10 rounded-xl shadow-2xl py-1 relative z-10 overflow-hidden backdrop-blur-md bg-opacity-95">
                   {accounts.map(acc => (
                     <button
                       key={acc.id}
@@ -142,28 +233,42 @@ export function TopBar() {
         )}
 
         {/* Profile Dropdown */}
-        <div 
-          className="relative ml-2"
-          onMouseEnter={handleProfileMouseEnter}
-          onMouseLeave={handleProfileMouseLeave}
-        >
-          <button className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-sm font-bold text-primary transition-transform hover:scale-105">
+        <div className="relative ml-2" ref={profileRef}>
+          <button 
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-sm font-bold text-primary transition-transform hover:scale-105"
+          >
             {profile?.username?.charAt(0).toUpperCase() || profile?.display_name?.charAt(0).toUpperCase() || profile?.email?.charAt(0).toUpperCase() || '?'}
           </button>
+          
           {isProfileOpen && (
-            <div className="absolute right-0 top-full pt-2 w-56 z-50 before:absolute before:-top-4 before:-left-16 before:-right-4 before:h-6 before:bg-transparent">
-              <div className="bg-[#12121a] border border-white/10 rounded-xl shadow-2xl py-1 relative z-10">
+            <div className="absolute right-0 top-full pt-1.5 w-56 z-50">
+              <div className="bg-[#12121a] border border-white/10 rounded-xl shadow-2xl py-1 relative z-10 overflow-hidden backdrop-blur-md bg-opacity-95">
                 <div className="px-4 py-3 border-b border-white/5">
                   <p className="text-sm font-bold truncate">{profile?.username || profile?.display_name || 'Trader'}</p>
                   <p className="text-xs text-[#64748B] truncate">{profile?.email}</p>
                 </div>
-                <Link href="/profile" className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-foreground transition-colors">
+                <Link 
+                  href="/profile" 
+                  onClick={() => setIsProfileOpen(false)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-foreground transition-colors"
+                >
                   <User className="w-4 h-4" /> View Profile
                 </Link>
-                <Link href="/settings" className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-foreground transition-colors">
+                <Link 
+                  href="/settings" 
+                  onClick={() => setIsProfileOpen(false)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#94A3B8] hover:bg-white/5 hover:text-foreground transition-colors"
+                >
                   <Settings className="w-4 h-4" /> Settings
                 </Link>
-                <button onClick={handleSignOut} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors">
+                <button 
+                  onClick={() => {
+                    setIsProfileOpen(false)
+                    handleSignOut()
+                  }} 
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+                >
                   <LogOut className="w-4 h-4" /> Sign Out
                 </button>
               </div>

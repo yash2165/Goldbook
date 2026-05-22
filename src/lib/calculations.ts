@@ -305,3 +305,62 @@ export function fmtPct(val: number): string {
   const sign = val >= 0 ? '+' : ''
   return `${sign}${val.toFixed(1)}%`
 }
+
+export interface SetupSessionStat {
+  setup: string
+  Asian: { pnl: number; winRate: number; trades: number }
+  London: { pnl: number; winRate: number; trades: number }
+  'New York': { pnl: number; winRate: number; trades: number }
+}
+
+export function computeSetupSessionStats(trades: Trade[]): SetupSessionStat[] {
+  const closed = getClosedTrades(trades)
+  
+  // Group trades by setup_tag
+  const groups: Record<string, Trade[]> = {}
+  for (const t of closed) {
+    const setupName = t.setup_tag?.trim() || 'Uncategorized'
+    if (!groups[setupName]) {
+      groups[setupName] = []
+    }
+    groups[setupName].push(t)
+  }
+
+  const result: SetupSessionStat[] = []
+
+  for (const [setupName, setupTrades] of Object.entries(groups)) {
+    // For this setup, categorize by session
+    const sessions: Record<'Asian' | 'London' | 'New York', Trade[]> = {
+      Asian: [],
+      London: [],
+      'New York': []
+    }
+
+    for (const t of setupTrades) {
+      if (!t.open_time) continue
+      const hour = new Date(t.open_time).getUTCHours()
+      const sess = getSession(hour)
+      sessions[sess].push(t)
+    }
+
+    const computeSubStat = (ts: Trade[]) => {
+      const wins = ts.filter(t => (t.net_profit ?? 0) > 0)
+      const pnl = ts.reduce((s, t) => s + (t.net_profit ?? 0), 0)
+      return {
+        pnl,
+        winRate: ts.length > 0 ? (wins.length / ts.length) * 100 : 0,
+        trades: ts.length
+      }
+    }
+
+    result.push({
+      setup: setupName,
+      Asian: computeSubStat(sessions.Asian),
+      London: computeSubStat(sessions.London),
+      'New York': computeSubStat(sessions['New York'])
+    })
+  }
+
+  return result
+}
+

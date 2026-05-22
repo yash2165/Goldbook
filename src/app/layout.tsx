@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { GlobalGuard } from "@/components/layout/GlobalGuard";
+import { ToastProvider } from "@/context/ToastContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -20,10 +21,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark h-full antialiased text-foreground bg-background">
       <body className={`${inter.className} min-h-full flex flex-col`}>
-        <GlobalGuard>
-          {children}
-        </GlobalGuard>
+        <ToastProvider>
+          <GlobalGuard>
+            {children}
+          </GlobalGuard>
+        </ToastProvider>
       </body>
     </html>
   );
 }
+
