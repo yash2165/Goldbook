@@ -80,7 +80,7 @@ BEGIN
     -- Get user account details to compute balance percentages
     SELECT * INTO v_account FROM public.mt5_accounts WHERE id = NEW.account_id;
     IF v_account.id IS NOT NULL THEN
-        v_balance := COALESCE(v_account.current_balance, v_account.initial_balance, 10000.0);
+        v_balance := COALESCE(v_account.initial_balance, v_account.current_balance, 10000.0);
     END IF;
 
     -- Iterate over active rules for this user
@@ -136,13 +136,12 @@ BEGIN
 
         -- If violation was detected, log it in the rule_violations table
         IF v_violation_desc IS NOT NULL THEN
-            -- Ensure no duplicate log for the same trade and rule type within the last 10 seconds
+            -- Ensure no duplicate log for the same trade and rule type
             IF NOT EXISTS (
                 SELECT 1 FROM public.rule_violations 
                 WHERE user_id = NEW.user_id 
                   AND trade_id = NEW.id 
                   AND rule_type = v_rule.rule_type
-                  AND detected_at > NOW() - INTERVAL '10 seconds'
             ) THEN
                 INSERT INTO public.rule_violations (user_id, rule_id, trade_id, rule_type, description, severity)
                 VALUES (NEW.user_id, v_rule.id, NEW.id, v_rule.rule_type, v_violation_desc, 'warning');

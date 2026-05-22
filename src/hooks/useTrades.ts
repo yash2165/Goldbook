@@ -10,8 +10,8 @@ export function useTrades(accountId?: string) {
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
 
-  const fetchTrades = useCallback(async () => {
-    setLoading(true)
+  const fetchTrades = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true)
     let query = supabase
       .from('trades')
       .select('*')
@@ -32,7 +32,8 @@ export function useTrades(accountId?: string) {
   }, [accountId])
 
   useEffect(() => {
-    fetchTrades()
+    // Initial fetch shows loading state
+    fetchTrades(true)
 
     let active = true
     // Subscribe to real-time changes
@@ -47,8 +48,8 @@ export function useTrades(accountId?: string) {
           table: 'trades',
         },
         () => {
-          // Re-fetch on any change
-          if (active) fetchTrades()
+          // Re-fetch silently in the background on realtime table updates
+          if (active) fetchTrades(false)
         }
       )
       .subscribe()
@@ -59,5 +60,5 @@ export function useTrades(accountId?: string) {
     }
   }, [fetchTrades])
 
-  return { trades, loading, error, refetch: fetchTrades }
+  return { trades, loading, error, refetch: () => fetchTrades(true) }
 }

@@ -263,16 +263,22 @@ export default function AccountAnalysisPage() {
                       </div>
 
                       {/* Balances Block */}
-                      <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-white/[0.03]">
+                      <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-white/[0.03]">
+                        <div>
+                          <p className="text-[10px] text-[#64748B] font-bold uppercase tracking-wider">Initial Bal</p>
+                          <p className="text-sm font-black text-white/70 mt-1 tabular-nums">
+                            {acc.initial_balance ? fmt(acc.initial_balance) : '—'}
+                          </p>
+                        </div>
                         <div>
                           <p className="text-[10px] text-[#64748B] font-bold uppercase tracking-wider">Balance</p>
-                          <p className="text-base font-black text-white mt-1 tabular-nums">
+                          <p className="text-sm font-black text-white mt-1 tabular-nums">
                             {fmt(acc.current_balance ?? 0)}
                           </p>
                         </div>
                         <div>
                           <p className="text-[10px] text-[#64748B] font-bold uppercase tracking-wider">Equity</p>
-                          <p className="text-base font-black text-white mt-1 tabular-nums">
+                          <p className="text-sm font-black text-white mt-1 tabular-nums">
                             {fmt(acc.current_equity ?? 0)}
                           </p>
                         </div>
@@ -391,7 +397,7 @@ export default function AccountAnalysisPage() {
                       <div className="bg-[#0d1017]/60 border border-white/5 rounded-2xl p-4">
                         <span className="text-[10px] text-[#64748B] font-bold uppercase tracking-wider">Win Rate</span>
                         <div className="text-xl font-black text-white mt-1.5 tabular-nums">
-                          {stats.winRate}%
+                          {stats.winRate.toFixed(2)}%
                         </div>
                       </div>
                       <div className="bg-[#0d1017]/60 border border-white/5 rounded-2xl p-4">

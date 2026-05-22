@@ -292,17 +292,41 @@ function EconomicCalendarWidget() {
   const [nextEvent, setNextEvent] = useState<EconomicEvent | null>(null)
   const [timeLeft, setTimeLeft] = useState<string>('00:00:00')
 
-  // Generate dynamic, relative dates for demonstration that will ALWAYS look alive
+  // Fetch live Forex Factory news from API
   useEffect(() => {
-    const baseEvents: EconomicEvent[] = [
-      { name: 'Core CPI (MoM)', date: new Date(Date.now() + 2 * 60 * 60 * 1000 + 45 * 60 * 1000), impact: 'HIGH', forecast: '0.3%', previous: '0.4%' },
-      { name: 'Non-Farm Employment Change (NFP)', date: new Date(Date.now() + 15 * 60 * 60 * 1000), impact: 'HIGH', forecast: '185K', previous: '175K' },
-      { name: 'FOMC Interest Rate Decision', date: new Date(Date.now() + 38 * 60 * 60 * 1000), impact: 'HIGH', forecast: '5.25%', previous: '5.25%' },
-      { name: 'Retail Sales (MoM)', date: new Date(Date.now() + 61 * 60 * 60 * 1000), impact: 'HIGH', forecast: '0.2%', previous: '-0.1%' },
-      { name: 'Flash Services PMI', date: new Date(Date.now() + 85 * 60 * 60 * 1000), impact: 'MEDIUM', forecast: '51.3', previous: '50.9' }
-    ]
-    setEvents(baseEvents)
-    setNextEvent(baseEvents[0])
+    async function loadNews() {
+      try {
+        const res = await fetch('/api/news')
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data) && data.length > 0) {
+            const parsedEvents = data.map((e: any) => ({
+              ...e,
+              date: new Date(e.date)
+            }))
+            setEvents(parsedEvents)
+            const upcoming = parsedEvents.find((e: any) => e.date.getTime() > Date.now())
+            setNextEvent(upcoming || parsedEvents[0])
+            return
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch live Forex news:', err)
+      }
+
+      // Fallback to high-quality dynamic mock events if offline or API fails
+      const baseEvents: EconomicEvent[] = [
+        { name: 'Core CPI (MoM)', date: new Date(Date.now() + 2 * 60 * 60 * 1000 + 45 * 60 * 1000), impact: 'HIGH', forecast: '0.3%', previous: '0.4%' },
+        { name: 'Non-Farm Employment Change (NFP)', date: new Date(Date.now() + 15 * 60 * 60 * 1000), impact: 'HIGH', forecast: '185K', previous: '175K' },
+        { name: 'FOMC Interest Rate Decision', date: new Date(Date.now() + 38 * 60 * 60 * 1000), impact: 'HIGH', forecast: '5.25%', previous: '5.25%' },
+        { name: 'Retail Sales (MoM)', date: new Date(Date.now() + 61 * 60 * 60 * 1000), impact: 'HIGH', forecast: '0.2%', previous: '-0.1%' },
+        { name: 'Flash Services PMI', date: new Date(Date.now() + 85 * 60 * 60 * 1000), impact: 'MEDIUM', forecast: '51.3', previous: '50.9' }
+      ]
+      setEvents(baseEvents)
+      setNextEvent(baseEvents[0])
+    }
+
+    loadNews()
   }, [])
 
   // Timer logic
