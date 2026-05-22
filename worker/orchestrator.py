@@ -46,18 +46,23 @@ global_sync_lock = threading.Lock()
 load_dotenv()
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-SUPABASE_URL   = os.environ["SUPABASE_URL"]
-SUPABASE_KEY   = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-API_BASE       = os.environ["API_BASE"]
-WORKER_SECRET  = os.environ["WORKER_SECRET"]
+SUPABASE_URL   = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", os.environ.get("SUPABASE_URL"))
+SUPABASE_KEY   = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+API_BASE       = os.environ.get("API_BASE", "https://goldbook-roan.vercel.app/api")
+WORKER_SECRET  = os.environ.get("WORKER_SECRET", "xauusd_on_top")
 GOLDBOOK_URL   = os.environ.get("GOLDBOOK_API_URL", f"{API_BASE}/ea-sync")
-MT5_BINARY     = os.environ.get("MT5_BINARY", "/usr/bin/mt5")
+MT5_BINARY     = os.environ.get("MT5_BINARY", "/usr/bin/wine")
 wineprefix     = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
 MT5_DATA_ROOT  = wineprefix / "drive_c" / "mt5data"
 DISPLAY        = os.environ.get("DISPLAY", ":99")
 SYNC_INTERVAL  = int(os.environ.get("SYNC_INTERVAL_SECONDS", "30"))
 MT5_TIMEOUT    = int(os.environ.get("MT5_TIMEOUT_SECONDS", "90"))
 MAX_PARALLEL   = int(os.environ.get("MAX_PARALLEL", "50"))
+
+import sys
+if not SUPABASE_URL or not SUPABASE_KEY:
+    log.error("❌ SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing from environment (.env)!")
+    sys.exit(1)
 
 # Path to the GoldBookSync.mq5 script (same folder as this file)
 SCRIPT_SRC = Path(__file__).parent / "GoldBookSync.mq5"

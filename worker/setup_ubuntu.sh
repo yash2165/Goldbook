@@ -133,11 +133,13 @@ fi
 
 if [ ! -f "$WORKER_DIR/.env" ]; then
 cat << 'EOF' > "$WORKER_DIR/.env"
-GOLDBOOK_API_URL=http://your-nextjs-app.com/api
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+API_BASE=https://goldbook-roan.vercel.app/api
 WORKER_SECRET=your_secure_worker_secret
-MT5_SERVER_IP=127.0.0.1
 DISPLAY=:99
 WINEPREFIX=/home/ubuntu/.mt5
+SYNC_INTERVAL_SECONDS=30
 EOF
 fi
 
