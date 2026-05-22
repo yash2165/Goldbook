@@ -16,7 +16,20 @@ CREATE TABLE IF NOT EXISTS public.trading_rules (
   updated_at    TIMESTAMPTZ DEFAULT now()
 );
 
--- 2. Add Unique constraint to prevent duplicate rule entries per user
+-- 2. Prune duplicate rules to allow unique constraint creation (keeps the most recently updated/created rule)
+DELETE FROM public.trading_rules a
+WHERE a.id IN (
+  SELECT id FROM (
+    SELECT id, ROW_NUMBER() OVER (
+      PARTITION BY user_id, rule_type 
+      ORDER BY updated_at DESC, created_at DESC
+    ) as row_num
+    FROM public.trading_rules
+  ) t
+  WHERE t.row_num > 1
+);
+
+-- Add Unique constraint to prevent duplicate rule entries per user
 ALTER TABLE public.trading_rules DROP CONSTRAINT IF EXISTS unique_user_rule_type;
 ALTER TABLE public.trading_rules ADD CONSTRAINT unique_user_rule_type UNIQUE (user_id, rule_type);
 
