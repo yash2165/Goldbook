@@ -10,25 +10,28 @@
 ALTER TABLE public.trades
   ADD COLUMN IF NOT EXISTS position_id BIGINT;
 
--- 2. Backfill existing rows: for MT5 trades, position_id = mt5_ticket
---    (open positions already have the correct position_id as their ticket)
+-- 2. Backfill existing MT5 trades: position_id = mt5_ticket (stable)
 UPDATE public.trades
   SET position_id = mt5_ticket
   WHERE source = 'mt5' AND position_id IS NULL;
 
--- 3. For manual trades, set position_id = a synthetic negative id so
---    it won't conflict with real MT5 position IDs (which are positive bigints)
---    We use the row's UUID cast to bigint hash — just use rowid trick:
-UPDATE public.trades
-  SET position_id = -(ROW_NUMBER() OVER (ORDER BY created_at))::BIGINT
-  WHERE source = 'manual' AND position_id IS NULL;
+-- 3. For manual trades: use a CTE to assign synthetic negative IDs
+--    (window functions cannot be used directly in UPDATE)
+WITH ranked AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) AS rn
+  FROM public.trades
+  WHERE (source = 'manual' OR source IS NULL) AND position_id IS NULL
+)
+UPDATE public.trades t
+  SET position_id = -ranked.rn
+  FROM ranked
+  WHERE t.id = ranked.id;
 
--- 4. Drop the old unique constraint that was blocking upserts
+-- 4. Drop the old unique constraint (was on mt5_ticket)
 ALTER TABLE public.trades
   DROP CONSTRAINT IF EXISTS trades_account_id_mt5_ticket_key;
 
 -- 5. Add new unique constraint on (account_id, position_id)
---    This is what the upsert will use going forward
 ALTER TABLE public.trades
   ADD CONSTRAINT trades_account_id_position_id_key
   UNIQUE (account_id, position_id);

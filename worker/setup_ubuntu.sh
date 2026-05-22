@@ -5,8 +5,8 @@
 
 set -e
 
-WORKER_DIR="/opt/goldbook-worker"
-WINEPREFIX="/root/.mt5"
+WORKER_DIR="/home/ubuntu/goldbook-worker"
+WINEPREFIX="/home/ubuntu/.mt5"
 DISPLAY_NUM=":99"
 WINE="/usr/bin/wine"   # Confirmed path from dpkg -L hangover-wine
 export WINEPREFIX DISPLAY="$DISPLAY_NUM"
@@ -137,9 +137,12 @@ GOLDBOOK_API_URL=http://your-nextjs-app.com/api
 WORKER_SECRET=your_secure_worker_secret
 MT5_SERVER_IP=127.0.0.1
 DISPLAY=:99
-WINEPREFIX=/root/.mt5
+WINEPREFIX=/home/ubuntu/.mt5
 EOF
 fi
+
+# Ensure all worker files, main WINEPREFIX, and sandboxes are owned by the ubuntu user
+chown -R ubuntu:ubuntu "$WORKER_DIR" "$WINEPREFIX" /home/ubuntu/.mt5_sandboxes 2>/dev/null || true
 
 cat << 'EOF' > /etc/systemd/system/goldbook-worker.service
 [Unit]
@@ -148,12 +151,14 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/opt/goldbook-worker
-EnvironmentFile=/opt/goldbook-worker/.env
+User=ubuntu
+WorkingDirectory=/home/ubuntu/goldbook-worker
+EnvironmentFile=/home/ubuntu/goldbook-worker/.env
 Environment="DISPLAY=:99"
-Environment="WINEPREFIX=/root/.mt5"
-ExecStart=/opt/goldbook-worker/venv/bin/python orchestrator.py
+Environment="WINEPREFIX=/home/ubuntu/.mt5"
+Environment="HOME=/home/ubuntu"
+Environment="USER=ubuntu"
+ExecStart=/home/ubuntu/goldbook-worker/venv/bin/python orchestrator.py
 Restart=always
 RestartSec=5
 

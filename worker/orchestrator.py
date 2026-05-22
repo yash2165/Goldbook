@@ -426,7 +426,7 @@ def sync_account(acc: dict) -> dict:
     global_wineprefix = Path(os.environ.get("WINEPREFIX", str(Path.home() / ".mt5")))
     global_install_dir = global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
 
-    acc_wineprefix = Path(f"/root/.mt5_sandboxes/{account_id}")
+    acc_wineprefix = Path(os.environ.get("HOME", str(Path.home()))) / ".mt5_sandboxes" / account_id
 
     # Ensure isolated WINEPREFIX is initialized by copying the master prefix
     if not acc_wineprefix.exists():
@@ -466,8 +466,8 @@ def sync_account(acc: dict) -> dict:
                 comp_env = os.environ.copy()
                 comp_env["DISPLAY"] = DISPLAY
                 comp_env["WINEPREFIX"] = str(global_wineprefix)
-                comp_env["HOME"] = "/root"
-                comp_env["USER"] = "root"
+                comp_env["HOME"] = os.environ.get("HOME", str(Path.home()))
+                comp_env["USER"] = os.environ.get("USER", "ubuntu")
                 comp_cmd = [
                     "/usr/bin/wine",
                     str(metaeditor_path),
@@ -567,8 +567,8 @@ def sync_account(acc: dict) -> dict:
     env["DISPLAY"] = DISPLAY
     env["WINEPREFIX"] = str(acc_wineprefix)
     env["WINEDLLOVERRIDES"] = "mscoree,mshtml="
-    env["HOME"] = "/root"
-    env["USER"] = "root"
+    env["HOME"] = os.environ.get("HOME", str(Path.home()))
+    env["USER"] = os.environ.get("USER", "ubuntu")
 
     # Execute using the ISOLATED terminal via Hangover 11.4 wine64
     terminal_path = find_file_case_insensitive(data_dir, "terminal64.exe")
