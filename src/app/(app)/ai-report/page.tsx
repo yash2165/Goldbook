@@ -28,6 +28,7 @@ export default function AIReportPage() {
   const [expandedBias, setExpandedBias] = useState<string | null>(null)
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null)
   const [skipAnimation, setSkipAnimation] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const messages = [
     'Running Deep Psychological Telemetry calculations...',
@@ -39,10 +40,29 @@ export default function AIReportPage() {
     'Structuring diagnostic schema and clinical exercises...',
   ]
 
+  const handleShare = () => {
+    if (!report) return
+    const text = `GoldBook AI Psychological Behavior Diagnostic Audit:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Grade: ${report.grade}
+Risk Score: ${report.risk_score}/10
+Consistency Score: ${report.consistency_score}/10
+Discipline Score: ${report.discipline_score}/10
+
+Coaching Summary:
+"${report.summary}"
+
+Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel.app`
+    
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   // ── 1. Fetch saved report on load/activeAccount change ───────────────────
   useEffect(() => {
     async function loadSavedReport() {
-      if (!activeAccount) {
+      if (!activeAccount?.id) {
         setReport(null)
         setFetchingSaved(false)
         return
@@ -96,7 +116,7 @@ export default function AIReportPage() {
     }
 
     loadSavedReport()
-  }, [activeAccount])
+  }, [activeAccount?.id])
 
   const generate = async () => {
     setLoading(true)
@@ -307,8 +327,19 @@ export default function AIReportPage() {
           </p>
         </div>
         {report && (
-          <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium transition-all">
-            <Share2 className="w-4 h-4" /> Share Report
+          <button 
+            onClick={handleShare}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium transition-all cursor-pointer text-white/95"
+          >
+            {copied ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Copied to clipboard!
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4 text-[#FFD700]" /> Share Report
+              </>
+            )}
           </button>
         )}
       </div>
