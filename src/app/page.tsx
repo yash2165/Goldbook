@@ -59,6 +59,7 @@ export default function LandingPage() {
 
   // State for Mockup 4: High-Fidelity Analytics
   const [analyticsTab, setAnalyticsTab] = useState<'equity' | 'calendar' | 'stats'>('equity')
+  const [aiTab, setAiTab] = useState<'bias' | 'emotions'>('bias')
   const [selectedDay, setSelectedDay] = useState<number>(21)
   const mockCalendarDays = [
     { day: 10, profit: 450, win: true },
@@ -460,62 +461,123 @@ export default function LandingPage() {
             </div>
           </motion.div>
 
-          {/* Interactive Mockup 2: Nirikshan AI Chat Interface (Static High-Fidelity Example) */}
+          {/* Interactive Mockup 2: Nirikshan AI Cognitive Bias Matrix & Emotion Correlation (Real App Interface) */}
           <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
-            <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl flex flex-col h-[400px]">
-              {/* Chat Header */}
-              <div className="p-4 border-b border-white/5 bg-white/[0.01] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#FFD700]/10 border border-[#FFD700]/30 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-[#FFD700]" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-white uppercase tracking-wider block">Nirikshan AI Coach</span>
-                    <span className="text-[10px] text-[#22C55E] flex items-center gap-1 font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
-                      Active Analysis Engine
-                    </span>
-                  </div>
-                </div>
+            <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl flex flex-col h-[430px]">
+              {/* Tab Selector */}
+              <div className="flex border-b border-white/5 bg-white/[0.01] rounded-t-xl overflow-hidden">
+                <button 
+                  onClick={() => setAiTab('bias')}
+                  className={cn("flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-colors", 
+                    aiTab === 'bias' ? "bg-white/5 text-[#FFD700] border-b border-[#FFD700]" : "text-[#64748B] hover:text-white"
+                  )}
+                >
+                  Cognitive Bias Matrix
+                </button>
+                <button 
+                  onClick={() => setAiTab('emotions')}
+                  className={cn("flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-colors", 
+                    aiTab === 'emotions' ? "bg-white/5 text-[#FFD700] border-b border-[#FFD700]" : "text-[#64748B] hover:text-white"
+                  )}
+                >
+                  Emotion Correlations
+                </button>
               </div>
 
-              {/* Chat Log Body */}
-              <div className="flex-1 p-4 space-y-4 overflow-y-auto font-sans text-xs">
-                {/* Message 1 */}
-                <div className="flex gap-3 justify-end">
-                  <div className="p-3 rounded-xl max-w-[85%] leading-relaxed bg-white/5 border border-white/10 text-white">
-                    Gold is pumping hard! I entered BUY at the absolute top without confirmation. What should I do?
+              {/* Tab Content */}
+              <div className="flex-1 p-5 overflow-y-auto space-y-4">
+                {aiTab === 'bias' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 h-full">
+                    {[
+                      { 
+                        name: "Loss Aversion", 
+                        severity: "CRITICAL", 
+                        color: "text-[#EF4444]", 
+                        glow: "shadow-[0_0_15px_rgba(239,68,68,0.2)] border-[#EF4444]/30 bg-[#EF4444]/5",
+                        evidence: "Losing trades held 3.2x longer than wins (avg: 207s vs 64s).",
+                        exercise: "Enforce hard 15-minute Time-Stops. If an execution isn't profitable in 15 mins, close at market."
+                      },
+                      { 
+                        name: "Revenge Trading", 
+                        severity: "MODERATE", 
+                        color: "text-[#F59E0B]", 
+                        glow: "shadow-[0_0_15px_rgba(245,158,11,0.15)] border-[#F59E0B]/30 bg-[#F59E0B]/5",
+                        evidence: "Lot size spikes 1.8x on trades within 15 min of a closed loss.",
+                        exercise: "Cooling period: strict 30-minute cooling lockout automatically enforced on your account."
+                      },
+                      { 
+                        name: "Mental Fatigue", 
+                        severity: "CRITICAL", 
+                        color: "text-[#EF4444]", 
+                        glow: "shadow-[0_0_15px_rgba(239,68,68,0.2)] border-[#EF4444]/30 bg-[#EF4444]/5",
+                        evidence: "Expectancy decays 85% after 4+ daily trades (+$120 avg drops to -$143).",
+                        exercise: "Daily quota: hard lock after 4 trades. Stop trading completely regardless of outcomes."
+                      },
+                      { 
+                        name: "FOMO / Overconfidence", 
+                        severity: "HEALTHY", 
+                        color: "text-[#22C55E]", 
+                        glow: "shadow-[0_0_15px_rgba(34,197,94,0.15)] border-[#22C55E]/30 bg-[#22C55E]/5",
+                        evidence: "Pre-trade checklist compliance rate remains stable at 88%.",
+                        exercise: "No critical cognitive bias detected. Continue systematic plan tracking."
+                      }
+                    ].map(bias => (
+                      <div key={bias.name} className={cn("p-3 border rounded-xl flex flex-col justify-between transition-all", bias.glow)}>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-black uppercase text-white tracking-wide">{bias.name}</span>
+                            <span className={cn("text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded bg-black/40 border border-white/5", bias.color)}>{bias.severity}</span>
+                          </div>
+                          <p className="text-[9px] text-[#94A3B8] leading-normal font-medium mb-1">
+                            <span className="text-white/80 font-bold">Evidence:</span> {bias.evidence}
+                          </p>
+                        </div>
+                        <div className="pt-1.5 border-t border-white/5">
+                          <p className="text-[9px] text-[#64748B] leading-normal italic">
+                            <span className="text-[#FFD700] not-italic font-bold uppercase tracking-wide text-[7px] block mb-0.5">Cognitive Exercise:</span> "{bias.exercise}"
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
 
-                {/* Message 2 */}
-                <div className="flex gap-3 justify-start">
-                  <div className="w-6 h-6 rounded-full bg-[#FFD700]/10 flex items-center justify-center shrink-0 border border-[#FFD700]/20">
-                    <Bot className="w-3 h-3 text-[#FFD700]" />
+                {aiTab === 'emotions' && (
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold">Emotion-to-Performance Correlations</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        { emotion: "Confident", trades: 12, wr: 75, pnl: 180.50, compliance: 95, color: "text-[#22C55E]", bg: "bg-[#22C55E]/5 border-[#22C55E]/20" },
+                        { emotion: "Greedy", trades: 8, wr: 25, pnl: -240.00, compliance: 35, color: "text-[#EF4444]", bg: "bg-[#EF4444]/5 border-[#EF4444]/20" },
+                        { emotion: "Nervous", trades: 6, wr: 50, pnl: -12.50, compliance: 80, color: "text-[#F59E0B]", bg: "bg-[#F59E0B]/5 border-[#F59E0B]/20" },
+                        { emotion: "Frustrated", trades: 5, wr: 0, pnl: -410.00, compliance: 10, color: "text-[#EF4444]", bg: "bg-[#EF4444]/5 border-[#EF4444]/20" }
+                      ].map(item => (
+                        <div key={item.emotion} className={cn("p-3 border rounded-xl flex flex-col justify-between", item.bg)}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-black uppercase text-white tracking-wide">{item.emotion}</span>
+                            <span className="text-[8px] font-mono text-[#64748B] bg-black/35 px-1.5 py-0.5 rounded border border-white/5">{item.trades} trades</span>
+                          </div>
+                          <div className="space-y-1 text-[9px] text-[#94A3B8]">
+                            <div className="flex justify-between">
+                              <span>Win Rate:</span>
+                              <span className={cn("font-bold", item.wr >= 50 ? "text-[#22C55E]" : "text-[#EF4444]")}>{item.wr}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Average P&L:</span>
+                              <span className={cn("font-mono font-bold", item.pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
+                                {item.pnl >= 0 ? '+' : ''}${item.pnl.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Plan Compliance:</span>
+                              <span className="text-[#FFD700] font-bold">{item.compliance}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="p-3 rounded-xl max-w-[85%] leading-relaxed bg-[#FFD700]/5 border border-[#FFD700]/10 text-white/90">
-                    <span className="text-[#FFD700] font-bold block mb-1">📢 FOMO DETECTED</span>
-                    You have entered a high-velocity momentum trade with no technical or checklist alignment. Entering without validation is a chronic discipline leak. I recommend trimming 50% of the position size to manage downside and placing a hard stop-loss. Remember: missing a move is free; chasing one is expensive.
-                  </div>
-                </div>
-
-                {/* Message 3 */}
-                <div className="flex gap-3 justify-end">
-                  <div className="p-3 rounded-xl max-w-[85%] leading-relaxed bg-white/5 border border-white/10 text-white">
-                    Understood. I have closed 50% and placed my stop-loss at 2341.00.
-                  </div>
-                </div>
-
-                {/* Message 4 */}
-                <div className="flex gap-3 justify-start">
-                  <div className="w-6 h-6 rounded-full bg-[#FFD700]/10 flex items-center justify-center shrink-0 border border-[#FFD700]/20">
-                    <Bot className="w-3 h-3 text-[#FFD700]" />
-                  </div>
-                  <div className="p-3 rounded-xl max-w-[85%] leading-relaxed bg-[#22C55E]/5 border border-[#22C55E]/10 text-white/90">
-                    <span className="text-[#22C55E] font-bold block mb-1">🏆 ACTION SAVED</span>
-                    Excellent discipline adjustment. By managing the position risk dynamically, you corrected your entry impulse. Behavioral logs have been successfully logged to your performance database.
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </motion.div>

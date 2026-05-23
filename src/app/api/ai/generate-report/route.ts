@@ -44,6 +44,15 @@ export async function POST(req: Request) {
     if (tradesError) throw new Error(tradesError.message)
     const allTrades = (trades ?? []) as Trade[]
 
+    // Check if there are closed trades to analyze
+    const closedTradesCount = allTrades.filter(t => t.status === 'closed' && t.net_profit !== null).length
+    if (closedTradesCount === 0) {
+      return NextResponse.json(
+        { error: 'You need at least 1 closed trade to generate an AI behavior report. Connect your MT5 account or log a trade in your journal to begin!' },
+        { status: 400 }
+      )
+    }
+
     // ── 2. Fetch active trading rules ───────────────────────────────────────
     const { data: rulesData } = await supabase
       .from('trading_rules')
@@ -90,30 +99,30 @@ export async function POST(req: Request) {
     })
 
     // ── 8. Save report to DB ────────────────────────────────────────────────
-    await supabase.from('ai_reports').insert({
+    const { error: insertError } = await supabase.from('ai_reports').insert({
       user_id: user.id,
       account_id: accountId ?? null,
       report_period: 'alltime',
-      grade: report.grade,
-      grade_reason: report.grade_reason,
-      strengths: report.strengths,
-      weaknesses: report.weaknesses,
-      blind_spots: report.blind_spots,
-      revenge_trading_detected: report.revenge_trading_detected,
-      best_session: report.best_session,
-      worst_session: report.worst_session,
-      best_day: report.best_day,
-      worst_day: report.worst_day,
-      risk_score: report.risk_score,
-      consistency_score: report.consistency_score,
-      discipline_score: report.discipline_score,
-      action_plan: report.action_plan,
-      summary: report.summary,
+      grade: report.grade ?? 'N/A',
+      grade_reason: report.grade_reason ?? '',
+      strengths: report.strengths ?? [],
+      weaknesses: report.weaknesses ?? [],
+      blind_spots: report.blind_spots ?? [],
+      revenge_trading_detected: report.revenge_trading_detected ?? false,
+      best_session: report.best_session ?? 'N/A',
+      worst_session: report.worst_session ?? 'N/A',
+      best_day: report.best_day ?? 'N/A',
+      worst_day: report.worst_day ?? 'N/A',
+      risk_score: report.risk_score ?? 0,
+      consistency_score: report.consistency_score ?? 0,
+      discipline_score: report.discipline_score ?? 0,
+      action_plan: report.action_plan ?? [],
+      summary: report.summary ?? '',
       trades_analyzed: stats.totalTrades,
       rules_analysis: {
-        compliance_score: report.rules_compliance_score,
-        observations: report.rules_analysis,
-        emotion_insights: report.emotion_insights,
+        compliance_score: report.rules_compliance_score ?? 0,
+        observations: report.rules_analysis ?? [],
+        emotion_insights: report.emotion_insights ?? [],
         violations_count: ruleViolations.reduce((s, v) => s + v.count, 0),
         revenge_trades: revengeTradeCount,
         cognitive_biases: report.cognitive_biases ?? [],
@@ -121,10 +130,14 @@ export async function POST(req: Request) {
         discipline_breaches_correlation: report.discipline_breaches_correlation ?? '',
       },
       rules_violations_count: ruleViolations.reduce((s, v) => s + v.count, 0),
-      rules_compliance_score: report.rules_compliance_score,
+      rules_compliance_score: report.rules_compliance_score ?? null,
     })
 
-    // ── 8. Write detected violations to rule_violations table ──────────────
+    if (insertError) {
+      throw new Error(`Failed to save AI report to database: ${insertError.message}`)
+    }
+
+    // ── 9. Write detected violations to rule_violations table ──────────────
     if (ruleViolations.length > 0) {
       const { data: rulesRows } = await supabase
         .from('trading_rules')
@@ -163,6 +176,6 @@ export async function POST(req: Request) {
     })
   } catch (err: any) {
     console.error('AI report error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: err.message || 'An unexpected error occurred during behavioral diagnostics.' }, { status: 500 })
   }
 }
