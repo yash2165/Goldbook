@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { CheckCircle2, ChevronRight, Loader2, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, ChevronRight, Loader2, ShieldCheck, ShieldAlert, Lock, Info } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -91,6 +91,7 @@ export default function ConnectPage() {
     const login = formData.get('login') as string
     const password = formData.get('password') as string
     const server = formData.get('server') as string
+    const initialBalance = parseFloat(formData.get('initialBalance') as string || '10000')
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -123,6 +124,9 @@ export default function ConnectPage() {
             is_verified: false,
             is_active: true,
             sync_token: crypto.randomUUID(),
+            initial_balance: initialBalance,
+            current_balance: initialBalance,
+            current_equity: initialBalance,
           })
           .eq('id', existing.id)
           .select()
@@ -141,6 +145,9 @@ export default function ConnectPage() {
             is_verified: false,
             is_active: true,
             sync_token: crypto.randomUUID(),
+            initial_balance: initialBalance,
+            current_balance: initialBalance,
+            current_equity: initialBalance,
           })
           .select()
           .single()
@@ -197,28 +204,123 @@ export default function ConnectPage() {
         )}
 
         {step === 2 && (
-          <div className="p-8 space-y-6 animate-in fade-in slide-in-from-right-4">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold">Get Investor Password</h2>
-              <p className="text-muted-foreground">We use read-only access. We cannot place trades.</p>
+          <div className="p-8 space-y-8 animate-in fade-in slide-in-from-right-4">
+            <div className="text-center space-y-3">
+              <span className="px-3 py-1.5 rounded-full text-xs font-black bg-red-500/10 text-red-400 border border-red-500/25 uppercase tracking-widest animate-pulse">
+                ⚠️ Critical Security Protocol
+              </span>
+              <h2 className="text-3xl font-extrabold text-white tracking-tight mt-2 flex items-center justify-center gap-2">
+                Investor Password Required
+              </h2>
+              <p className="text-[#94A3B8] text-sm max-w-xl mx-auto leading-relaxed">
+                GoldBook operates on a strictly <strong>Read-Only</strong> architecture. We only read your historical trade logs. For absolute security, you must provide your <strong>Investor Password</strong>, not your Master password.
+              </p>
             </div>
-            <div className="bg-muted p-6 rounded-xl border border-border space-y-4">
-              <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded bg-background flex items-center justify-center font-bold">1</div>
-                <div>Open MetaTrader 5 and go to <strong>Tools &gt; Options</strong></div>
+
+            {/* Red alert for Master Password protection */}
+            <div className="p-5 rounded-2xl border border-red-500/30 bg-red-500/5 relative overflow-hidden shadow-[0_0_30px_rgba(239,68,68,0.05)]">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <Lock className="w-24 h-24 text-red-500" />
               </div>
-              <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded bg-background flex items-center justify-center font-bold">2</div>
-                <div>Click the <strong>Server</strong> tab and select <strong>Change</strong> next to Password</div>
-              </div>
-              <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded bg-background flex items-center justify-center font-bold">3</div>
-                <div>Select <strong>Change investor (read only) password</strong> and set a new password</div>
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0 text-red-400">
+                  <ShieldAlert className="w-5 h-5 animate-bounce" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-black text-red-400 uppercase tracking-widest">CRITICAL SAFETY ALERT</h4>
+                  <p className="text-xs text-red-200/80 leading-relaxed">
+                    <strong>NEVER share or type your Master (Main) Password</strong> on GoldBook or any other third-party platform. Your Master Password grants absolute control to execute trades and withdraw funds. GoldBook will <strong>NEVER</strong> request it. Only use your <strong>Investor (Read-Only) Password</strong>.
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="flex gap-4">
-              <Button variant="outline" className="flex-1 h-12" onClick={() => setStep(1)}>Back</Button>
-              <Button className="flex-1 h-12" onClick={() => setStep(3)}>Next Step <ChevronRight className="ml-2 w-4 h-4" /></Button>
+
+            {/* Side-by-Side Comparison */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="border border-red-500/20 bg-red-500/[0.01] p-5 rounded-2xl space-y-4 relative overflow-hidden group hover:border-red-500/35 transition-all shadow-[0_0_20px_rgba(239,68,68,0.01)]">
+                <div className="absolute top-[-10%] right-[-10%] w-24 h-24 bg-red-500/[0.05] rounded-full blur-2xl pointer-events-none" />
+                <div className="flex gap-3 items-center">
+                  <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.1)]">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-black text-red-400 uppercase tracking-wider">Master (Main) Password</h3>
+                </div>
+                <div className="space-y-3 pl-11">
+                  <p className="text-xs text-[#94A3B8] leading-relaxed">
+                    Grants full authority to execute trades, place pending orders, modify risk settings, and request withdrawals from your broker account.
+                  </p>
+                  <span className="inline-flex text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-red-400">
+                    ❌ DO NOT ENTER THIS
+                  </span>
+                </div>
+              </div>
+
+              <div className="border border-emerald-500/25 bg-emerald-500/[0.01] p-5 rounded-2xl space-y-4 relative overflow-hidden group hover:border-emerald-500/40 transition-all shadow-[0_0_20px_rgba(16,185,129,0.02)]">
+                <div className="absolute top-[-10%] right-[-10%] w-24 h-24 bg-emerald-500/[0.05] rounded-full blur-2xl pointer-events-none" />
+                <div className="flex gap-3 items-center">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-black text-emerald-400 uppercase tracking-wider">Investor (Read-Only) Password</h3>
+                </div>
+                <div className="space-y-3 pl-11">
+                  <p className="text-xs text-[#94A3B8] leading-relaxed">
+                    Grants strictly read-only access to view historical closed performance logs. Absolute zero execution privileges or fund withdraw rights.
+                  </p>
+                  <span className="inline-flex text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                    ✅ 100% SAFE READ-ONLY ACCESS
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Setup Guides */}
+            <div className="space-y-4 pt-6 border-t border-white/5">
+              <h3 className="text-base font-extrabold flex items-center gap-2 text-white">
+                <Info className="w-4.5 h-4.5 text-amber-400" /> Guide: Setting Up Read-Only Credentials
+              </h3>
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="bg-[#09090F] border border-white/5 p-5 rounded-2xl space-y-3 hover:border-white/10 transition-all">
+                  <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/25 text-[10px] font-black text-amber-400 uppercase tracking-wider">
+                    Method A
+                  </span>
+                  <h4 className="text-sm font-bold text-white tracking-wide">Inside MT5 Desktop Terminal</h4>
+                  <ol className="list-decimal pl-4 text-xs text-[#94A3B8] space-y-2.5 leading-relaxed">
+                    <li>Launch **MetaTrader 5** on your desktop/VPS.</li>
+                    <li>Go to **Tools &gt; Options** in the top menu.</li>
+                    <li>Select the **Server** tab, click **Change Password**.</li>
+                    <li>Choose **"Change investor (read-only) password"**.</li>
+                    <li>Provide your current Master password, then type and confirm your new **Investor Password**.</li>
+                  </ol>
+                </div>
+
+                <div className="bg-[#09090F] border border-white/5 p-5 rounded-2xl space-y-3 hover:border-white/10 transition-all">
+                  <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/25 text-[10px] font-black text-amber-400 uppercase tracking-wider">
+                    Method B
+                  </span>
+                  <h4 className="text-sm font-bold text-white tracking-wide">Broker Personal Area (Exness, etc.)</h4>
+                  <ol className="list-decimal pl-4 text-xs text-[#94A3B8] space-y-2.5 leading-relaxed">
+                    <li>Log in to your broker console (e.g. **Exness Personal Area**).</li>
+                    <li>Open your MT5 active accounts list under **My Accounts**.</li>
+                    <li>Click the **Settings (Gear icon)** next to the target account.</li>
+                    <li>Choose **Change Read-Only / Investor Password** in the menu.</li>
+                    <li>Set your read-only Investor Password and save the changes.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-4">
+              <Button variant="outline" className="flex-1 h-12 border-white/5 hover:bg-white/5 text-[#94A3B8]" onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <Button 
+                className="flex-1 h-12 bg-gradient-to-r from-amber-600 to-amber-400 hover:opacity-95 text-black font-extrabold rounded-xl shadow-lg shadow-amber-500/10 transition-all hover:scale-[1.01]" 
+                onClick={() => setStep(3)}
+              >
+                I Have Setup My Investor Password <ChevronRight className="ml-2 w-4 h-4 text-black" />
+              </Button>
             </div>
           </div>
         )}
@@ -226,30 +328,69 @@ export default function ConnectPage() {
         {step === 3 && (
           <div className="p-8 space-y-6 animate-in fade-in slide-in-from-right-4">
             <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold">Enter Account Details</h2>
-              <p className="text-muted-foreground flex items-center justify-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-success" /> Connection is fully encrypted
+              <h2 className="text-2xl font-bold">Enter Account Connection Details</h2>
+              <p className="text-muted-foreground text-sm flex items-center justify-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Connection is fully encrypted and sandboxed
               </p>
             </div>
-            <form onSubmit={handleConnect} className="space-y-4 max-w-md mx-auto">
+
+            <form onSubmit={handleConnect} className="space-y-5 max-w-md mx-auto">
               <div className="space-y-2">
-                <Label htmlFor="login">MT5 Login Number</Label>
-                <Input id="login" name="login" required placeholder="e.g. 12345678" className="h-12" />
+                <Label htmlFor="login" className="text-xs font-bold text-slate-300 uppercase tracking-wider">MT5 Login ID</Label>
+                <Input id="login" name="login" required placeholder="e.g. 84729103" className="h-12 bg-[#09090F] border-[#1A1A2E] text-white focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30" />
               </div>
+              
               <div className="space-y-2">
-                <Label htmlFor="password">Investor Password</Label>
-                <Input id="password" name="password" type="password" required placeholder="Read-only password" className="h-12" />
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="password" className="text-xs font-bold text-slate-300 uppercase tracking-wider">Investor Password (Read-Only)</Label>
+                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 uppercase">Highly Secure</span>
+                </div>
+                <Input id="password" name="password" type="password" required placeholder="Enter read-only password" className="h-12 bg-[#09090F] border-[#1A1A2E] text-white focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30" />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="server">Broker Server</Label>
-                <Input id="server" name="server" required placeholder="e.g. Exness-MT5Trial6" className="h-12" />
+                <Label htmlFor="server" className="text-xs font-bold text-slate-300 uppercase tracking-wider">Broker MT5 Server Name</Label>
+                <Input id="server" name="server" required placeholder="e.g. Exness-MT5Real3" className="h-12 bg-[#09090F] border-[#1A1A2E] text-white focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30" />
               </div>
-              {error && <p className="text-sm text-destructive text-center">{error}</p>}
-              {loading && !error && <p className="text-sm text-muted-foreground text-center animate-pulse">Waiting for worker verification...</p>}
+
+              {/* Starting Account Balance Input Field */}
+              <div className="space-y-2 p-4 rounded-xl border border-amber-500/15 bg-amber-500/[0.02] shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="initialBalance" className="text-xs font-bold text-amber-400 uppercase tracking-wider">Starting Account Balance ($)</Label>
+                  <span className="text-[10px] text-amber-400 font-bold border border-amber-400/20 px-2 py-0.5 rounded uppercase">Growth Baseline</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-normal mb-1">
+                  Specify the starting balance of this MT5 account. This baseline is critical to plotting your compounding growth curve and discipline calculations accurately.
+                </p>
+                <Input 
+                  id="initialBalance" 
+                  name="initialBalance" 
+                  type="number" 
+                  step="0.01" 
+                  min="1" 
+                  required 
+                  defaultValue="10000"
+                  placeholder="e.g. 10000.00" 
+                  className="h-12 bg-[#09090F] border-[#1A1A2E] text-white focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 font-semibold" 
+                />
+              </div>
+
+              {error && (
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs leading-relaxed text-center">
+                  {error}
+                </div>
+              )}
+
+              {loading && !error && (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs leading-relaxed text-center animate-pulse">
+                  Establishing secure tunnel and verifying read-only credentials with broker...
+                </div>
+              )}
+
               <div className="pt-4 flex gap-4">
-                <Button type="button" variant="outline" className="flex-1 h-12" onClick={() => setStep(2)} disabled={loading}>Back</Button>
-                <Button type="submit" className="flex-1 h-12" disabled={loading}>
-                  {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : 'Connect'}
+                <Button type="button" variant="outline" className="flex-1 h-12 border-[#1A1A2E] text-white hover:bg-white/5" onClick={() => setStep(2)} disabled={loading}>Back</Button>
+                <Button type="submit" className="flex-1 h-12 bg-gradient-to-r from-[#B8860B] to-[#F59E0B] hover:opacity-90 text-black font-extrabold" disabled={loading}>
+                  {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin text-black" /> : 'Connect & Sync'}
                 </Button>
               </div>
             </form>

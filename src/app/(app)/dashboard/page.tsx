@@ -9,7 +9,7 @@ import {
   fmt,
   getOpenTrades,
 } from '@/lib/calculations'
-import { TrendingUp, TrendingDown, Plus, LineChart, Activity, Target, Zap, Clock } from 'lucide-react'
+import { TrendingUp, TrendingDown, Plus, LineChart, Activity, Target, Zap, Clock, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState, useEffect } from 'react'
 import CountUp from 'react-countup'
@@ -242,7 +242,20 @@ export default function DashboardPage() {
 
   const filteredTrades = filterByPeriod(trades, period)
   const stats = computeStats(filteredTrades)
-  const curve = computeEquityCurve(filteredTrades, activeAccount?.initial_balance ?? activeAccount?.current_balance ?? 0)
+  
+  const startingBalance = (() => {
+    const initialBal = activeAccount?.initial_balance ?? activeAccount?.current_balance ?? 10000.0
+    if (period === 'ALL') return initialBal
+    const now = new Date()
+    const days = period === '1D' ? 1 : period === '1W' ? 7 : period === '1M' ? 30 : 90
+    const cutoff = new Date(now.getTime() - days * 86400000)
+    const profitBefore = trades
+      .filter(t => t.status === 'closed' && t.net_profit !== null && t.close_time && new Date(t.close_time) < cutoff)
+      .reduce((sum, t) => sum + (t.net_profit ?? 0), 0)
+    return initialBal + profitBefore
+  })()
+
+  const curve = computeEquityCurve(filteredTrades, startingBalance)
   const dailyPnl = computeDailyPnl(trades)
   const openTrades = getOpenTrades(trades)
 
@@ -304,6 +317,41 @@ export default function DashboardPage() {
             <Plus className="w-4 h-4" /> Add Trade
           </motion.button>
         </Link>
+      </motion.div>
+
+      {/* Premium Growth Analysis Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: 0.1 }}
+        className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/10 via-[#0F0F18]/80 to-transparent p-5 backdrop-blur-xl"
+      >
+        {/* Glow Effects */}
+        <div className="absolute -top-12 -left-12 w-32 h-32 bg-blue-500/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-[#F59E0B]/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/35 flex items-center justify-center shadow-lg shadow-blue-500/10 shrink-0">
+              <LineChart className="w-5 h-5 text-blue-400 animate-pulse animate-duration-1000" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-slate-100 tracking-tight">Growth Visualization Ready</h4>
+              <p className="text-xs text-slate-400 leading-normal max-w-2xl">
+                Visit the <strong className="text-blue-400">Analysis page</strong> to get the full analysis of your growth, in-depth account diagnostics, compounding trajectory, and interactive win-rate metrics.
+              </p>
+            </div>
+          </div>
+          <Link href="/analysis/performance" className="shrink-0 w-full md:w-auto">
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/20"
+            >
+              Explore Growth Analysis <ChevronRight className="w-3.5 h-3.5" />
+            </motion.button>
+          </Link>
+        </div>
       </motion.div>
 
       {/* Stat cards */}

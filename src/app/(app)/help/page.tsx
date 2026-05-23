@@ -5,7 +5,7 @@ const FAQS = [
   { q: 'How does MT5 sync work?', a: 'You provide your MT5 investor (read-only) password. We connect via MetaTrader5 API and pull your trade history every 30 seconds. We never have access to execute trades.' },
   { q: 'Is my data secure?', a: 'Yes. All data is stored in Supabase with Row Level Security. Only you can access your trades. We use read-only investor passwords — we cannot place or modify orders.' },
   { q: 'How is the AI report generated?', a: 'We compute your real statistics (win rate, profit factor, session performance, day patterns) and send them to Google Gemini 1.5 Flash with a detailed prompt. The AI returns personalized insights.' },
-  { q: 'Is GoldBook really free?', a: 'Yes, completely free. No credit card required, no hidden fees. Unlike TradeFXBook which charges $30/month, GoldBook provides the same features at no cost.' },
+  { q: 'Is GoldBook really free?', a: 'Yes, completely free. No credit card required, no limits, and no hidden subscriptions. GoldBook provides all advanced analytical tools and AI behavior coaching at absolutely no cost.' },
   { q: 'How do I add manual trades?', a: 'Go to the Trades page and click "+ Add Trade". Enter the symbol, direction, entry/exit price, dates, and optional pre-trade checklist. P&L is calculated automatically for XAUUSD.' },
 ]
 

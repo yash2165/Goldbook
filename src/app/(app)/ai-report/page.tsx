@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { flipCardVariants, staggerContainerVariants, staggerItemVariants } from '@/lib/animations'
 import { TypewriterText } from '@/components/TypewriterText'
+import IntelligenceOrb from '@/components/IntelligenceOrb'
 import confetti from 'canvas-confetti'
 import { createClient } from '@/lib/supabase/client'
 
@@ -296,8 +297,8 @@ export default function AIReportPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
-              <Bot className="w-6 h-6 text-primary" />
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+              <IntelligenceOrb size={26} />
             </div>
             AI Performance & Bias Engine
           </h1>
@@ -325,13 +326,13 @@ export default function AIReportPage() {
       {/* Generate button */}
       {!fetchingSaved && !report && !loading && (
         <div className="bg-[#0A0A10]/70 border border-white/5 rounded-2xl p-12 text-center space-y-6 backdrop-blur-md relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5 opacity-50" />
-          <div className="w-24 h-24 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center mx-auto animate-pulse shadow-[0_0_40px_rgba(245,158,11,0.1)] relative">
-            <Bot className="w-12 h-12 text-primary" />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-blue-500/5 opacity-50" />
+          <div className="w-24 h-24 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(59,130,246,0.15)] relative">
+            <IntelligenceOrb size={64} />
           </div>
           <div>
             <h2 className="text-2xl font-black">Ready to diagnose your trading behavior?</h2>
-            <p className="text-[#64748B] mt-2 max-w-md mx-auto leading-relaxed">
+            <p className="text-[#64748B] mt-2 max-w-md mx-auto leading-relaxed text-sm">
               Unlock a deep behavioral diagnostic audit. Nirikshan compiles Loss Aversion holding times, Revenge lot sizing multipliers, and computes specific clinical cognitive exercises to break trading bias cycles.
             </p>
           </div>
@@ -342,7 +343,7 @@ export default function AIReportPage() {
           )}
           <button
             onClick={generate}
-            className="px-8 py-3.5 bg-gradient-to-r from-primary to-amber-500 hover:opacity-95 rounded-xl font-bold text-lg shadow-xl shadow-primary/20 transition-all hover:scale-105"
+            className="px-8 py-3.5 border-2 border-blue-500 bg-transparent hover:bg-blue-500/10 text-blue-400 font-extrabold text-base rounded-xl transition-all shadow-[0_0_15px_rgba(59,130,246,0.15)] hover:scale-[1.02] cursor-pointer"
           >
             Generate Behavior Diagnostic Report
           </button>
@@ -353,14 +354,14 @@ export default function AIReportPage() {
       {loading && (
         <div className="bg-[#0A0A10]/70 border border-white/5 rounded-2xl p-16 text-center space-y-6 backdrop-blur-md">
           <div className="relative w-24 h-24 mx-auto">
-            <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-ping" />
-            <div className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-            <div className="absolute inset-2 rounded-full bg-primary/10 flex items-center justify-center">
-              <Bot className="w-8 h-8 text-primary" />
+            <div className="absolute inset-0 rounded-full border-2 border-blue-500/20 animate-ping" />
+            <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+            <div className="absolute inset-2 rounded-full bg-blue-500/5 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.15)]">
+              <IntelligenceOrb size={44} />
             </div>
           </div>
           <div className="max-w-md mx-auto space-y-2">
-            <p className="text-xl font-black text-primary animate-pulse">{loadingMsg}</p>
+            <p className="text-xl font-black text-blue-400 animate-pulse">{loadingMsg}</p>
             <p className="text-[#64748B] text-xs">Compiling telemetry vectors & structuring diagnostic matrices. Please wait...</p>
           </div>
         </div>
@@ -405,7 +406,7 @@ export default function AIReportPage() {
               <div className="pt-2">
                 <button 
                   onClick={generate} 
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-[#94A3B8] hover:text-foreground flex items-center gap-1.5 mx-auto transition-all"
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-extrabold border border-blue-500 bg-transparent hover:bg-blue-500/10 text-blue-400 flex items-center gap-1.5 mx-auto transition-all shadow-[0_0_10px_rgba(59,130,246,0.1)] hover:scale-[1.01] cursor-pointer"
                 >
                   <RefreshCcw className="w-3.5 h-3.5" /> Re-Analyze Account
                 </button>

@@ -21,6 +21,11 @@ export default function TradesPage() {
   const supabase = createClient()
 
   const handleDelete = async (id: string) => {
+    const trade = trades.find(t => t.id === id)
+    if (trade && trade.source !== 'manual') {
+      alert('MT5 verified trades are locked and cannot be deleted.')
+      return
+    }
     if (!confirm('Are you sure you want to delete this trade?')) return
     setDeletingId(id)
     await supabase.from('trades').update({ is_deleted: true }).eq('id', id)
@@ -28,28 +33,6 @@ export default function TradesPage() {
     refetch()
   }
 
-  const handleClearAll = async () => {
-    if (!activeAccount) {
-      alert('No active account selected.')
-      return
-    }
-    if (!confirm('Are you sure you want to clear ALL trades for the active account? This action cannot be undone.')) return
-    
-    try {
-      const { error } = await supabase
-        .from('trades')
-        .update({ is_deleted: true })
-        .eq('account_id', activeAccount.id)
-      
-      if (error) {
-        alert('Failed to clear trades: ' + error.message)
-      } else {
-        refetch()
-      }
-    } catch (e: any) {
-      alert('Error: ' + e.message)
-    }
-  }
 
   const filtered = trades.filter(t => {
     if (filterDir !== 'all' && t.direction !== filterDir) return false
@@ -85,13 +68,6 @@ export default function TradesPage() {
               <Link2 className="w-4 h-4" /> Connect MT4/MT5
             </button>
           </Link>
-          <button 
-            onClick={handleClearAll}
-            disabled={loading || trades.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/8 border border-white/10 rounded-lg text-sm font-medium text-[#EF4444] hover:text-[#EF4444] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Trash2 className="w-4 h-4" /> Clear All
-          </button>
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-primary/20"
@@ -242,19 +218,27 @@ export default function TradesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-3.5">
-                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
-                        <button className="p-1.5 text-[#64748B] hover:text-foreground hover:bg-white/5 rounded transition-colors" title="Edit">
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(trade.id)}
-                          disabled={deletingId === trade.id}
-                          className="p-1.5 text-[#64748B] hover:text-[#EF4444] hover:bg-[#EF4444]/5 rounded transition-colors" 
-                          title="Delete"
-                        >
-                          <Trash2 className={cn("w-3.5 h-3.5", deletingId === trade.id && "animate-pulse text-[#EF4444]")} />
-                        </button>
-                      </div>
+                      {trade.source === 'manual' ? (
+                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                          <button className="p-1.5 text-[#64748B] hover:text-foreground hover:bg-white/5 rounded transition-colors" title="Edit">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(trade.id)}
+                            disabled={deletingId === trade.id}
+                            className="p-1.5 text-[#64748B] hover:text-[#EF4444] hover:bg-[#EF4444]/5 rounded transition-colors" 
+                            title="Delete"
+                          >
+                            <Trash2 className={cn("w-3.5 h-3.5", deletingId === trade.id && "animate-pulse text-[#EF4444]")} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 py-0.5 rounded border border-white/5 bg-white/[0.02] whitespace-nowrap">
+                            Verified Locked
+                          </span>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

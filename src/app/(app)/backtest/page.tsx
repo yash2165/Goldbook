@@ -44,7 +44,7 @@ export default function BacktestPage() {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-sm text-[#64748B] bg-[#12121a] px-4 py-2 rounded-full border border-white/5">
           <Clock className="w-4 h-4" />
-          Estimated: Q3 2025
+          Estimated: To be announced soon
         </div>
         <Link href="/dashboard">
           <button className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 rounded-full text-sm font-semibold transition-colors">

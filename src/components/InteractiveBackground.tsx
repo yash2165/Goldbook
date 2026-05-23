@@ -149,7 +149,7 @@ export function InteractiveBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none -z-10 bg-[#050508]"
+      className="fixed inset-0 pointer-events-none z-0 bg-[#0A0A0F]"
       style={{ mixBlendMode: 'screen' }}
     />
   )

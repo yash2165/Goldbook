@@ -137,9 +137,9 @@ export default function AccountAnalysisPage() {
 
   // Stats & Equity Curve Calculations
   const stats = computeStats(trades)
-  const curve = computeEquityCurve(trades, activeAccount?.initial_balance ?? activeAccount?.current_balance ?? 0)
+  const curve = computeEquityCurve(trades, activeAccount?.initial_balance ?? activeAccount?.current_balance ?? 10000.0)
 
-  let peak = activeAccount?.initial_balance ?? activeAccount?.current_balance ?? 0
+  let peak = activeAccount?.initial_balance ?? activeAccount?.current_balance ?? 10000.0
   let maxDrawdownPct = 0
   curve.forEach(point => {
     if (point.equity > peak) peak = point.equity

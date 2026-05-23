@@ -39,8 +39,8 @@ export async function POST(req: Request) {
   if (type === 'account') {
     const { balance, equity, margin, free_margin } = body
 
-    // Only set initial_balance on the very first successful sync
-    const extra = account.initial_balance == null ? { initial_balance: balance } : {}
+    // Only set initial_balance on the very first successful sync (or if it is 0)
+    const extra = (account.initial_balance == null || account.initial_balance === 0) ? { initial_balance: balance } : {}
 
     const { error } = await supabase
       .from('mt5_accounts')

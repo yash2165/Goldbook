@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion'
 import { 
   ArrowRight, 
   Bot, 
@@ -29,6 +29,7 @@ import { useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { InteractiveBackground } from '@/components/InteractiveBackground'
 import FloatingLines from '@/components/FloatingLines'
+import GoldBookLogo from '@/components/GoldBookLogo'
 
 // Reusable animated container variant
 const fadeUp = (delay = 0) => ({
@@ -40,6 +41,21 @@ const fadeUp = (delay = 0) => ({
 
 
 export default function LandingPage() {
+  const { scrollY } = useScroll()
+  
+  // Spring configurations for smoothing scroll jittering
+  const yHero = useTransform(scrollY, [0, 600], [0, -90])
+  const opacityHero = useTransform(scrollY, [0, 450], [1, 0])
+  const yShowcase = useTransform(scrollY, [0, 900], [40, -40])
+  const scaleShowcase = useTransform(scrollY, [0, 900], [0.96, 1.03])
+  const yBgGlow = useTransform(scrollY, [0, 1200], [0, 250])
+  
+  const smoothYHero = useSpring(yHero, { stiffness: 90, damping: 25 })
+  const smoothOpacityHero = useSpring(opacityHero, { stiffness: 90, damping: 25 })
+  const smoothYShowcase = useSpring(yShowcase, { stiffness: 90, damping: 25 })
+  const smoothScaleShowcase = useSpring(scaleShowcase, { stiffness: 90, damping: 25 })
+  const smoothYBgGlow = useSpring(yBgGlow, { stiffness: 90, damping: 25 })
+
   // Navigation active states
   const [activeFeature, setActiveFeature] = useState<number>(0)
 
@@ -168,12 +184,12 @@ export default function LandingPage() {
   }, [isJoined])
 
   return (
-    <div className="min-h-screen bg-[#050508] text-[#F1F5F9] overflow-x-hidden selection:bg-[#F59E0B]/30 relative font-sans">
+    <div className="min-h-screen bg-transparent text-[#F1F5F9] overflow-x-hidden selection:bg-[#F59E0B]/30 relative font-sans isolate">
       {/* Cinematic Glowing Backdrop */}
       <InteractiveBackground />
 
       {/* Dynamic Animated Line Waves Backdrop */}
-      <div className="fixed inset-0 pointer-events-none -z-10 h-screen w-screen opacity-50">
+      <div className="fixed inset-0 pointer-events-none h-screen w-screen opacity-50" style={{ zIndex: 1 }}>
         <FloatingLines
           linesGradient={['#FFD700', '#F59E0B', '#B8860B', '#996515']}
           enabledWaves={['top', 'bottom', 'middle']}
@@ -187,17 +203,16 @@ export default function LandingPage() {
         />
       </div>
 
-      {/* Floating Lights */}
-      <div className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/8 blur-[180px] rounded-full pointer-events-none mix-blend-screen" />
-      <div className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/6 blur-[200px] rounded-full pointer-events-none mix-blend-screen" />
+      <div className="relative z-10">
+        {/* Floating Lights with smooth parallax scroll */}
+        <motion.div style={{ y: smoothYBgGlow }} className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/8 blur-[180px] rounded-full pointer-events-none mix-blend-screen" />
+        <motion.div style={{ y: smoothYBgGlow }} className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/6 blur-[200px] rounded-full pointer-events-none mix-blend-screen" />
 
       {/* Nav */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 bg-[#050508]/75 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 font-black text-xl tracking-tight">
-            <div className="w-7 h-7 bg-gradient-to-tr from-[#B8860B] via-[#FFD700] to-[#996515] rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(255,215,0,0.3)]">
-              <span className="text-black font-extrabold text-sm tracking-tighter">G</span>
-            </div>
+            <GoldBookLogo size={30} className="shadow-[0_0_15px_rgba(255,215,0,0.2)]" />
             <span className="font-extrabold text-lg tracking-wider">
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37]">GOLD</span>
               <span className="text-white/90 font-light">BOOK</span>
@@ -232,7 +247,7 @@ export default function LandingPage() {
         {/* Decorative Grid Mesh Overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:32px_32px] opacity-25 pointer-events-none" />
 
-        <div className="max-w-6xl mx-auto text-center space-y-8 relative z-10">
+        <motion.div style={{ y: smoothYHero, opacity: smoothOpacityHero }} className="max-w-6xl mx-auto text-center space-y-8 relative z-10">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -285,13 +300,14 @@ export default function LandingPage() {
               <Activity className="w-4 h-4 group-hover:text-[#FFD700]" /> Explore Features
             </a>
           </motion.div>
-        </div>
+        </motion.div>
 
         {/* Cinematic Dashboard Showcase Mockup */}
         <motion.div
           initial={{ opacity: 0, y: 80, rotateX: 10 }}
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
           transition={{ duration: 0.9, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          style={{ y: smoothYShowcase, scale: smoothScaleShowcase }}
           className="mt-20 max-w-5xl mx-auto relative z-20"
         >
           <div className="absolute -inset-2 bg-gradient-to-b from-[#F59E0B]/10 to-transparent blur-2xl -z-10 rounded-[2.5rem]" />
@@ -1111,9 +1127,7 @@ export default function LandingPage() {
       <footer className="border-t border-white/5 bg-[#050508] px-6 py-12 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-[#64748B] font-semibold">
           <div className="flex items-center gap-2 font-black text-lg tracking-tight text-white">
-            <div className="w-5 h-5 bg-gradient-to-tr from-[#B8860B] via-[#FFD700] to-[#996515] rounded-md flex items-center justify-center">
-              <span className="text-black font-extrabold text-xs">G</span>
-            </div>
+            <GoldBookLogo size={22} className="shadow-[0_0_10px_rgba(255,215,0,0.15)]" />
             <span className="font-extrabold text-sm tracking-wider">
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37]">GOLD</span>
               <span className="text-white/90 font-light">BOOK</span>
@@ -1123,5 +1137,6 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
+  </div>
   )
 }

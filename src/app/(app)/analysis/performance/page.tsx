@@ -57,7 +57,19 @@ export default function PerformancePage() {
 
   const filtered = filterTrades(trades, period, tradeFilter)
   const stats = computeStats(filtered)
-  const curve = computeEquityCurve(filtered, activeAccount?.current_balance ?? 0)
+  const startingBalance = (() => {
+    const initialBal = activeAccount?.initial_balance ?? activeAccount?.current_balance ?? 10000.0
+    if (period === 'All') return initialBal
+    const now = new Date()
+    const days = period === 'Today' ? 1 : period === '7D' ? 7 : period === '30D' ? 30 : period === '3M' ? 90 : 365
+    const cutoff = new Date(now.getTime() - days * 86400000)
+    const profitBefore = trades
+      .filter(t => t.status === 'closed' && t.net_profit !== null && t.close_time && new Date(t.close_time) < cutoff)
+      .reduce((sum, t) => sum + (t.net_profit ?? 0), 0)
+    return initialBal + profitBefore
+  })()
+
+  const curve = computeEquityCurve(filtered, startingBalance)
   const sessionStats = computeSessionStats(filtered)
   const dayStats = computeDayStats(filtered)
   const topSymbols = computeTopSymbols(filtered)

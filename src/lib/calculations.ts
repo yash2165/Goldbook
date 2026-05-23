@@ -179,6 +179,22 @@ export function computeEquityCurve(trades: Trade[], initialBalance = 0): { time:
   let peak = initialBalance
   const curve: { time: string; equity: number; drawdown: number }[] = []
 
+  // Add initial starting balance point so charts start at the baseline
+  if (closed.length > 0) {
+    const firstTime = closed[0].open_time ? closed[0].open_time.split('T')[0] : closed[0].close_time!.split('T')[0]
+    curve.push({
+      time: firstTime,
+      equity: parseFloat(initialBalance.toFixed(2)),
+      drawdown: 0,
+    })
+  } else {
+    curve.push({
+      time: new Date().toISOString().split('T')[0],
+      equity: parseFloat(initialBalance.toFixed(2)),
+      drawdown: 0,
+    })
+  }
+
   for (const t of closed) {
     equity += t.net_profit ?? 0
     peak = Math.max(peak, equity)

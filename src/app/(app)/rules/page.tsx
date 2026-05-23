@@ -156,8 +156,8 @@ export default function RulesPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto h-[calc(100vh-64px)] flex flex-col">
-      <div className="flex-1 overflow-y-auto pb-24">
+    <div className="p-6 max-w-4xl mx-auto pb-24">
+      <div>
         <div className="mb-12 max-w-xl">
           <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-primary mb-4">
             <span className="w-8 h-[2px] bg-primary"></span>

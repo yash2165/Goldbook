@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Clock,
   Mesh,
@@ -195,7 +195,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     }
   }
 
-  fragColor = vec4(col, 1.0);
+  fragColor = vec4(col, clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0));
 }
 
 void main() {
@@ -272,6 +272,24 @@ export default function FloatingLines({
   parallaxStrength = 0.2,
   mixBlendMode = 'screen'
 }: FloatingLinesProps) {
+  const [hasWebGL, setHasWebGL] = useState(true);
+
+  useEffect(() => {
+    const checkWebGL = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const supported = !!(
+          window.WebGLRenderingContext &&
+          (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+        );
+        setHasWebGL(supported);
+      } catch (e) {
+        setHasWebGL(false);
+      }
+    };
+    checkWebGL();
+  }, []);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const targetMouseRef = useRef(new Vector2(-1000, -1000));
   const currentMouseRef = useRef(new Vector2(-1000, -1000));
@@ -303,6 +321,7 @@ export default function FloatingLines({
   const bottomLineDistance = enabledWaves.includes('bottom') ? getLineDistance('bottom') * 0.01 : 0.01;
 
   useEffect(() => {
+    if (!hasWebGL) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -313,7 +332,16 @@ export default function FloatingLines({
     const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
     camera.position.z = 1;
 
-    const renderer = new WebGLRenderer({ antialias: true, alpha: false });
+    let renderer: WebGLRenderer;
+    try {
+      renderer = new WebGLRenderer({ antialias: true, alpha: true });
+    } catch (err) {
+      console.warn('WebGL instantiation failed, falling back to CSS background:', err);
+      setHasWebGL(false);
+      return;
+    }
+    
+    renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
@@ -504,6 +532,29 @@ export default function FloatingLines({
     parallax,
     parallaxStrength
   ]);
+
+  if (!hasWebGL) {
+    return (
+      <div 
+        className="absolute inset-0 overflow-hidden pointer-events-none" 
+        style={{
+          background: 'radial-gradient(circle at 50% 50%, rgba(245, 159, 11, 0.04) 0%, transparent 80%)',
+          mixBlendMode: mixBlendMode
+        }}
+      >
+        <div className="absolute inset-0 bg-[#0A0A0F]/90" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:48px_48px] opacity-[0.08]" />
+        
+        {/* CSS Animated fallback lines & ambient glows */}
+        <div className="absolute top-[20%] left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#FFD700]/10 to-transparent animate-pulse" style={{ animationDuration: '4s' }} />
+        <div className="absolute top-[50%] left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#F59E0B]/5 to-transparent animate-pulse" style={{ animationDuration: '6s' }} />
+        <div className="absolute top-[80%] left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#B8860B]/8 to-transparent animate-pulse" style={{ animationDuration: '8s' }} />
+        
+        <div className="absolute -top-[10%] -left-[10%] w-[50vw] h-[50vw] bg-[#F59E0B]/5 blur-[120px] rounded-full animate-pulse" style={{ animationDuration: '10s' }} />
+        <div className="absolute -bottom-[15%] -right-[10%] w-[50vw] h-[50vw] bg-[#B8860B]/4 blur-[130px] rounded-full animate-pulse" style={{ animationDuration: '14s' }} />
+      </div>
+    );
+  }
 
   return (
     <div

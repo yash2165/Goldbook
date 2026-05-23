@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       current_equity: equity,
       is_verified: true,
       last_error: null,
-      ...(existing?.initial_balance == null ? { initial_balance: balance } : {}),
+      ...(existing?.initial_balance == null || existing?.initial_balance === 0 ? { initial_balance: balance } : {}),
       last_synced_at: new Date().toISOString()
     }).eq('id', account_id)
 

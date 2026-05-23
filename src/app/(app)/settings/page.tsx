@@ -183,7 +183,7 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6 h-full overflow-y-auto">
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
       
       {/* Top Banner equivalent */}
       <div className="flex items-center justify-between mb-8">

@@ -46,7 +46,7 @@ export default function ProfilePage() {
   const pf = stats ? (stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)) : '—'
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6 h-full overflow-y-auto no-scrollbar">
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/5 pb-6">
         <div>

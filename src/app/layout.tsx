@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "GoldBook | Free Trading Journal for XAUUSD",
-  description: "TradeFXBook - but free. Built for gold traders.",
+  title: "GoldBook | Premium Free Trading Journal & AI Behavioral Coach",
+  description: "Track your trades, audit emotional discipline, and master your trading edge with Nirikshan AI. The ultimate free journal built for professional retail, prop firm, Forex, and metal traders.",
 };
 
 export default function RootLayout({
