@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
 
 export async function POST(req: Request) {
   try {
@@ -38,16 +36,29 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(bytes)
 
     const fileExt = file.name.split('.').pop() || 'png'
-    const fileName = `${tradeId}_${Date.now()}.${fileExt}`
-    
-    // Ensure upload path exists
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'screenshots')
-    await mkdir(uploadDir, { recursive: true })
+    const fileName = `screenshots/${tradeId}_${Date.now()}.${fileExt}`
 
-    const filePath = join(uploadDir, fileName)
-    await writeFile(filePath, buffer)
+    // Upload to Supabase Storage bucket 'chat_images'
+    const { data: uploadData, error: uploadErr } = await supabase
+      .storage
+      .from('chat_images')
+      .upload(fileName, buffer, {
+        contentType: file.type,
+        upsert: true
+      })
 
-    const screenshotUrl = `/uploads/screenshots/${fileName}`
+    if (uploadErr) {
+      console.error('Supabase storage upload error:', uploadErr)
+      return NextResponse.json({ error: uploadErr.message }, { status: 500 })
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase
+      .storage
+      .from('chat_images')
+      .getPublicUrl(uploadData.path)
+
+    const screenshotUrl = urlData.publicUrl
 
     // Update screenshot_url inside trades table
     const { error: dbErr } = await supabase

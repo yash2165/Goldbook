@@ -1,6 +1,6 @@
 #!/bin/bash
-# GoldBook MT5 Parallel Orchestrator — VPS Setup (Hangover 11.4)
-# Optimised for Oracle Cloud ARM64 (Ampere A1)
+# GoldBook MT5 Parallel Orchestrator — Linux Server Setup
+# Optimised for ARM64 server architectures
 # CONFIRMED: hangover-wine provides /usr/bin/wine (NOT wine64) on ARM64
 
 set -e
@@ -12,7 +12,7 @@ WINE="/usr/bin/wine"   # Confirmed path from dpkg -L hangover-wine
 export WINEPREFIX DISPLAY="$DISPLAY_NUM"
 
 echo "======================================================"
-echo "  GoldBook MT5 Parallel Orchestrator — VPS Setup"
+echo "  GoldBook MT5 Parallel Orchestrator — Server Setup"
 echo "  Method: Hangover 11.4 (ARM64, wine binary confirmed)"
 echo "======================================================"
 

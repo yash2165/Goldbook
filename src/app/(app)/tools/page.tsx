@@ -397,16 +397,58 @@ function EconomicCalendarWidget() {
         console.error('Failed to fetch live Forex news:', err)
       }
 
-      // Fallback to high-quality dynamic mock events if offline or API fails
-      const baseEvents: EconomicEvent[] = [
-        { name: 'USD - Core CPI (MoM)', date: new Date(Date.now() + 2 * 60 * 60 * 1000 + 45 * 60 * 1000), impact: 'HIGH', forecast: '0.3%', previous: '0.4%' },
-        { name: 'USD - Non-Farm Employment Change (NFP)', date: new Date(Date.now() + 15 * 60 * 60 * 1000), impact: 'HIGH', forecast: '185K', previous: '175K' },
-        { name: 'USD - FOMC Interest Rate Decision', date: new Date(Date.now() + 38 * 60 * 60 * 1000), impact: 'HIGH', forecast: '5.25%', previous: '5.25%' },
-        { name: 'USD - Retail Sales (MoM)', date: new Date(Date.now() + 61 * 60 * 60 * 1000), impact: 'HIGH', forecast: '0.2%', previous: '-0.1%' },
-        { name: 'USD - Flash Services PMI', date: new Date(Date.now() + 85 * 60 * 60 * 1000), impact: 'MEDIUM', forecast: '51.3', previous: '50.9' }
-      ]
+      // Fallback to high-quality weekday-aligned mock events if offline or API fails
+      const getFallbackEvents = (): EconomicEvent[] => {
+        const now = new Date()
+        const currentDay = now.getUTCDay()
+        
+        // Find Monday of the current week (UTC-relative)
+        const monday = new Date(now)
+        const daysToMonday = currentDay === 0 ? 6 : currentDay - 1
+        monday.setUTCDate(now.getUTCDate() - daysToMonday)
+        
+        const list: EconomicEvent[] = []
+        
+        // Monday: ISM Manufacturing PMI at 14:00 UTC
+        const monDate = new Date(monday)
+        monDate.setUTCHours(14, 0, 0, 0)
+        list.push({ name: 'USD - ISM Manufacturing PMI', date: monDate, impact: 'HIGH', forecast: '48.2', previous: '47.8' })
+        
+        // Tuesday: JOLTs Job Openings at 14:00 UTC
+        const tueDate = new Date(monday)
+        tueDate.setUTCDate(monday.getUTCDate() + 1)
+        tueDate.setUTCHours(14, 0, 0, 0)
+        list.push({ name: 'USD - JOLTs Job Openings', date: tueDate, impact: 'HIGH', forecast: '8.85M', previous: '8.75M' })
+        
+        // Wednesday: Core CPI (MoM) at 12:30 UTC
+        const wedDate = new Date(monday)
+        wedDate.setUTCDate(monday.getUTCDate() + 2)
+        wedDate.setUTCHours(12, 30, 0, 0)
+        list.push({ name: 'USD - Core CPI (MoM)', date: wedDate, impact: 'HIGH', forecast: '0.3%', previous: '0.4%' })
+        
+        // Thursday: FOMC Interest Rate Decision at 18:00 UTC
+        const thuDate = new Date(monday)
+        thuDate.setUTCDate(monday.getUTCDate() + 3)
+        thuDate.setUTCHours(18, 0, 0, 0)
+        list.push({ name: 'USD - FOMC Interest Rate Decision', date: thuDate, impact: 'HIGH', forecast: '5.25%', previous: '5.25%' })
+        
+        // Friday: Non-Farm Employment Change (NFP) at 12:30 UTC
+        const friDate = new Date(monday)
+        friDate.setUTCDate(monday.getUTCDate() + 4)
+        friDate.setUTCHours(12, 30, 0, 0)
+        list.push({ name: 'USD - Non-Farm Employment Change (NFP)', date: friDate, impact: 'HIGH', forecast: '180K', previous: '175K' })
+        
+        return list
+      }
+
+      const baseEvents = getFallbackEvents()
+      const upcoming = baseEvents.filter(e => e.date.getTime() > Date.now())
       setEvents(baseEvents)
-      setNextEvent(baseEvents[0])
+      if (upcoming.length > 0) {
+        setNextEvent(upcoming[0])
+      } else {
+        setNextEvent(baseEvents[0])
+      }
     }
 
     loadNews()
@@ -536,10 +578,7 @@ function EconomicCalendarWidget() {
                   <div className="min-w-0">
                     <p className="font-bold text-white text-sm truncate">{e.name}</p>
                     <p className="text-[10px] text-[#64748B] mt-0.5">
-                      {isWeekend 
-                        ? `${e.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} • ${e.date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
-                        : `${e.date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
-                      } • USD Impact
+                      {e.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} • {e.date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} • USD Impact
                     </p>
                   </div>
                 </div>

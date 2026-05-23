@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //| GoldBookSync.mq5                                                 |
-//| Server-side MQL5 Script — runs inside MT5 on your Ubuntu VPS    |
+//| Server-side MQL5 Script — runs inside MetaTrader 5 terminal      |
 //|                                                                  |
 //| Flow:                                                            |
 //|   1. Orchestrator launches MT5 with /script:GoldBookSync        |

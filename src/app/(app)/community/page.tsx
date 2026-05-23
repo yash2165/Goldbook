@@ -1014,32 +1014,37 @@ export default function CommunityPage() {
 
 function LeaderboardTab() {
   const [leaderboard, setLeaderboard] = useState<any[]>([])
-  const supabase = createClient()
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .from('trades')
-      .select('user_id, net_profit, profiles(username)')
-      .eq('status', 'closed')
-      .then(({ data }) => {
-        if (!data) return
-        const byUser: Record<string, { username: string; pnl: number; trades: number }> = {}
-        for (const t of data as any[]) {
-          const uid = t.user_id
-          if (!byUser[uid]) byUser[uid] = { username: t.profiles?.username ?? 'Anonymous', pnl: 0, trades: 0 }
-          byUser[uid].pnl += t.net_profit ?? 0
-          byUser[uid].trades++
+    fetch('/api/leaderboard')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setLeaderboard(data)
         }
-        const sorted = Object.entries(byUser)
-          .map(([uid, v]) => ({ uid, ...v }))
-          .sort((a, b) => b.pnl - a.pnl)
-          .slice(0, 20)
-        setLeaderboard(sorted)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('Failed to fetch leaderboard:', err)
+        setLoading(false)
       })
   }, [])
 
+  if (loading) {
+    return (
+      <div className="flex-1 overflow-y-auto p-6 bg-[#07070b] flex flex-col items-center justify-center min-h-[350px]">
+        <Trophy className="w-8 h-8 text-primary/40 animate-[pulse_1.5s_infinite] mb-3" />
+        <div className="text-center text-[#64748B] text-[10px] font-black uppercase tracking-widest animate-pulse">
+          Syncing global standings...
+        </div>
+      </div>
+    )
+  }
+
   const top3 = leaderboard.slice(0, 3)
   const remaining = leaderboard.slice(3)
+
 
   return (
     <div className="flex-1 overflow-y-auto p-6 bg-[#07070b]">
@@ -1071,10 +1076,11 @@ function LeaderboardTab() {
                     <p className="font-bold text-white text-xs truncate max-w-[85px]">{top3[1].username}</p>
                     <p className="text-[10px] text-slate-300 font-mono font-bold">{fmt(top3[1].pnl)}</p>
                   </div>
-                  <div className="w-full bg-[#181825]/80 border border-slate-300/10 rounded-t-xl h-24 flex flex-col items-center justify-center p-2 shadow-lg relative overflow-hidden">
+                  <div className="w-full bg-[#181825]/80 border border-slate-300/10 rounded-t-xl h-24 flex flex-col items-center justify-center p-2 shadow-lg relative overflow-hidden text-center">
                     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-400 to-slate-200" />
                     <span className="text-slate-300 text-[9px] font-black tracking-widest uppercase">RANK #2</span>
                     <span className="text-[9px] text-[#64748B] mt-1">{top3[1].trades} Trades</span>
+                    <span className="text-[8px] text-[#22C55E]/80 font-mono mt-0.5 font-bold">WR: {top3[1].winRate}% • {top3[1].mostTraded}</span>
                   </div>
                 </div>
               ) : (
@@ -1094,10 +1100,11 @@ function LeaderboardTab() {
                     <p className="font-extrabold text-white text-sm truncate max-w-[100px]">{top3[0].username}</p>
                     <p className="text-xs text-primary font-mono font-black">{fmt(top3[0].pnl)}</p>
                   </div>
-                  <div className="w-full bg-[#1c1c2e]/90 border border-primary/20 rounded-t-2xl h-32 flex flex-col items-center justify-center p-3 shadow-2xl shadow-primary/5 relative overflow-hidden">
+                  <div className="w-full bg-[#1c1c2e]/90 border border-primary/20 rounded-t-2xl h-32 flex flex-col items-center justify-center p-3 shadow-2xl shadow-primary/5 relative overflow-hidden text-center">
                     <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-yellow-300 via-primary to-amber-500" />
-                    <span className="text-[#FFD700] text-xs font-black tracking-widest uppercase">CHAMPION</span>
-                    <span className="text-[10px] text-[#64748B] mt-1">{top3[0].trades} Trades</span>
+                    <span className="text-[#FFD700] text-xs font-black tracking-widest uppercase animate-pulse">CHAMPION</span>
+                    <span className="text-[9px] text-[#64748B] mt-1">{top3[0].trades} Trades</span>
+                    <span className="text-[8px] text-primary/80 font-mono mt-0.5 font-bold">WR: {top3[0].winRate}% • {top3[0].mostTraded}</span>
                   </div>
                 </div>
               ) : (
@@ -1117,10 +1124,11 @@ function LeaderboardTab() {
                     <p className="font-bold text-white text-xs truncate max-w-[85px]">{top3[2].username}</p>
                     <p className="text-[10px] text-[#CD7F32] font-mono font-bold">{fmt(top3[2].pnl)}</p>
                   </div>
-                  <div className="w-full bg-[#181825]/80 border border-[#CD7F32]/10 rounded-t-xl h-20 flex flex-col items-center justify-center p-2 shadow-lg relative overflow-hidden">
+                  <div className="w-full bg-[#181825]/80 border border-[#CD7F32]/10 rounded-t-xl h-20 flex flex-col items-center justify-center p-2 shadow-lg relative overflow-hidden text-center">
                     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#CD7F32] to-[#A0522D]" />
                     <span className="text-[#CD7F32] text-[9px] font-black tracking-widest uppercase">RANK #3</span>
                     <span className="text-[9px] text-[#64748B] mt-1">{top3[2].trades} Trades</span>
+                    <span className="text-[8px] text-[#CD7F32]/80 font-mono mt-0.5 font-bold">WR: {top3[2].winRate}% • {top3[2].mostTraded}</span>
                   </div>
                 </div>
               ) : (
@@ -1143,7 +1151,7 @@ function LeaderboardTab() {
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm text-white">{entry.username}</p>
-                        <p className="text-xs text-[#64748B]">{entry.trades} trades completed</p>
+                        <p className="text-xs text-[#64748B]">{entry.trades} trades • Win Rate: {entry.winRate}% • Most Traded: {entry.mostTraded}</p>
                       </div>
                       <div className={cn('font-bold tabular-nums text-sm font-mono', entry.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
                         {fmt(entry.pnl)}

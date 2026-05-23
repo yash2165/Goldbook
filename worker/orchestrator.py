@@ -1,7 +1,7 @@
 """
 GoldBook MT5 Parallel Orchestrator
 ====================================
-Runs on your 24GB Oracle ARM Ubuntu VPS.
+Runs inside isolated MetaTrader 5 portable sandboxes.
 Does NOT use the MetaTrader5 Python package.
 Instead: launches the native Linux MT5 terminal as a subprocess
 for EACH account in PARALLEL — all accounts sync simultaneously.
@@ -728,9 +728,9 @@ def sync_account(acc: dict) -> dict:
 def run_cycle(accounts: list[dict]):
     """
     Launches sync_account() for ALL accounts simultaneously using a thread pool.
-    On your 24GB Oracle VPS with 20 users:
-      - 20 × ~175 MB RAM = 3.5 GB (well within 24 GB)
-      - All accounts sync in parallel → full cycle in ~25-35 seconds
+    With parallel execution threads:
+      - Each MT5 instance is isolated within its own sandbox.
+      - All active accounts sync in parallel → highly performant.
     """
     if not accounts:
         log.info("No active accounts to sync.")

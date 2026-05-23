@@ -115,7 +115,7 @@ export default function SettingsPage() {
       const data = await res.json()
       if (res.ok && data.avatarUrl) {
         setProfile(p => ({ ...p, avatar_url: data.avatarUrl }))
-        showSuccess('Avatar Updated', 'Your profile picture was saved to our secure VPS storage!')
+        showSuccess('Avatar Updated', 'Your profile picture has been updated successfully.')
       } else {
         showError('Upload Failed', data.error || 'Failed to upload profile picture.')
       }
@@ -376,7 +376,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <Label className="text-xs text-white font-bold block mb-1">Profile Picture</Label>
-                      <p className="text-[10px] text-[#64748B] mb-2">Free VPS local storage. Max size 2MB (JPG, PNG, WEBP)</p>
+                      <p className="text-[10px] text-[#64748B] mb-2">Secure Cloud Storage. Max size 2MB (JPG, PNG, WEBP)</p>
                       <input 
                         type="file" 
                         id="avatar-input" 

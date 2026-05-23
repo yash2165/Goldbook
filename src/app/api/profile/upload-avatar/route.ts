@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
 
 export async function POST(req: Request) {
   try {
@@ -23,7 +21,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid file type. Only JPEG, PNG, GIF, and WEBP are allowed.' }, { status: 400 })
     }
 
-    // Limit file size to 2MB to save VPS disk space
+    // Limit file size to 2MB to save storage space
     if (file.size > 2 * 1024 * 1024) {
       return NextResponse.json({ error: 'File too large. Maximum size allowed is 2MB.' }, { status: 400 })
     }
@@ -32,16 +30,29 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(bytes)
 
     const fileExt = file.name.split('.').pop() || 'jpg'
-    const fileName = `${user.id}_${Date.now()}.${fileExt}`
-    
-    // Ensure path exists in the VPS file system
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'avatars')
-    await mkdir(uploadDir, { recursive: true })
+    const fileName = `avatars/${user.id}_${Date.now()}.${fileExt}`
 
-    const filePath = join(uploadDir, fileName)
-    await writeFile(filePath, buffer)
+    // Upload to Supabase Storage bucket 'chat_images'
+    const { data: uploadData, error: uploadErr } = await supabase
+      .storage
+      .from('chat_images')
+      .upload(fileName, buffer, {
+        contentType: file.type,
+        upsert: true
+      })
 
-    const avatarUrl = `/uploads/avatars/${fileName}`
+    if (uploadErr) {
+      console.error('Supabase storage upload error:', uploadErr)
+      return NextResponse.json({ error: uploadErr.message }, { status: 500 })
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase
+      .storage
+      .from('chat_images')
+      .getPublicUrl(uploadData.path)
+
+    const avatarUrl = urlData.publicUrl
 
     // Update profile in DB
     const { error: dbErr } = await supabase

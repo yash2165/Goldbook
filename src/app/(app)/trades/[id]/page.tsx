@@ -329,7 +329,7 @@ export default function TradeDetailPage({ params }: { params: { id: string } }) 
       const data = await res.json()
       if (res.ok && data.screenshotUrl) {
         setScreenshotUrl(data.screenshotUrl)
-        showSuccess('Chart Linked Successfully', 'Pasted TradingView screenshot has been uploaded to local free storage.')
+        showSuccess('Chart Linked Successfully', 'Pasted TradingView screenshot has been linked to your journal entry.')
       } else {
         showError('Upload Failed', data.error || 'Failed to upload pasted screenshot.')
       }
