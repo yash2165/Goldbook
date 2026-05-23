@@ -326,7 +326,7 @@ export default function AIReportPage() {
       {/* Generate button */}
       {!fetchingSaved && !report && !loading && (
         <div className="bg-[#0A0A10]/70 border border-white/5 rounded-2xl p-12 text-center space-y-6 backdrop-blur-md relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-blue-500/5 opacity-50" />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-blue-500/5 opacity-50 pointer-events-none" />
           <div className="w-24 h-24 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(59,130,246,0.15)] relative">
             <IntelligenceOrb size={64} />
           </div>
