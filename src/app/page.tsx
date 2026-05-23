@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion'
 import { 
   ArrowRight, 
   Bot, 
@@ -45,102 +45,17 @@ const STATIC_LINE_DISTANCE = [6, 5, 4]
 
 
 export default function LandingPage() {
+  const { scrollY } = useScroll()
+  
+  // Responsive 1:1 Scroll Parallax (Smooth Mobile kinetic style scroll)
+  const smoothYHero = useTransform(scrollY, [0, 600], [0, -90])
+  const smoothOpacityHero = useTransform(scrollY, [0, 450], [1, 0])
+  const smoothYShowcase = useTransform(scrollY, [0, 900], [40, -40])
+  const smoothScaleShowcase = useTransform(scrollY, [0, 900], [0.96, 1.03])
+  const smoothYBgGlow = useTransform(scrollY, [0, 1200], [0, 250])
 
   // Navigation active states
   const [activeFeature, setActiveFeature] = useState<number>(0)
-
-  // State for Mockup 1: Live MT5 Ticker
-  const [xauusdPrice, setXauusdPrice] = useState(2348.50)
-  const [trades, setTrades] = useState([
-    { id: 1, pair: 'XAUUSD', type: 'BUY', size: 1.00, entry: 2345.20, current: 2348.50, profit: 330.00, status: 'ticking' },
-    { id: 2, pair: 'EURUSD', type: 'SELL', size: 2.00, entry: 1.08250, current: 1.08180, profit: 140.00, status: 'ticking' },
-    { id: 3, pair: 'GBPUSD', type: 'BUY', size: 1.50, entry: 1.26420, current: 1.26460, profit: 60.00, status: 'ticking' }
-  ])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Tick gold price randomly
-      const change = (Math.random() - 0.5) * 0.4
-      setXauusdPrice(prev => {
-        const next = Number((prev + change).toFixed(2))
-        // Update trades array
-        setTrades(prevTrades => 
-          prevTrades.map(t => {
-            if (t.pair === 'XAUUSD') {
-              const current = next
-              const profit = Number(((current - t.entry) * 100 * t.size).toFixed(2))
-              return { ...t, current, profit }
-            }
-            if (t.pair === 'EURUSD') {
-              const tick = (Math.random() - 0.5) * 0.00010
-              const current = Number((t.current + tick).toFixed(5))
-              const profit = Number(((t.entry - current) * 100000 * t.size).toFixed(2))
-              return { ...t, current, profit }
-            }
-            if (t.pair === 'GBPUSD') {
-              const tick = (Math.random() - 0.5) * 0.00008
-              const current = Number((t.current + tick).toFixed(5))
-              const profit = Number(((current - t.entry) * 100000 * t.size).toFixed(2))
-              return { ...t, current, profit }
-            }
-            return t
-          })
-        )
-        return next
-      })
-    }, 1500)
-    return () => clearInterval(interval)
-  }, [])
-
-  // State for Mockup 2: Nirikshan AI Coach
-  const [aiScenario, setAiScenario] = useState<'revenge' | 'fomo' | 'greed' | 'perfect'>('revenge')
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'ai' | 'user', text: string }>>([])
-  const [isTyping, setIsTyping] = useState(false)
-
-  const scenarios = {
-    revenge: {
-      user: "I just lost $250 on gold and re-entered immediately. Can you analyze my state?",
-      ai: "⚠️ RED ALERT: Revenge Trading sequence initiated. Your MT5 log shows 3 gold long positions opened within 8 minutes of a stopped out trade. Statistically, in this high-frustration state, your win rate collapses to 14% and average loss size swells by 240%. Intervening: close the terminal immediately, step away for 30 minutes, and complete your discipline checklist."
-    },
-    fomo: {
-      user: "Gold is pumping hard! I entered BUY at the absolute top without confirmation. What should I do?",
-      ai: "📢 FOMO DETECTED: You have entered a high-velocity momentum trade with no technical or checklist alignment. Entering without validation is a chronic discipline leak. I recommend trimming 50% of the position size to manage downside and placing a hard stop-loss. Remember: missing a move is free; chasing one is expensive."
-    },
-    greed: {
-      user: "I am up 1:4 Risk-Reward on EURUSD but I want to hold it for a larger run. Should I?",
-      ai: "⚖️ GREED ASSESSMENT: Your plan specified a Take Profit at key H4 liquidity (1:3 RR). Historically, when you deviate from target levels and hold, 64% of your trades reverse to breakeven or losses. Take partial profits here (e.g. 70%), set stop to breakeven, and let the remaining run. Never let market euphoria dictate your rules."
-    },
-    perfect: {
-      user: "I waited 2 hours for my London session key level. Entered with 1% risk. Stopped out for -$100.",
-      ai: "🏆 EXCELLENT EXECUTION: Congratulations on flawless discipline. You respected your time block, followed your checklist, and locked in a capped 1% risk profile. Losing trades are an inevitable cost of trading; sticking to your rules is your only true edge. Your execution grade for this trade is A+."
-    }
-  }
-
-  const triggerScenario = (type: 'revenge' | 'fomo' | 'greed' | 'perfect') => {
-    setAiScenario(type)
-    setIsTyping(true)
-    setChatMessages([
-      { sender: 'user', text: scenarios[type].user }
-    ])
-
-    setTimeout(() => {
-      setChatMessages(prev => [
-        ...prev,
-        { sender: 'ai', text: scenarios[type].ai }
-      ])
-      setIsTyping(false)
-    }, 1200)
-  }
-
-  useEffect(() => {
-    triggerScenario('revenge')
-  }, [])
-
-  // State for Mockup 3: Discipline Rule Engine
-  const [ruleDailyLimit, setRuleDailyLimit] = useState(500)
-  const [simulatedLoss, setSimulatedLoss] = useState(420)
-  const [maxLots, setMaxLots] = useState(2.0)
-  const [simulatedLots, setSimulatedLots] = useState(3.5)
 
   // State for Mockup 4: High-Fidelity Analytics
   const [analyticsTab, setAnalyticsTab] = useState<'equity' | 'calendar' | 'stats'>('equity')
@@ -158,21 +73,6 @@ export default function LandingPage() {
     { day: 21, profit: 1540, win: true }
   ]
 
-  // State for Mockup 5: Collaborative Voice Hub
-  const [isJoined, setIsJoined] = useState(false)
-  const [activeSpeakers, setActiveSpeakers] = useState<string[]>([])
-  const [joinedRoom, setJoinedRoom] = useState('XAUUSD Live Scalpers')
-
-  useEffect(() => {
-    if (!isJoined) return
-    const interval = setInterval(() => {
-      const users = ['Yash21', 'Nirav_Fx', 'Sara_Trader', 'You']
-      const active = users.filter(() => Math.random() > 0.6)
-      setActiveSpeakers(active)
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [isJoined])
-
   return (
     <div className="min-h-screen bg-transparent text-[#F1F5F9] overflow-x-hidden selection:bg-[#F59E0B]/30 relative font-sans isolate">
       {/* Cinematic Glowing Backdrop */}
@@ -187,16 +87,16 @@ export default function LandingPage() {
           lineDistance={STATIC_LINE_DISTANCE}
           bendRadius={7.0}
           bendStrength={-0.35}
-          interactive={false}
-          parallax={false}
+          interactive={true}
+          parallax={true}
           animationSpeed={1.5}
         />
       </div>
 
       <div className="relative z-10">
-        {/* Floating Lights */}
-        <div className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/8 blur-[180px] rounded-full pointer-events-none mix-blend-screen" />
-        <div className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/6 blur-[200px] rounded-full pointer-events-none mix-blend-screen" />
+        {/* Floating Lights with smooth parallax scroll */}
+        <motion.div style={{ y: smoothYBgGlow }} className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/8 blur-[180px] rounded-full pointer-events-none mix-blend-screen" />
+        <motion.div style={{ y: smoothYBgGlow }} className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/6 blur-[200px] rounded-full pointer-events-none mix-blend-screen" />
 
       {/* Nav */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 bg-[#050508]/75 backdrop-blur-md">
@@ -237,7 +137,7 @@ export default function LandingPage() {
         {/* Decorative Grid Mesh Overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:32px_32px] opacity-25 pointer-events-none" />
 
-        <div className="max-w-6xl mx-auto text-center space-y-8 relative z-10">
+        <motion.div style={{ y: smoothYHero, opacity: smoothOpacityHero }} className="max-w-6xl mx-auto text-center space-y-8 relative z-10">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -290,13 +190,14 @@ export default function LandingPage() {
               <Activity className="w-4 h-4 group-hover:text-[#FFD700]" /> Explore Features
             </a>
           </motion.div>
-        </div>
+        </motion.div>
 
         {/* Cinematic Dashboard Showcase Mockup */}
         <motion.div
           initial={{ opacity: 0, y: 80, rotateX: 10 }}
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
           transition={{ duration: 0.9, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          style={{ y: smoothYShowcase, scale: smoothScaleShowcase }}
           className="mt-20 max-w-5xl mx-auto relative z-20"
         >
           <div className="absolute -inset-2 bg-gradient-to-b from-[#F59E0B]/10 to-transparent blur-2xl -z-10 rounded-[2.5rem]" />
@@ -370,7 +271,11 @@ export default function LandingPage() {
                     <span className="text-[10px] font-mono text-[#64748B] bg-white/5 px-2 py-0.5 rounded">Latency: 14ms</span>
                   </div>
                   <div className="space-y-2">
-                    {trades.map(t => (
+                    {[
+                      { id: 1, pair: 'XAUUSD', type: 'BUY', size: 1.00, entry: 2345.20, current: 2348.50, profit: 330.00 },
+                      { id: 2, pair: 'EURUSD', type: 'SELL', size: 2.00, entry: 1.08250, current: 1.08180, profit: 140.00 },
+                      { id: 3, pair: 'GBPUSD', type: 'BUY', size: 1.50, entry: 1.26420, current: 1.26460, profit: 60.00 }
+                    ].map(t => (
                       <div key={t.id} className="flex items-center justify-between p-2.5 bg-white/[0.02] border border-white/[0.03] rounded-lg">
                         <div className="flex items-center gap-3">
                           <span className={cn(
@@ -387,7 +292,7 @@ export default function LandingPage() {
                           </div>
                           <div className="text-right">
                             <span className="text-[10px] text-[#64748B] block">Live Price</span>
-                            <span className="text-xs font-mono font-semibold text-white/80 animate-pulse">{t.current.toFixed(2)}</span>
+                            <span className="text-xs font-mono font-semibold text-white/80">{t.current.toFixed(2)}</span>
                           </div>
                           <div className="w-20 text-right">
                             <span className={cn(
@@ -457,18 +362,22 @@ export default function LandingPage() {
             </div>
           </motion.div>
 
-          {/* Interactive Mockup 1: Live MT5 Ticker Panel */}
+          {/* Interactive Mockup 1: Live MT5 Ticker Panel (Static High-Fidelity Example) */}
           <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
             <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl relative">
               <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[9px] font-mono text-[#22C55E] bg-[#22C55E]/10 border border-[#22C55E]/20 px-2 py-0.5 rounded">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-ping" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
                 LIVE STREAMING
               </div>
               <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-1">MT5 Telemetry Feed</h3>
               <p className="text-[#64748B] text-[11px] mb-4">Simulating ticking prices from your MT5 terminal.</p>
 
               <div className="space-y-3">
-                {trades.map(t => (
+                {[
+                  { id: 1, pair: 'XAUUSD', type: 'BUY', size: 1.00, entry: 2345.20, current: 2348.50, profit: 330.00 },
+                  { id: 2, pair: 'EURUSD', type: 'SELL', size: 2.00, entry: 1.08250, current: 1.08180, profit: 140.00 },
+                  { id: 3, pair: 'GBPUSD', type: 'BUY', size: 1.50, entry: 1.26420, current: 1.26460, profit: 60.00 }
+                ].map(t => (
                   <div key={t.id} className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
@@ -481,7 +390,7 @@ export default function LandingPage() {
                       </div>
                       <div className="flex gap-4 mt-2">
                         <span className="text-[10px] text-[#64748B]">Entry: <span className="font-mono text-white/80">{t.entry.toFixed(2)}</span></span>
-                        <span className="text-[10px] text-[#64748B]">Current: <span className="font-mono text-white/80 animate-pulse">{t.current.toFixed(2)}</span></span>
+                        <span className="text-[10px] text-[#64748B]">Current: <span className="font-mono text-white/80">{t.current.toFixed(2)}</span></span>
                       </div>
                     </div>
                     <div className="text-right">
@@ -502,7 +411,7 @@ export default function LandingPage() {
                 <span className="flex items-center gap-1.5 font-bold text-white">
                   Net Open P&L: 
                   <span className="text-[#22C55E] font-mono text-xs">
-                    +${trades.reduce((acc, curr) => acc + curr.profit, 0).toFixed(2)}
+                    +$530.00
                   </span>
                 </span>
               </div>
@@ -551,7 +460,7 @@ export default function LandingPage() {
             </div>
           </motion.div>
 
-          {/* Interactive Mockup 2: Nirikshan AI Chat Interface */}
+          {/* Interactive Mockup 2: Nirikshan AI Chat Interface (Static High-Fidelity Example) */}
           <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
             <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl flex flex-col h-[400px]">
               {/* Chat Header */}
@@ -563,7 +472,7 @@ export default function LandingPage() {
                   <div>
                     <span className="text-xs font-bold text-white uppercase tracking-wider block">Nirikshan AI Coach</span>
                     <span className="text-[10px] text-[#22C55E] flex items-center gap-1 font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
                       Active Analysis Engine
                     </span>
                   </div>
@@ -572,67 +481,41 @@ export default function LandingPage() {
 
               {/* Chat Log Body */}
               <div className="flex-1 p-4 space-y-4 overflow-y-auto font-sans text-xs">
-                {chatMessages.map((msg, i) => (
-                  <div key={i} className={cn("flex gap-3", msg.sender === 'user' ? 'justify-end' : 'justify-start')}>
-                    {msg.sender === 'ai' && (
-                      <div className="w-6 h-6 rounded-full bg-[#FFD700]/10 flex items-center justify-center shrink-0 border border-[#FFD700]/20">
-                        <Bot className="w-3 h-3 text-[#FFD700]" />
-                      </div>
-                    )}
-                    <div className={cn(
-                      "p-3 rounded-xl max-w-[80%] leading-relaxed",
-                      msg.sender === 'user' 
-                        ? 'bg-white/5 border border-white/10 text-white' 
-                        : 'bg-[#FFD700]/5 border border-[#FFD700]/10 text-white/90'
-                    )}>
-                      {msg.text}
-                    </div>
+                {/* Message 1 */}
+                <div className="flex gap-3 justify-end">
+                  <div className="p-3 rounded-xl max-w-[85%] leading-relaxed bg-white/5 border border-white/10 text-white">
+                    Gold is pumping hard! I entered BUY at the absolute top without confirmation. What should I do?
                   </div>
-                ))}
-                {isTyping && (
-                  <div className="flex items-center gap-1 text-[#FFD700] text-[10px] font-bold">
-                    <span className="w-1 h-1 rounded-full bg-[#FFD700] animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1 h-1 rounded-full bg-[#FFD700] animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1 h-1 rounded-full bg-[#FFD700] animate-bounce" />
-                    <span>Nirikshan typing...</span>
-                  </div>
-                )}
-              </div>
+                </div>
 
-              {/* Chat Quick Action Trigger Controls */}
-              <div className="p-3 border-t border-white/5 bg-white/[0.01] flex flex-wrap gap-2 justify-center">
-                <button 
-                  onClick={() => triggerScenario('revenge')} 
-                  className={cn("px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded border transition-colors",
-                    aiScenario === 'revenge' ? 'bg-[#EF4444]/20 border-[#EF4444] text-[#EF4444]' : 'bg-white/5 border-white/5 text-[#64748B] hover:text-white'
-                  )}
-                >
-                  Revenge Trade
-                </button>
-                <button 
-                  onClick={() => triggerScenario('fomo')} 
-                  className={cn("px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded border transition-colors",
-                    aiScenario === 'fomo' ? 'bg-[#F59E0B]/20 border-[#F59E0B] text-[#F59E0B]' : 'bg-white/5 border-white/5 text-[#64748B] hover:text-white'
-                  )}
-                >
-                  FOMO BUY
-                </button>
-                <button 
-                  onClick={() => triggerScenario('greed')} 
-                  className={cn("px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded border transition-colors",
-                    aiScenario === 'greed' ? 'bg-[#3B82F6]/20 border-[#3B82F6] text-[#3B82F6]' : 'bg-white/5 border-white/5 text-[#64748B] hover:text-white'
-                  )}
-                >
-                  Greed Hold
-                </button>
-                <button 
-                  onClick={() => triggerScenario('perfect')} 
-                  className={cn("px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded border transition-colors",
-                    aiScenario === 'perfect' ? 'bg-[#22C55E]/20 border-[#22C55E] text-[#22C55E]' : 'bg-white/5 border-white/5 text-[#64748B] hover:text-white'
-                  )}
-                >
-                  Flawless Win
-                </button>
+                {/* Message 2 */}
+                <div className="flex gap-3 justify-start">
+                  <div className="w-6 h-6 rounded-full bg-[#FFD700]/10 flex items-center justify-center shrink-0 border border-[#FFD700]/20">
+                    <Bot className="w-3 h-3 text-[#FFD700]" />
+                  </div>
+                  <div className="p-3 rounded-xl max-w-[85%] leading-relaxed bg-[#FFD700]/5 border border-[#FFD700]/10 text-white/90">
+                    <span className="text-[#FFD700] font-bold block mb-1">📢 FOMO DETECTED</span>
+                    You have entered a high-velocity momentum trade with no technical or checklist alignment. Entering without validation is a chronic discipline leak. I recommend trimming 50% of the position size to manage downside and placing a hard stop-loss. Remember: missing a move is free; chasing one is expensive.
+                  </div>
+                </div>
+
+                {/* Message 3 */}
+                <div className="flex gap-3 justify-end">
+                  <div className="p-3 rounded-xl max-w-[85%] leading-relaxed bg-white/5 border border-white/10 text-white">
+                    Understood. I have closed 50% and placed my stop-loss at 2341.00.
+                  </div>
+                </div>
+
+                {/* Message 4 */}
+                <div className="flex gap-3 justify-start">
+                  <div className="w-6 h-6 rounded-full bg-[#FFD700]/10 flex items-center justify-center shrink-0 border border-[#FFD700]/20">
+                    <Bot className="w-3 h-3 text-[#FFD700]" />
+                  </div>
+                  <div className="p-3 rounded-xl max-w-[85%] leading-relaxed bg-[#22C55E]/5 border border-[#22C55E]/10 text-white/90">
+                    <span className="text-[#22C55E] font-bold block mb-1">🏆 ACTION SAVED</span>
+                    Excellent discipline adjustment. By managing the position risk dynamically, you corrected your entry impulse. Behavioral logs have been successfully logged to your performance database.
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -679,7 +562,7 @@ export default function LandingPage() {
             </div>
           </motion.div>
 
-          {/* Interactive Mockup 3: Rule Compliance Board */}
+          {/* Interactive Mockup 3: Rule Compliance Board (Static High-Fidelity Example) */}
           <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
             <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl relative space-y-5">
               <div className="flex justify-between items-center">
@@ -689,50 +572,30 @@ export default function LandingPage() {
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-[#64748B] block uppercase font-bold">Rule Score</span>
-                  <span className={cn(
-                    "text-sm font-black",
-                    simulatedLots > maxLots || simulatedLoss > ruleDailyLimit ? "text-[#EF4444]" : "text-[#22C55E]"
-                  )}>
-                    {simulatedLots > maxLots || simulatedLoss > ruleDailyLimit ? "32% CRITICAL" : "96% SECURE"}
+                  <span className="text-sm font-black text-[#22C55E]">
+                    96% SECURE
                   </span>
                 </div>
               </div>
 
-              {/* Rule Card 1: Daily Drawdown (Interactive Slider) */}
+              {/* Rule Card 1: Daily Drawdown (Static Premium Progress Bar) */}
               <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-3">
                 <div className="flex justify-between items-center text-xs">
                   <div className="flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-[#FFD700]" />
                     <span className="font-bold text-white uppercase tracking-wide">Daily Loss Cap</span>
                   </div>
-                  <span className="text-[#64748B] text-[11px]">Loss: <span className="text-white font-bold">${simulatedLoss}</span> / limit: <span className="text-[#FFD700] font-bold">${ruleDailyLimit}</span></span>
+                  <span className="text-[#64748B] text-[11px]">Loss: <span className="text-white font-bold">$120</span> / limit: <span className="text-[#FFD700] font-bold">$500</span></span>
                 </div>
                 
-                <input 
-                  type="range" 
-                  min="200" 
-                  max="1000" 
-                  value={ruleDailyLimit}
-                  onChange={(e) => setRuleDailyLimit(Number(e.target.value))}
-                  className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#FFD700]"
-                />
-
-                <div className="flex items-center justify-between pt-1">
-                  <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className={cn(
-                        "h-full rounded-full transition-all duration-300",
-                        (simulatedLoss / ruleDailyLimit) > 0.9 ? "bg-[#EF4444] animate-pulse" : "bg-[#FFD700]"
-                      )}
-                      style={{ width: `${Math.min(100, (simulatedLoss / ruleDailyLimit) * 100)}%` }}
-                    />
-                  </div>
+                {/* Static Progress Bar */}
+                <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-[#FFD700] to-[#F59E0B]" style={{ width: '24%' }} />
                 </div>
-                {(simulatedLoss / ruleDailyLimit) > 0.9 && (
-                  <p className="text-[10px] text-[#EF4444] font-bold flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5" /> DRAWDOWN WARNING: 94% OF DAILY LOSS CAP EXCEEDED.
-                  </p>
-                )}
+                
+                <p className="text-[9px] text-[#64748B] leading-none">
+                  Drawdown parameters active. 76% daily capital headroom remaining.
+                </p>
               </div>
 
               {/* Rule Card 2: Lot Constraint */}
@@ -742,37 +605,26 @@ export default function LandingPage() {
                     <Zap className="w-4 h-4 text-[#FFD700]" />
                     <span className="font-bold text-white uppercase tracking-wide">Max Lot Allocation</span>
                   </div>
-                  <span className="text-[#64748B] text-[11px]">Active: <span className="text-white font-bold">{simulatedLots} Lots</span> / limit: <span className="text-[#FFD700] font-bold">{maxLots} Lots</span></span>
+                  <span className="text-[#64748B] text-[11px]">Active: <span className="text-white font-bold">1.50 Lots</span> / limit: <span className="text-[#FFD700] font-bold">2.00 Lots</span></span>
                 </div>
 
+                {/* Static visual representation */}
                 <div className="flex gap-2">
-                  <button 
-                    onClick={() => setSimulatedLots(1.5)} 
-                    className={cn("flex-1 py-1.5 text-[10px] font-bold uppercase rounded border transition-colors",
-                      simulatedLots === 1.5 ? "bg-white/10 border-white/20 text-white" : "bg-white/5 border-white/5 text-[#64748B]"
-                    )}
-                  >
-                    1.50 Lots
-                  </button>
-                  <button 
-                    onClick={() => setSimulatedLots(3.5)} 
-                    className={cn("flex-1 py-1.5 text-[10px] font-bold uppercase rounded border transition-colors",
-                      simulatedLots === 3.5 ? "bg-[#EF4444]/20 border-[#EF4444] text-[#EF4444]" : "bg-white/5 border-white/5 text-[#64748B]"
-                    )}
-                  >
-                    3.50 Lots
-                  </button>
+                  <div className="flex-1 py-1.5 text-[10px] font-bold uppercase rounded border text-center bg-white/10 border-white/20 text-white">
+                    1.50 Lots Active
+                  </div>
+                  <div className="flex-1 py-1.5 text-[10px] font-bold uppercase rounded border text-center bg-white/5 border-white/5 text-[#64748B]">
+                    2.00 Lots Max
+                  </div>
                 </div>
 
-                {simulatedLots > maxLots && (
-                  <div className="p-2.5 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg flex items-center gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-[#EF4444] shrink-0" />
-                    <div>
-                      <h4 className="text-[10px] font-bold text-[#EF4444] uppercase tracking-wider">RULE VIOLATION TRIGGERED</h4>
-                      <p className="text-[9px] text-[#64748B]">Position breached max 2.0 Lots limit. Strike logged to history.</p>
-                    </div>
+                <div className="p-2.5 bg-[#22C55E]/10 border border-[#22C55E]/20 rounded-lg flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-[#22C55E] shrink-0" />
+                  <div>
+                    <h4 className="text-[10px] font-bold text-[#22C55E] uppercase tracking-wider">RULE CHECKS COMPLIANT</h4>
+                    <p className="text-[9px] text-[#64748B]">Positions respect active risk allocations. All entries verified.</p>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -995,53 +847,43 @@ export default function LandingPage() {
             </div>
           </motion.div>
 
-          {/* Interactive Mockup 5: Voice Channel & Shared Trades Hub */}
+          {/* Interactive Mockup 5: Voice Channel & Shared Trades Hub (Static High-Fidelity Example) */}
           <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
             <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl relative space-y-4">
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider">Trading Room Voice</h3>
-                  <p className="text-[#64748B] text-[10px]">Active Room: <span className="text-[#FFD700] font-semibold">{joinedRoom}</span></p>
+                  <p className="text-[#64748B] text-[10px]">Active Room: <span className="text-[#FFD700] font-semibold">XAUUSD Live Scalpers</span></p>
                 </div>
-                <button 
-                  onClick={() => setIsJoined(!isJoined)}
-                  className={cn(
-                    "px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border",
-                    isJoined 
-                      ? "bg-[#EF4444]/10 border-[#EF4444]/30 text-[#EF4444]" 
-                      : "bg-[#FFD700]/10 border-[#FFD700]/30 text-[#FFD700] hover:scale-105"
-                  )}
-                >
-                  {isJoined ? 'Disconnect' : 'Join Voice Room'}
-                </button>
+                <div className="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-white/5 border border-white/10 text-white/80">
+                  Room Full
+                </div>
               </div>
 
               {/* Speaker layout bubble */}
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { name: 'Yash21', role: 'Host', avatar: 'Y' },
-                  { name: 'Nirav_Fx', role: 'Trader', avatar: 'N' },
-                  { name: 'Sara_Trader', role: 'Scalper', avatar: 'S' },
-                  { name: 'You', role: 'Trader', avatar: 'U' }
+                  { name: 'Yash21', role: 'Host', avatar: 'Y', speaking: true },
+                  { name: 'Nirav_Fx', role: 'Trader', avatar: 'N', speaking: false },
+                  { name: 'Sara_Trader', role: 'Scalper', avatar: 'S', speaking: false },
+                  { name: 'You', role: 'Trader', avatar: 'U', speaking: false }
                 ].map(u => {
-                  const isUserJoined = isJoined || u.name !== 'You'
-                  const isSpeaking = isUserJoined && activeSpeakers.includes(u.name)
                   return (
                     <div 
                       key={u.name} 
                       className={cn(
                         "p-3 rounded-xl border flex items-center gap-3 transition-all",
-                        isSpeaking 
+                        u.speaking 
                           ? "bg-[#FFD700]/5 border-[#FFD700]/20 shadow-[0_0_12px_rgba(255,215,0,0.1)]" 
                           : "bg-white/[0.01] border-white/5"
                       )}
                     >
                       <div className={cn(
                         "w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs relative",
-                        isSpeaking ? "bg-[#FFD700] text-black" : "bg-white/10 text-white/80"
+                        u.speaking ? "bg-[#FFD700] text-black" : "bg-white/10 text-white/80"
                       )}>
                         {u.avatar}
-                        {isSpeaking && (
+                        {u.speaking && (
                           <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#FFD700] rounded-full border-2 border-[#0c0c14] flex items-center justify-center">
                             <Volume2 className="w-2.5 h-2.5 text-black" />
                           </span>
