@@ -19,8 +19,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark h-full antialiased text-foreground bg-background">
-      <body className={`${inter.className} min-h-full flex flex-col`}>
+    <html 
+      lang="en" 
+      className="dark h-full antialiased text-foreground bg-background"
+      style={{ backgroundColor: '#0A0A0F', colorScheme: 'dark' }}
+    >
+      <body 
+        className={`${inter.className} min-h-full flex flex-col`}
+        style={{ backgroundColor: '#0A0A0F' }}
+      >
         <ToastProvider>
           <GlobalGuard>
             {children}
