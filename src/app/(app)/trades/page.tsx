@@ -7,7 +7,7 @@ import { AddTradeModal } from '@/components/trades/AddTradeModal'
 import { fmt, getClosedTrades, getOpenTrades } from '@/lib/calculations'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { Plus, Link2, Filter, Trash2, ExternalLink, TrendingUp, TrendingDown, Clock, Edit3 } from 'lucide-react'
+import { Plus, Link2, Filter, Trash2, ExternalLink, TrendingUp, TrendingDown, Clock, Edit3, Info } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
@@ -75,6 +75,26 @@ export default function TradesPage() {
             <Plus className="w-4 h-4" /> Add Trade
           </button>
         </div>
+      </div>
+
+      {/* Centralized Analysis Notification Banner */}
+      <div className="bg-[#12121A] border border-primary/20 p-4 rounded-xl flex items-center justify-between gap-4 shadow-lg shadow-primary/[0.02] animate-in fade-in slide-in-from-top-3 duration-300">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+            <Info className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-white">Looking for complete trade review logs, emotional analysis, or charts?</p>
+            <p className="text-[11px] text-[#64748B] mt-0.5 leading-relaxed">
+              Visit our centralized <Link href="/analysis/trade-analysis" className="text-primary hover:underline font-bold">Trade Analysis console</Link> to view detailed historical journals, checklist metrics, emotions, and run premium <strong>Trade Replay</strong> simulators.
+            </p>
+          </div>
+        </div>
+        <Link href="/analysis/trade-analysis">
+          <button className="px-3.5 py-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 hover:border-primary/50 rounded-lg text-xs font-bold text-primary transition-all active:scale-95 whitespace-nowrap">
+            View Analytics
+          </button>
+        </Link>
       </div>
 
       {/* Trade History */}
@@ -175,10 +195,7 @@ export default function TradesPage() {
                         <div className="w-7 h-7 rounded-full bg-[#F59E0B]/10 flex items-center justify-center">
                           <span className="text-[10px] font-bold text-[#F59E0B]">XAU</span>
                         </div>
-                        <Link href={`/trades/${trade.id}`} className="hover:underline flex items-center gap-1.5 group/link">
-                          <span className="font-bold text-white group-hover/link:text-primary transition-colors">{trade.symbol}</span>
-                          <span className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 font-black tracking-widest uppercase">Review</span>
-                        </Link>
+                        <span className="font-bold text-white">{trade.symbol}</span>
                       </div>
                     </td>
                     <td className="px-6 py-3.5">

@@ -405,6 +405,13 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
             />
           </div>
 
+          {/* Tip Banner */}
+          <div className="p-3 bg-white/5 border border-white/5 rounded-xl text-center">
+            <p className="text-[10px] text-[#64748B] leading-relaxed">
+              💡 <strong>Elite Tip:</strong> You can paste TradingView screenshots (Ctrl+V), track emotional states, and set discipline ratings directly inside your <strong>Journal</strong> tab once this trade is logged!
+            </p>
+          </div>
+
           {error && (
             <div className="p-3 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] text-sm">
               {error}

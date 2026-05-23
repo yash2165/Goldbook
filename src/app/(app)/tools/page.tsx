@@ -292,12 +292,12 @@ function PositionSizeCalculatorWidget() {
   )
 }
 
-// ── 2. USD News Economic Calendar Widget ───────────────────────────────────────
 function EconomicCalendarWidget() {
   const [events, setEvents] = useState<EconomicEvent[]>([])
   const [nextEvent, setNextEvent] = useState<EconomicEvent | null>(null)
   const [timeLeft, setTimeLeft] = useState<string>('00:00:00')
   const [isWeekend, setIsWeekend] = useState<boolean>(false)
+  const [loading, setLoading] = useState<boolean>(true)
 
   // Helper to check if current time is weekend
   const checkIsWeekend = (): boolean => {
@@ -305,8 +305,8 @@ function EconomicCalendarWidget() {
     const day = now.getUTCDay()
     const hours = now.getUTCHours()
     if (day === 6) return true // Saturday is fully weekend
-    if (day === 5 && hours >= 22) return true // Friday night after market close (10 PM UTC / 5 PM EST)
-    if (day === 0 && hours < 22) return true // Sunday before market open (10 PM UTC / 5 PM EST)
+    if (day === 5 && hours >= 22) return true // Friday night after market close (10 PM UTC)
+    if (day === 0 && hours < 22) return true // Sunday before market open (10 PM UTC)
     return false
   }
 
@@ -326,54 +326,12 @@ function EconomicCalendarWidget() {
     return nextOpen
   }
 
-  // Generate mock premium economic catalysts for next week (realistic schedule)
-  const getNextWeekEvents = (): EconomicEvent[] => {
-    const d = new Date()
-    const currentDay = d.getUTCDay()
-    const daysToSunday = (7 - currentDay) % 7
-    
-    const nextMonday = new Date(d)
-    nextMonday.setUTCDate(d.getUTCDate() + daysToSunday + 1)
-    nextMonday.setUTCHours(14, 0, 0, 0)
-
-    const nextTuesday = new Date(d)
-    nextTuesday.setUTCDate(d.getUTCDate() + daysToSunday + 2)
-    nextTuesday.setUTCHours(14, 0, 0, 0)
-
-    const nextWednesday = new Date(d)
-    nextWednesday.setUTCDate(d.getUTCDate() + daysToSunday + 3)
-    nextWednesday.setUTCHours(12, 30, 0, 0)
-
-    const nextThursday = new Date(d)
-    nextThursday.setUTCDate(d.getUTCDate() + daysToSunday + 4)
-    nextThursday.setUTCHours(18, 0, 0, 0)
-
-    const nextFriday = new Date(d)
-    nextFriday.setUTCDate(d.getUTCDate() + daysToSunday + 5)
-    nextFriday.setUTCHours(12, 30, 0, 0)
-
-    return [
-      { name: 'USD - ISM Manufacturing PMI', date: nextMonday, impact: 'HIGH', forecast: '48.2', previous: '47.8' },
-      { name: 'USD - JOLTs Job Openings', date: nextTuesday, impact: 'HIGH', forecast: '8.85M', previous: '8.75M' },
-      { name: 'USD - Core CPI (MoM)', date: nextWednesday, impact: 'HIGH', forecast: '0.3%', previous: '0.4%' },
-      { name: 'USD - FOMC Interest Rate Decision', date: nextThursday, impact: 'HIGH', forecast: '5.25%', previous: '5.25%' },
-      { name: 'USD - Non-Farm Employment Change (NFP)', date: nextFriday, impact: 'HIGH', forecast: '180K', previous: '175K' },
-    ]
-  }
-
-  // Fetch live Forex Factory news from API
+  // Fetch live economic news from API
   useEffect(() => {
     async function loadNews() {
+      setLoading(true)
       const weekendActive = checkIsWeekend()
       setIsWeekend(weekendActive)
-
-      if (weekendActive) {
-        // Display high-fidelity upcoming weekly events for the coming week
-        const nextEvents = getNextWeekEvents()
-        setEvents(nextEvents)
-        setNextEvent(nextEvents[0])
-        return
-      }
 
       try {
         const res = await fetch('/api/news')
@@ -384,71 +342,27 @@ function EconomicCalendarWidget() {
               ...e,
               date: new Date(e.date)
             }))
-            // Filter only true upcoming events
+            
+            setEvents(parsedEvents)
+            
+            // Filter only upcoming events for nextEvent targeting
             const upcoming = parsedEvents.filter((e: any) => e.date.getTime() > Date.now())
             if (upcoming.length > 0) {
-              setEvents(upcoming)
               setNextEvent(upcoming[0])
-              return
+            } else {
+              setNextEvent(null)
             }
+            setLoading(false)
+            return
           }
         }
       } catch (err) {
-        console.error('Failed to fetch live Forex news:', err)
+        console.error('Failed to fetch live economic news:', err)
       }
 
-      // Fallback to high-quality weekday-aligned mock events if offline or API fails
-      const getFallbackEvents = (): EconomicEvent[] => {
-        const now = new Date()
-        const currentDay = now.getUTCDay()
-        
-        // Find Monday of the current week (UTC-relative)
-        const monday = new Date(now)
-        const daysToMonday = currentDay === 0 ? 6 : currentDay - 1
-        monday.setUTCDate(now.getUTCDate() - daysToMonday)
-        
-        const list: EconomicEvent[] = []
-        
-        // Monday: ISM Manufacturing PMI at 14:00 UTC
-        const monDate = new Date(monday)
-        monDate.setUTCHours(14, 0, 0, 0)
-        list.push({ name: 'USD - ISM Manufacturing PMI', date: monDate, impact: 'HIGH', forecast: '48.2', previous: '47.8' })
-        
-        // Tuesday: JOLTs Job Openings at 14:00 UTC
-        const tueDate = new Date(monday)
-        tueDate.setUTCDate(monday.getUTCDate() + 1)
-        tueDate.setUTCHours(14, 0, 0, 0)
-        list.push({ name: 'USD - JOLTs Job Openings', date: tueDate, impact: 'HIGH', forecast: '8.85M', previous: '8.75M' })
-        
-        // Wednesday: Core CPI (MoM) at 12:30 UTC
-        const wedDate = new Date(monday)
-        wedDate.setUTCDate(monday.getUTCDate() + 2)
-        wedDate.setUTCHours(12, 30, 0, 0)
-        list.push({ name: 'USD - Core CPI (MoM)', date: wedDate, impact: 'HIGH', forecast: '0.3%', previous: '0.4%' })
-        
-        // Thursday: FOMC Interest Rate Decision at 18:00 UTC
-        const thuDate = new Date(monday)
-        thuDate.setUTCDate(monday.getUTCDate() + 3)
-        thuDate.setUTCHours(18, 0, 0, 0)
-        list.push({ name: 'USD - FOMC Interest Rate Decision', date: thuDate, impact: 'HIGH', forecast: '5.25%', previous: '5.25%' })
-        
-        // Friday: Non-Farm Employment Change (NFP) at 12:30 UTC
-        const friDate = new Date(monday)
-        friDate.setUTCDate(monday.getUTCDate() + 4)
-        friDate.setUTCHours(12, 30, 0, 0)
-        list.push({ name: 'USD - Non-Farm Employment Change (NFP)', date: friDate, impact: 'HIGH', forecast: '180K', previous: '175K' })
-        
-        return list
-      }
-
-      const baseEvents = getFallbackEvents()
-      const upcoming = baseEvents.filter(e => e.date.getTime() > Date.now())
-      setEvents(baseEvents)
-      if (upcoming.length > 0) {
-        setNextEvent(upcoming[0])
-      } else {
-        setNextEvent(baseEvents[0])
-      }
+      setEvents([])
+      setNextEvent(null)
+      setLoading(false)
     }
 
     loadNews()
@@ -465,7 +379,10 @@ function EconomicCalendarWidget() {
   useEffect(() => {
     const timer = setInterval(() => {
       const targetTime = isWeekend ? getNextMarketOpen().getTime() : (nextEvent?.date.getTime() ?? 0)
-      if (targetTime === 0) return
+      if (targetTime === 0) {
+        setTimeLeft('—')
+        return
+      }
 
       const diff = targetTime - Date.now()
       if (diff <= 0) {
@@ -477,6 +394,7 @@ function EconomicCalendarWidget() {
           if (remaining.length > 0) {
             setNextEvent(remaining[0])
           } else {
+            setNextEvent(null)
             setTimeLeft('Released')
             clearInterval(timer)
           }
