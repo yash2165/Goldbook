@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ArrowRight, 
   Bot, 
@@ -45,20 +45,6 @@ const STATIC_LINE_DISTANCE = [6, 5, 4]
 
 
 export default function LandingPage() {
-  const { scrollY } = useScroll()
-  
-  // Spring configurations for smoothing scroll jittering
-  const yHero = useTransform(scrollY, [0, 600], [0, -90])
-  const opacityHero = useTransform(scrollY, [0, 450], [1, 0])
-  const yShowcase = useTransform(scrollY, [0, 900], [40, -40])
-  const scaleShowcase = useTransform(scrollY, [0, 900], [0.96, 1.03])
-  const yBgGlow = useTransform(scrollY, [0, 1200], [0, 250])
-  
-  const smoothYHero = useSpring(yHero, { stiffness: 90, damping: 25 })
-  const smoothOpacityHero = useSpring(opacityHero, { stiffness: 90, damping: 25 })
-  const smoothYShowcase = useSpring(yShowcase, { stiffness: 90, damping: 25 })
-  const smoothScaleShowcase = useSpring(scaleShowcase, { stiffness: 90, damping: 25 })
-  const smoothYBgGlow = useSpring(yBgGlow, { stiffness: 90, damping: 25 })
 
   // Navigation active states
   const [activeFeature, setActiveFeature] = useState<number>(0)
@@ -201,16 +187,16 @@ export default function LandingPage() {
           lineDistance={STATIC_LINE_DISTANCE}
           bendRadius={7.0}
           bendStrength={-0.35}
-          interactive={true}
-          parallax={true}
+          interactive={false}
+          parallax={false}
           animationSpeed={1.5}
         />
       </div>
 
       <div className="relative z-10">
-        {/* Floating Lights with smooth parallax scroll */}
-        <motion.div style={{ y: smoothYBgGlow }} className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/8 blur-[180px] rounded-full pointer-events-none mix-blend-screen" />
-        <motion.div style={{ y: smoothYBgGlow }} className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/6 blur-[200px] rounded-full pointer-events-none mix-blend-screen" />
+        {/* Floating Lights */}
+        <div className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/8 blur-[180px] rounded-full pointer-events-none mix-blend-screen" />
+        <div className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/6 blur-[200px] rounded-full pointer-events-none mix-blend-screen" />
 
       {/* Nav */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 bg-[#050508]/75 backdrop-blur-md">
@@ -251,7 +237,7 @@ export default function LandingPage() {
         {/* Decorative Grid Mesh Overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:32px_32px] opacity-25 pointer-events-none" />
 
-        <motion.div style={{ y: smoothYHero, opacity: smoothOpacityHero }} className="max-w-6xl mx-auto text-center space-y-8 relative z-10">
+        <div className="max-w-6xl mx-auto text-center space-y-8 relative z-10">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -304,14 +290,13 @@ export default function LandingPage() {
               <Activity className="w-4 h-4 group-hover:text-[#FFD700]" /> Explore Features
             </a>
           </motion.div>
-        </motion.div>
+        </div>
 
         {/* Cinematic Dashboard Showcase Mockup */}
         <motion.div
           initial={{ opacity: 0, y: 80, rotateX: 10 }}
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
           transition={{ duration: 0.9, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          style={{ y: smoothYShowcase, scale: smoothScaleShowcase }}
           className="mt-20 max-w-5xl mx-auto relative z-20"
         >
           <div className="absolute -inset-2 bg-gradient-to-b from-[#F59E0B]/10 to-transparent blur-2xl -z-10 rounded-[2.5rem]" />

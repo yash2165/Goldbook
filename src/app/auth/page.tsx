@@ -89,8 +89,8 @@ export default function AuthPage() {
           lineDistance={STATIC_LINE_DISTANCE}
           bendRadius={7.0}
           bendStrength={-0.35}
-          interactive={true}
-          parallax={true}
+          interactive={false}
+          parallax={false}
           animationSpeed={1.2}
         />
       </div>
