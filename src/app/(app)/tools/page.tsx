@@ -69,9 +69,15 @@ export default function ToolsPage() {
 
       {/* Main Container */}
       <div className="grid grid-cols-1 gap-6">
-        {activeTab === 'calc' && <PositionSizeCalculatorWidget />}
-        {activeTab === 'calendar' && <EconomicCalendarWidget />}
-        {activeTab === 'checklist' && <PlanChecklistWidget />}
+        <div className={cn(activeTab === 'calc' ? 'block' : 'hidden')}>
+          <PositionSizeCalculatorWidget />
+        </div>
+        <div className={cn(activeTab === 'calendar' ? 'block' : 'hidden')}>
+          <EconomicCalendarWidget />
+        </div>
+        <div className={cn(activeTab === 'checklist' ? 'block' : 'hidden')}>
+          <PlanChecklistWidget />
+        </div>
       </div>
     </div>
   )
@@ -291,10 +297,84 @@ function EconomicCalendarWidget() {
   const [events, setEvents] = useState<EconomicEvent[]>([])
   const [nextEvent, setNextEvent] = useState<EconomicEvent | null>(null)
   const [timeLeft, setTimeLeft] = useState<string>('00:00:00')
+  const [isWeekend, setIsWeekend] = useState<boolean>(false)
+
+  // Helper to check if current time is weekend
+  const checkIsWeekend = (): boolean => {
+    const now = new Date()
+    const day = now.getUTCDay()
+    const hours = now.getUTCHours()
+    if (day === 6) return true // Saturday is fully weekend
+    if (day === 5 && hours >= 22) return true // Friday night after market close (10 PM UTC / 5 PM EST)
+    if (day === 0 && hours < 22) return true // Sunday before market open (10 PM UTC / 5 PM EST)
+    return false
+  }
+
+  // Calculate next Sunday 22:00 UTC market open
+  const getNextMarketOpen = (): Date => {
+    const now = new Date()
+    const nextOpen = new Date()
+    const currentDay = now.getUTCDay()
+    const daysUntilSunday = (7 - currentDay) % 7
+    
+    nextOpen.setUTCDate(now.getUTCDate() + daysUntilSunday)
+    nextOpen.setUTCHours(22, 0, 0, 0)
+    
+    if (nextOpen.getTime() <= now.getTime()) {
+      nextOpen.setUTCDate(nextOpen.getUTCDate() + 7)
+    }
+    return nextOpen
+  }
+
+  // Generate mock premium economic catalysts for next week (realistic schedule)
+  const getNextWeekEvents = (): EconomicEvent[] => {
+    const d = new Date()
+    const currentDay = d.getUTCDay()
+    const daysToSunday = (7 - currentDay) % 7
+    
+    const nextMonday = new Date(d)
+    nextMonday.setUTCDate(d.getUTCDate() + daysToSunday + 1)
+    nextMonday.setUTCHours(14, 0, 0, 0)
+
+    const nextTuesday = new Date(d)
+    nextTuesday.setUTCDate(d.getUTCDate() + daysToSunday + 2)
+    nextTuesday.setUTCHours(14, 0, 0, 0)
+
+    const nextWednesday = new Date(d)
+    nextWednesday.setUTCDate(d.getUTCDate() + daysToSunday + 3)
+    nextWednesday.setUTCHours(12, 30, 0, 0)
+
+    const nextThursday = new Date(d)
+    nextThursday.setUTCDate(d.getUTCDate() + daysToSunday + 4)
+    nextThursday.setUTCHours(18, 0, 0, 0)
+
+    const nextFriday = new Date(d)
+    nextFriday.setUTCDate(d.getUTCDate() + daysToSunday + 5)
+    nextFriday.setUTCHours(12, 30, 0, 0)
+
+    return [
+      { name: 'USD - ISM Manufacturing PMI', date: nextMonday, impact: 'HIGH', forecast: '48.2', previous: '47.8' },
+      { name: 'USD - JOLTs Job Openings', date: nextTuesday, impact: 'HIGH', forecast: '8.85M', previous: '8.75M' },
+      { name: 'USD - Core CPI (MoM)', date: nextWednesday, impact: 'HIGH', forecast: '0.3%', previous: '0.4%' },
+      { name: 'USD - FOMC Interest Rate Decision', date: nextThursday, impact: 'HIGH', forecast: '5.25%', previous: '5.25%' },
+      { name: 'USD - Non-Farm Employment Change (NFP)', date: nextFriday, impact: 'HIGH', forecast: '180K', previous: '175K' },
+    ]
+  }
 
   // Fetch live Forex Factory news from API
   useEffect(() => {
     async function loadNews() {
+      const weekendActive = checkIsWeekend()
+      setIsWeekend(weekendActive)
+
+      if (weekendActive) {
+        // Display high-fidelity upcoming weekly events for the coming week
+        const nextEvents = getNextWeekEvents()
+        setEvents(nextEvents)
+        setNextEvent(nextEvents[0])
+        return
+      }
+
       try {
         const res = await fetch('/api/news')
         if (res.ok) {
@@ -304,10 +384,13 @@ function EconomicCalendarWidget() {
               ...e,
               date: new Date(e.date)
             }))
-            setEvents(parsedEvents)
-            const upcoming = parsedEvents.find((e: any) => e.date.getTime() > Date.now())
-            setNextEvent(upcoming || parsedEvents[0])
-            return
+            // Filter only true upcoming events
+            const upcoming = parsedEvents.filter((e: any) => e.date.getTime() > Date.now())
+            if (upcoming.length > 0) {
+              setEvents(upcoming)
+              setNextEvent(upcoming[0])
+              return
+            }
           }
         }
       } catch (err) {
@@ -316,33 +399,45 @@ function EconomicCalendarWidget() {
 
       // Fallback to high-quality dynamic mock events if offline or API fails
       const baseEvents: EconomicEvent[] = [
-        { name: 'Core CPI (MoM)', date: new Date(Date.now() + 2 * 60 * 60 * 1000 + 45 * 60 * 1000), impact: 'HIGH', forecast: '0.3%', previous: '0.4%' },
-        { name: 'Non-Farm Employment Change (NFP)', date: new Date(Date.now() + 15 * 60 * 60 * 1000), impact: 'HIGH', forecast: '185K', previous: '175K' },
-        { name: 'FOMC Interest Rate Decision', date: new Date(Date.now() + 38 * 60 * 60 * 1000), impact: 'HIGH', forecast: '5.25%', previous: '5.25%' },
-        { name: 'Retail Sales (MoM)', date: new Date(Date.now() + 61 * 60 * 60 * 1000), impact: 'HIGH', forecast: '0.2%', previous: '-0.1%' },
-        { name: 'Flash Services PMI', date: new Date(Date.now() + 85 * 60 * 60 * 1000), impact: 'MEDIUM', forecast: '51.3', previous: '50.9' }
+        { name: 'USD - Core CPI (MoM)', date: new Date(Date.now() + 2 * 60 * 60 * 1000 + 45 * 60 * 1000), impact: 'HIGH', forecast: '0.3%', previous: '0.4%' },
+        { name: 'USD - Non-Farm Employment Change (NFP)', date: new Date(Date.now() + 15 * 60 * 60 * 1000), impact: 'HIGH', forecast: '185K', previous: '175K' },
+        { name: 'USD - FOMC Interest Rate Decision', date: new Date(Date.now() + 38 * 60 * 60 * 1000), impact: 'HIGH', forecast: '5.25%', previous: '5.25%' },
+        { name: 'USD - Retail Sales (MoM)', date: new Date(Date.now() + 61 * 60 * 60 * 1000), impact: 'HIGH', forecast: '0.2%', previous: '-0.1%' },
+        { name: 'USD - Flash Services PMI', date: new Date(Date.now() + 85 * 60 * 60 * 1000), impact: 'MEDIUM', forecast: '51.3', previous: '50.9' }
       ]
       setEvents(baseEvents)
       setNextEvent(baseEvents[0])
     }
 
     loadNews()
+    
+    // Check for weekend changes periodically
+    const interval = setInterval(() => {
+      setIsWeekend(checkIsWeekend())
+    }, 60000)
+
+    return () => clearInterval(interval)
   }, [])
 
   // Timer logic
   useEffect(() => {
-    if (!nextEvent) return
-
     const timer = setInterval(() => {
-      const diff = nextEvent.date.getTime() - Date.now()
+      const targetTime = isWeekend ? getNextMarketOpen().getTime() : (nextEvent?.date.getTime() ?? 0)
+      if (targetTime === 0) return
+
+      const diff = targetTime - Date.now()
       if (diff <= 0) {
-        // Event passed, pop to next
-        const remaining = events.filter(e => e.date.getTime() > Date.now())
-        if (remaining.length > 0) {
-          setNextEvent(remaining[0])
+        if (isWeekend) {
+          setIsWeekend(false) // Market opened!
         } else {
-          setTimeLeft('Released')
-          clearInterval(timer)
+          // Event passed, pop to next
+          const remaining = events.filter(e => e.date.getTime() > Date.now())
+          if (remaining.length > 0) {
+            setNextEvent(remaining[0])
+          } else {
+            setTimeLeft('Released')
+            clearInterval(timer)
+          }
         }
         return
       }
@@ -357,25 +452,43 @@ function EconomicCalendarWidget() {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [nextEvent, events])
+  }, [nextEvent, events, isWeekend])
 
   return (
     <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 shadow-2xl relative overflow-hidden">
       
       {/* Ticking Countdown Banner Column */}
-      <div className="bg-[#0A0A0F] border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center text-center relative shadow-inner">
-        <div className="absolute top-3 right-3 flex items-center gap-1.5 text-[9px] font-black bg-[#22C55E]/10 text-[#22C55E] px-2 py-0.5 rounded border border-[#22C55E]/20">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" /> LIVE STREAM
-        </div>
+      <div className={cn(
+        "border rounded-2xl p-6 flex flex-col items-center justify-center text-center relative shadow-inner transition-all duration-300",
+        isWeekend 
+          ? "bg-[#181109] border-amber-500/25 shadow-amber-950/20" 
+          : "bg-[#0A0A0F] border-white/5"
+      )}>
+        {isWeekend ? (
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 text-[9px] font-black bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 uppercase tracking-widest">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Market Closed
+          </div>
+        ) : (
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 text-[9px] font-black bg-[#22C55E]/10 text-[#22C55E] px-2 py-0.5 rounded border border-[#22C55E]/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" /> LIVE STREAM
+          </div>
+        )}
 
-        <Clock className="w-10 h-10 text-primary mb-3 animate-[pulse_2s_infinite]" />
-        <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Next Volatility Catalyst</p>
+        <Clock className={cn("w-10 h-10 mb-3 animate-[pulse_2s_infinite]", isWeekend ? "text-amber-500" : "text-primary")} />
+        <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">
+          {isWeekend ? "Monday Opening Countdown" : "Next Volatility Catalyst"}
+        </p>
         
-        <h3 className="font-extrabold text-white text-base mt-2 px-4 truncate max-w-full">
-          {nextEvent ? nextEvent.name : 'Loading event...'}
+        <h3 className="font-extrabold text-white text-sm mt-2 px-4 truncate max-w-full">
+          {isWeekend ? "Global Markets Opening Session" : (nextEvent ? nextEvent.name : 'Loading event...')}
         </h3>
 
-        <div className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-[#F59E0B] to-orange-500 font-mono tracking-wider mt-4 drop-shadow-[0_0_25px_rgba(245,159,11,0.2)]">
+        <div className={cn(
+          "text-4xl md:text-5xl font-black text-transparent bg-clip-text font-mono tracking-wider mt-4",
+          isWeekend
+            ? "bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-600 drop-shadow-[0_0_25px_rgba(245,158,11,0.3)]"
+            : "bg-gradient-to-r from-yellow-300 via-[#F59E0B] to-orange-500 drop-shadow-[0_0_25px_rgba(245,159,11,0.2)]"
+        )}>
           {timeLeft}
         </div>
         <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-semibold mt-2">Hours : Minutes : Seconds</p>
@@ -385,9 +498,14 @@ function EconomicCalendarWidget() {
       <div className="lg:col-span-2 space-y-6">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-primary" /> Volatility Calendar
+            <Calendar className={cn("w-5 h-5", isWeekend ? "text-amber-500" : "text-primary")} /> 
+            {isWeekend ? "Weekly Catalyst Forecast" : "Volatility Calendar"}
           </h2>
-          <p className="text-xs text-[#64748B] mt-1">High-impact economic indicators driving major currency swings.</p>
+          <p className="text-xs text-[#64748B] mt-1">
+            {isWeekend 
+              ? "Global financial markets are paused for the weekend. Review high-impact triggers scheduled for next week."
+              : "High-impact economic indicators driving major currency swings."}
+          </p>
         </div>
 
         <div className="space-y-3">
@@ -398,7 +516,9 @@ function EconomicCalendarWidget() {
                 key={index}
                 className={cn(
                   "p-4 border rounded-xl flex items-center justify-between gap-4 transition-all hover:bg-white/2 cursor-default",
-                  isNext ? "bg-primary/5 border-primary/20 shadow-md shadow-primary/[0.03]" : "bg-[#0D0D14] border-white/5"
+                  isNext 
+                    ? (isWeekend ? "bg-amber-500/5 border-amber-500/20 shadow-md shadow-amber-500/[0.02]" : "bg-primary/5 border-primary/20 shadow-md shadow-primary/[0.03]") 
+                    : "bg-[#0D0D14] border-white/5"
                 )}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -416,7 +536,10 @@ function EconomicCalendarWidget() {
                   <div className="min-w-0">
                     <p className="font-bold text-white text-sm truncate">{e.name}</p>
                     <p className="text-[10px] text-[#64748B] mt-0.5">
-                      {e.date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} • USD Impact
+                      {isWeekend 
+                        ? `${e.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} • ${e.date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+                        : `${e.date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+                      } • USD Impact
                     </p>
                   </div>
                 </div>

@@ -175,7 +175,10 @@ export default function TradesPage() {
                         <div className="w-7 h-7 rounded-full bg-[#F59E0B]/10 flex items-center justify-center">
                           <span className="text-[10px] font-bold text-[#F59E0B]">XAU</span>
                         </div>
-                        <span className="font-bold">{trade.symbol}</span>
+                        <Link href={`/trades/${trade.id}`} className="hover:underline flex items-center gap-1.5 group/link">
+                          <span className="font-bold text-white group-hover/link:text-primary transition-colors">{trade.symbol}</span>
+                          <span className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 font-black tracking-widest uppercase">Review</span>
+                        </Link>
                       </div>
                     </td>
                     <td className="px-6 py-3.5">

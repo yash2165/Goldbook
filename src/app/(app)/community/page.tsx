@@ -38,6 +38,7 @@ import { Track } from 'livekit-client'
 
 // Import LiveKit's default themes and layout styling
 import '@livekit/components-styles'
+import { useToast } from '@/context/ToastContext'
 
 const CHANNELS = [
   { id: 'general', name: 'general', icon: Hash },
@@ -82,6 +83,7 @@ export default function CommunityPage() {
   const [friends, setFriends] = useState<{id: string, username: string}[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+  const { success: showSuccess, error: showError } = useToast()
 
   // LiveKit persistent voice connection state
   const [voiceToken, setVoiceToken] = useState('')
@@ -135,6 +137,90 @@ export default function CommunityPage() {
   // Quick Emoji Picker panel visibility
   const [showEmojiDropdown, setShowEmojiDropdown] = useState(false)
 
+  const loadFriendsList = async (userId: string) => {
+    const { data: fData } = await supabase.from('friendships')
+      .select('user_id, friend_id')
+      .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+      .eq('status', 'accepted')
+    
+    if (fData && fData.length > 0) {
+      const friendIds = fData.map((f: any) => f.user_id === userId ? f.friend_id : f.user_id)
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', friendIds)
+      
+      if (profilesData) {
+        setFriends(profilesData.map((p: any) => ({
+          id: p.id,
+          username: p.username || 'Unknown',
+          avatar_url: p.avatar_url || ''
+        })))
+      }
+    } else {
+      setFriends([])
+    }
+  }
+
+  const handleAddFriendByUsername = async (username: string) => {
+    if (!user) return { error: 'Not authenticated' }
+    const cleanUsername = username.toLowerCase().trim()
+    if (!cleanUsername) return { error: 'Please enter a username.' }
+
+    // 1. Find profile by username
+    const { data: profileData, error: profErr } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .eq('username', cleanUsername)
+      .single()
+
+    if (profErr || !profileData) {
+      return { error: `Trader '${username}' not found. Verify they have created a profile.` }
+    }
+
+    if (profileData.id === user.id) {
+      return { error: "You cannot add yourself as a friend." }
+    }
+
+    // 2. Insert or check friendship
+    const { data: existingFriendship } = await supabase
+      .from('friendships')
+      .select('*')
+      .or(`and(user_id.eq.${user.id},friend_id.eq.${profileData.id}),and(user_id.eq.${profileData.id},friend_id.eq.${user.id})`)
+      .maybeSingle()
+
+    if (existingFriendship) {
+      if (existingFriendship.status === 'accepted') {
+        return { error: `${profileData.username} is already your friend.` }
+      }
+      // If pending, instantly accept it!
+      const { error: updErr } = await supabase
+        .from('friendships')
+        .update({ status: 'accepted' })
+        .eq('id', existingFriendship.id)
+      
+      if (updErr) return { error: updErr.message }
+      await loadFriendsList(user.id)
+      return { success: `Instantly established friendship with ${profileData.username}!` }
+    }
+
+    // Otherwise insert new accepted friendship instantly
+    const { error: insErr } = await supabase
+      .from('friendships')
+      .insert({
+        user_id: user.id,
+        friend_id: profileData.id,
+        status: 'accepted'
+      })
+
+    if (insErr) {
+      return { error: insErr.message }
+    }
+
+    await loadFriendsList(user.id)
+    return { success: `Instantly established friendship with ${profileData.username}!` }
+  }
+
   // Load current user, profile and friends
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -149,18 +235,8 @@ export default function CommunityPage() {
           .single()
         if (pData) setMyProfile(pData)
 
-        // Load friends
-        const { data: fData } = await supabase.from('friendships')
-          .select('friend_id, profiles!friendships_friend_id_fkey(username)')
-          .eq('user_id', data.user.id)
-          .eq('status', 'accepted')
-        
-        if (fData) {
-          setFriends(fData.map((f: any) => ({
-            id: f.friend_id,
-            username: f.profiles?.username || 'Unknown'
-          })))
-        }
+        // Load friends bidirectionally
+        await loadFriendsList(data.user.id)
 
         // Load trades for sharing
         const { data: tData } = await supabase.from('trades')
@@ -493,7 +569,12 @@ export default function CommunityPage() {
                   <Hash className="w-4 h-4 text-[#64748B]" />
                 )}
                 <span className="font-bold text-xs uppercase tracking-wider text-white/90">
-                  {channel.startsWith('dm_') ? 'Direct Message' : channel}
+                  {channel.startsWith('dm_') ? (() => {
+                    const parts = channel.replace('dm_', '').split('_')
+                    const friendId = parts.find(id => id !== user?.id)
+                    const friend = friends.find(f => f.id === friendId)
+                    return friend ? `@${friend.username}` : 'Direct Message'
+                  })() : channel}
                 </span>
                 <span className="ml-2 text-[10px] text-[#64748B] bg-white/5 px-2 py-0.5 rounded font-mono">{messages.length} messages</span>
               </div>
@@ -761,7 +842,12 @@ export default function CommunityPage() {
         ) : tab === 'leaderboard' ? (
           <LeaderboardTab />
         ) : tab === 'friends' ? (
-          <FriendsTab friends={friends} user={user} onMessage={(dm) => { setChannel(dm); setTab('chat') }} />
+          <FriendsTab 
+            friends={friends} 
+            user={user} 
+            onMessage={(dm) => { setChannel(dm); setTab('chat') }} 
+            onAddFriend={handleAddFriendByUsername} 
+          />
         ) : tab === 'voice' ? (
           <VoiceTab connected={voiceConnected} loading={voiceLoading} onConnect={joinVoiceRoom} onDisconnect={leaveVoiceRoom} />
         ) : null}
@@ -952,11 +1038,12 @@ function LeaderboardTab() {
       })
   }, [])
 
-  const medals = ['🥇', '🥈', '🥉']
+  const top3 = leaderboard.slice(0, 3)
+  const remaining = leaderboard.slice(3)
 
   return (
     <div className="flex-1 overflow-y-auto p-6 bg-[#07070b]">
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-2 mb-6">
           <Trophy className="w-6 h-6 text-[#FFD700] drop-shadow-[0_0_10px_rgba(255,215,0,0.3)]" />
           <h2 className="text-lg font-black uppercase tracking-wider text-white">Community Leaderboard</h2>
@@ -967,24 +1054,105 @@ function LeaderboardTab() {
             No traders on the leaderboard yet
           </div>
         ) : (
-          <div className="bg-[#12121a]/60 border border-white/5 rounded-xl overflow-hidden backdrop-blur-md">
-            {leaderboard.map((entry, i) => (
-              <div key={entry.uid} className={cn('flex items-center gap-4 px-5 py-4 border-b border-white/[0.03] hover:bg-white/2 transition-colors', i === 0 && 'bg-[#FFD700]/5')}>
-                <div className="w-8 text-center">
-                  {i < 3 ? <span className="text-xl">{medals[i]}</span> : <span className="text-[#334155] font-bold text-sm">#{i + 1}</span>}
+          <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Esport-Style 3D Podium for Top 3 */}
+            <div className="grid grid-cols-3 gap-4 items-end max-w-xl mx-auto pt-6 pb-4 border-b border-white/5">
+              
+              {/* 2nd Place (Silver) */}
+              {top3[1] ? (
+                <div className="flex flex-col items-center">
+                  <div className="relative group mb-2">
+                    <div className="w-16 h-16 rounded-full bg-slate-800/80 border-2 border-slate-300 flex items-center justify-center font-bold text-slate-300 text-lg shadow-[0_0_15px_rgba(203,213,225,0.2)] select-none">
+                      {top3[1].username.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="absolute -top-2 -right-2 text-lg">🥈</span>
+                  </div>
+                  <div className="text-center mb-2">
+                    <p className="font-bold text-white text-xs truncate max-w-[85px]">{top3[1].username}</p>
+                    <p className="text-[10px] text-slate-300 font-mono font-bold">{fmt(top3[1].pnl)}</p>
+                  </div>
+                  <div className="w-full bg-[#181825]/80 border border-slate-300/10 rounded-t-xl h-24 flex flex-col items-center justify-center p-2 shadow-lg relative overflow-hidden">
+                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-400 to-slate-200" />
+                    <span className="text-slate-300 text-[9px] font-black tracking-widest uppercase">RANK #2</span>
+                    <span className="text-[9px] text-[#64748B] mt-1">{top3[1].trades} Trades</span>
+                  </div>
                 </div>
-                <div className="w-9 h-9 rounded-full bg-[#FFD700]/10 border border-[#FFD700]/20 flex items-center justify-center text-sm font-bold text-[#FFD700]">
-                  {entry.username.charAt(0).toUpperCase()}
+              ) : (
+                <div className="h-10" />
+              )}
+
+              {/* 1st Place (Gold) */}
+              {top3[0] ? (
+                <div className="flex flex-col items-center">
+                  <div className="relative group mb-2 scale-110">
+                    <div className="w-20 h-20 rounded-full bg-yellow-950/40 border-2 border-[#FFD700] flex items-center justify-center font-bold text-[#FFD700] text-xl shadow-[0_0_25px_rgba(255,215,0,0.3)] animate-[pulse_2s_infinite] select-none">
+                      {top3[0].username.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="absolute -top-3 -right-2 text-2xl animate-bounce">👑</span>
+                  </div>
+                  <div className="text-center mb-3 scale-105">
+                    <p className="font-extrabold text-white text-sm truncate max-w-[100px]">{top3[0].username}</p>
+                    <p className="text-xs text-primary font-mono font-black">{fmt(top3[0].pnl)}</p>
+                  </div>
+                  <div className="w-full bg-[#1c1c2e]/90 border border-primary/20 rounded-t-2xl h-32 flex flex-col items-center justify-center p-3 shadow-2xl shadow-primary/5 relative overflow-hidden">
+                    <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-yellow-300 via-primary to-amber-500" />
+                    <span className="text-[#FFD700] text-xs font-black tracking-widest uppercase">CHAMPION</span>
+                    <span className="text-[10px] text-[#64748B] mt-1">{top3[0].trades} Trades</span>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-bold text-sm text-white">{entry.username}</p>
-                  <p className="text-xs text-[#64748B]">{entry.trades} trades completed</p>
+              ) : (
+                <div className="h-10" />
+              )}
+
+              {/* 3rd Place (Bronze) */}
+              {top3[2] ? (
+                <div className="flex flex-col items-center">
+                  <div className="relative group mb-2">
+                    <div className="w-16 h-16 rounded-full bg-[#3d2719]/40 border-2 border-[#CD7F32] flex items-center justify-center font-bold text-[#CD7F32] text-lg shadow-[0_0_15px_rgba(205,127,50,0.2)] select-none">
+                      {top3[2].username.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="absolute -top-2 -right-2 text-lg">🥉</span>
+                  </div>
+                  <div className="text-center mb-2">
+                    <p className="font-bold text-white text-xs truncate max-w-[85px]">{top3[2].username}</p>
+                    <p className="text-[10px] text-[#CD7F32] font-mono font-bold">{fmt(top3[2].pnl)}</p>
+                  </div>
+                  <div className="w-full bg-[#181825]/80 border border-[#CD7F32]/10 rounded-t-xl h-20 flex flex-col items-center justify-center p-2 shadow-lg relative overflow-hidden">
+                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#CD7F32] to-[#A0522D]" />
+                    <span className="text-[#CD7F32] text-[9px] font-black tracking-widest uppercase">RANK #3</span>
+                    <span className="text-[9px] text-[#64748B] mt-1">{top3[2].trades} Trades</span>
+                  </div>
                 </div>
-                <div className={cn('font-bold tabular-nums text-sm', entry.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                  {fmt(entry.pnl)}
-                </div>
+              ) : (
+                <div className="h-10" />
+              )}
+            </div>
+
+            {/* Ranks 4+ */}
+            {remaining.length > 0 && (
+              <div className="bg-[#12121a]/60 border border-white/5 rounded-2xl overflow-hidden backdrop-blur-md">
+                {remaining.map((entry, idx) => {
+                  const rank = idx + 4
+                  return (
+                    <div key={entry.uid} className="flex items-center gap-4 px-5 py-4 border-b border-white/[0.03] hover:bg-white/2 transition-colors">
+                      <div className="w-8 text-center text-[#64748B] font-bold text-sm font-mono">
+                        #{rank}
+                      </div>
+                      <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm font-bold text-white/90">
+                        {entry.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-sm text-white">{entry.username}</p>
+                        <p className="text-xs text-[#64748B]">{entry.trades} trades completed</p>
+                      </div>
+                      <div className={cn('font-bold tabular-nums text-sm font-mono', entry.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                        {fmt(entry.pnl)}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -992,7 +1160,42 @@ function LeaderboardTab() {
   )
 }
 
-function FriendsTab({ friends, user, onMessage }: { friends: any[], user: any, onMessage: (dm: string) => void }) {
+function FriendsTab({ 
+  friends, 
+  user, 
+  onMessage, 
+  onAddFriend 
+}: { 
+  friends: any[]
+  user: any
+  onMessage: (dm: string) => void
+  onAddFriend: (username: string) => Promise<{ error?: string; success?: string }>
+}) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [adding, setAdding] = useState(false)
+  const { success: showSuccess, error: showError } = useToast()
+
+  const handleAddClick = async () => {
+    const targetUser = searchTerm.trim()
+    if (!targetUser) return
+
+    setAdding(true)
+    try {
+      const res = await onAddFriend(targetUser)
+      if (res.error) {
+        showError('Friend Request Failed', res.error)
+      } else if (res.success) {
+        showSuccess('Friend Added!', res.success)
+        setSearchTerm('')
+      }
+    } catch (err) {
+      console.error(err)
+      showError('Action Failed', 'An unexpected error occurred.')
+    } finally {
+      setAdding(false)
+    }
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-6 bg-[#07070b]">
       <div className="max-w-xl space-y-6">
@@ -1003,9 +1206,20 @@ function FriendsTab({ friends, user, onMessage }: { friends: any[], user: any, o
         <div className="bg-[#12121a]/60 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/90 mb-4">Add a Friend</h3>
           <div className="flex gap-2">
-            <input placeholder="Search by exact username..." className="flex-1 bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50" />
-            <button className="px-4 py-2 bg-[#FFD700] hover:bg-[#FFD700]/95 text-black rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-105">
-              <UserPlus className="w-4 h-4" /> Add
+            <input 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddClick()}
+              disabled={adding}
+              placeholder="Search by exact username..." 
+              className="flex-1 bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50 text-white disabled:opacity-50" 
+            />
+            <button 
+              onClick={handleAddClick}
+              disabled={adding || !searchTerm.trim()}
+              className="px-4 py-2 bg-[#FFD700] hover:bg-[#FFD700]/95 text-black rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+            >
+              <UserPlus className="w-4 h-4" /> {adding ? 'Adding...' : 'Add'}
             </button>
           </div>
         </div>
@@ -1019,8 +1233,13 @@ function FriendsTab({ friends, user, onMessage }: { friends: any[], user: any, o
               {friends.map(f => (
                 <div key={f.id} className="flex items-center justify-between p-3 bg-[#0d1017] rounded-lg border border-white/5">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                      {f.username.charAt(0).toUpperCase()}
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary relative overflow-hidden">
+                      {f.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={f.avatar_url} alt={f.username} className="w-full h-full object-cover" />
+                      ) : (
+                        f.username.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <span className="font-bold text-sm">{f.username}</span>
                   </div>

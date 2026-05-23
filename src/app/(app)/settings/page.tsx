@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({ 
     username: '', 
     display_name: '', 
+    avatar_url: '',
     trading_style: '', 
     country: '', 
     bio: '',
@@ -51,6 +52,7 @@ export default function SettingsPage() {
   const [rules, setRules] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   
   const [newChecklist, setNewChecklist] = useState('')
   const [newSetupName, setNewSetupName] = useState('')
@@ -75,6 +77,7 @@ export default function SettingsPage() {
         setProfile({
           username: data.username ?? '',
           display_name: data.display_name ?? '',
+          avatar_url: data.avatar_url ?? '',
           trading_style: data.trading_style ?? '',
           country: data.country ?? '',
           bio: data.bio ?? '',
@@ -96,6 +99,34 @@ export default function SettingsPage() {
     load()
   }, [])
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingAvatar(true)
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await fetch('/api/profile/upload-avatar', {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      if (res.ok && data.avatarUrl) {
+        setProfile(p => ({ ...p, avatar_url: data.avatarUrl }))
+        showSuccess('Avatar Updated', 'Your profile picture was saved to our secure VPS storage!')
+      } else {
+        showError('Upload Failed', data.error || 'Failed to upload profile picture.')
+      }
+    } catch (err: any) {
+      console.error(err)
+      showError('Upload Failed', 'An error occurred during upload.')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   const save = async () => {
     if (!user) return
     setSaving(true)
@@ -105,12 +136,27 @@ export default function SettingsPage() {
     const sanitizedCountry = profile.country ? profile.country.trim() : null
     const sanitizedBio = profile.bio ? profile.bio.trim() : null
     const sanitizedDisplayName = profile.display_name ? profile.display_name.trim() : null
-    const sanitizedUsername = profile.username ? profile.username.trim() : null
+    
+    // Strict alphanumeric-only & lowercase validation for username
+    const usernameRegex = /^[a-z0-9_]+$/
+    const sanitizedUsername = profile.username ? profile.username.toLowerCase().replace(/[^a-z0-9_]/g, '').trim() : ''
+
+    if (!sanitizedUsername) {
+      showError('Validation Error', 'Username cannot be blank.')
+      setSaving(false)
+      return
+    }
+
+    if (!usernameRegex.test(sanitizedUsername)) {
+      showError('Validation Error', 'Username must contain only lowercase letters, numbers, and underscores.')
+      setSaving(false)
+      return
+    }
 
     const { error } = await supabase
       .from('profiles')
       .update({ 
-        username: sanitizedUsername || null,
+        username: sanitizedUsername,
         display_name: sanitizedDisplayName || null,
         trading_style: sanitizedTradingStyle || null,
         country: sanitizedCountry || null,
@@ -129,7 +175,11 @@ export default function SettingsPage() {
       setTimeout(() => setSaved(false), 2500)
     } else {
       console.error(error)
-      showError('Failed to save profile', error.message || 'Make sure you have run the SQL update in Supabase.')
+      if (error.code === '23505') {
+        showError('Username Taken', 'This username is already claimed by another trader. Please choose a different unique username.')
+      } else {
+        showError('Failed to save profile', error.message || 'Make sure you have run the SQL update in Supabase.')
+      }
     }
   }
 
@@ -239,7 +289,8 @@ export default function SettingsPage() {
                   {rules.map(r => {
                     let val = r.value_str || r.value?.toString() || 'Active'
                     if (r.rule_type === 'min_rr_ratio' && r.value) val = `1:${r.value}`
-                    if (r.rule_type === 'daily_loss_limit' && r.value) val = `$${r.value}`
+                    if (r.rule_type === 'daily_loss_limit' && r.value) val = `${r.value}%`
+                    if (r.rule_type === 'max_risk_per_trade' && r.value) val = `${r.value}%`
                     
                     return (
                       <div key={r.id} className="bg-[#0d1017] border border-white/5 rounded-xl p-3">
@@ -306,6 +357,45 @@ export default function SettingsPage() {
                 </div>
                 
                 <div className="space-y-4">
+                  {/* Premium Avatar Upload */}
+                  <div className="flex items-center gap-4 p-4 bg-[#0d1017] border border-white/5 rounded-xl">
+                    <div className="relative group">
+                      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/30 group-hover:border-primary transition-all flex items-center justify-center bg-[#12121a] relative">
+                        {profile.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={profile.avatar_url} alt="Profile picture" className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="w-8 h-8 text-[#64748B]" />
+                        )}
+                        {uploadingAvatar && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-white font-bold block mb-1">Profile Picture</Label>
+                      <p className="text-[10px] text-[#64748B] mb-2">Free VPS local storage. Max size 2MB (JPG, PNG, WEBP)</p>
+                      <input 
+                        type="file" 
+                        id="avatar-input" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleAvatarUpload} 
+                        disabled={uploadingAvatar}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => document.getElementById('avatar-input')?.click()} 
+                        disabled={uploadingAvatar}
+                        className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-bold transition-all"
+                      >
+                        {profile.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5">
                     <Label className="text-xs text-[#64748B] uppercase tracking-wider">Username</Label>
                     <Input value={profile.username} onChange={e => setProfile(p => ({ ...p, username: e.target.value }))} className="bg-[#0d1017] border-white/10 h-11" />
