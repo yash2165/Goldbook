@@ -12,6 +12,10 @@ import { InteractiveBackground } from '@/components/InteractiveBackground'
 import FloatingLines from '@/components/FloatingLines'
 import GoldBookLogo from '@/components/GoldBookLogo'
 
+const STATIC_LINES_GRADIENT = ['#FFD700', '#F59E0B', '#B8860B', '#996515']
+const STATIC_ENABLED_WAVES: ('top' | 'middle' | 'bottom')[] = ['top', 'bottom', 'middle']
+const STATIC_LINE_DISTANCE = [6, 5, 4]
+
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true)
   const [name, setName] = useState('')
@@ -79,10 +83,10 @@ export default function AuthPage() {
       {/* Dynamic Animated Line Waves Backdrop */}
       <div className="fixed inset-0 pointer-events-none h-screen w-screen opacity-40" style={{ zIndex: 1 }}>
         <FloatingLines
-          linesGradient={['#FFD700', '#F59E0B', '#B8860B', '#996515']}
-          enabledWaves={['top', 'bottom', 'middle']}
+          linesGradient={STATIC_LINES_GRADIENT}
+          enabledWaves={STATIC_ENABLED_WAVES}
           lineCount={10}
-          lineDistance={[6, 5, 4]}
+          lineDistance={STATIC_LINE_DISTANCE}
           bendRadius={7.0}
           bendStrength={-0.35}
           interactive={true}
