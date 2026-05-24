@@ -23,7 +23,8 @@ import {
   AlertCircle,
   ArrowRight,
   Sparkles,
-  Percent
+  Percent,
+  Camera
 } from 'lucide-react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -119,12 +120,13 @@ function calculateAverages(closedTrades: any[]) {
 
 function TradeAnalysisContent() {
   const { activeAccount } = useAccounts()
-  const { trades, loading } = useTrades(activeAccount?.id)
+  const { trades, loading, refetch } = useTrades(activeAccount?.id)
   const closed = getClosedTrades(trades)
   
   const [selectedTrade, setSelectedTrade] = useState<any | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'all' | 'winners' | 'losers'>('all')
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false)
 
   const searchParams = useSearchParams()
   const replayId = searchParams.get('replay')
@@ -155,6 +157,78 @@ function TradeAnalysisContent() {
       setSelectedTrade(closed[0])
     }
   }, [closed])
+
+  // Clipboard paste CTRL+V handler for screenshots on Trade Analysis page
+  useEffect(() => {
+    if (!selectedTrade) return
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      const files = e.clipboardData?.files
+      if (files && files.length > 0) {
+        const file = files[0]
+        if (file.type.startsWith('image/')) {
+          e.preventDefault()
+          await uploadScreenshot(file)
+        }
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [selectedTrade, trades])
+
+  const uploadScreenshot = async (file: File) => {
+    if (!selectedTrade) return
+    setUploadingScreenshot(true)
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('tradeId', selectedTrade.id)
+
+    try {
+      const res = await fetch('/api/trades/upload-screenshot', {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      if (res.ok && data.screenshotUrl) {
+        // Refetch trades list to update database state
+        await refetch()
+        // Update selection with new payload from refreshed trades
+        setSelectedTrade((prev: any) => ({ ...prev, screenshot_url: data.screenshotUrl }))
+      } else {
+        alert(data.error || 'Failed to upload pasted screenshot.')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('An error occurred during file upload.')
+    } finally {
+      setUploadingScreenshot(false)
+    }
+  }
+
+  const deleteScreenshot = async () => {
+    if (!selectedTrade) return
+    if (!confirm('Are you sure you want to delete this screenshot?')) return
+    
+    setUploadingScreenshot(true)
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    
+    try {
+      const { error } = await supabase
+        .from('trades')
+        .update({ screenshot_url: null })
+        .eq('id', selectedTrade.id)
+
+      if (error) throw error
+      await refetch()
+      setSelectedTrade((prev: any) => ({ ...prev, screenshot_url: null }))
+    } catch (err: any) {
+      alert(err.message)
+    } finally {
+      setUploadingScreenshot(false)
+    }
+  }
 
   // Filter calculations
   const filtered = closed.filter(t => {
@@ -432,45 +506,86 @@ function TradeAnalysisContent() {
                   ))}
                 </div>
 
-                {/* ── PREMIUM TRADE REPLAY NOT AVAILABLE PLACEHOLDER ───────────────── */}
-                <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
+                {/* ── HIGH FIDELITY VISUAL SCREENSHOT DOSSIER CANVAS ───────────────── */}
+                <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4 animate-in fade-in duration-300">
                   <div className="flex items-center justify-between border-b border-white/5 pb-3">
                     <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
-                      <BarChart3 className="w-4 h-4 text-primary" /> Visual Replay Simulator
+                      <FileText className="w-4 h-4 text-primary" /> Visual Trade Analysis
                     </h3>
-                    <span className="text-[8px] px-2 py-0.5 bg-[#EF4444]/10 text-[#EF4444] rounded border border-[#EF4444]/20 font-black uppercase tracking-wider">Replay Locked</span>
+                    {selectedTrade.screenshot_url ? (
+                      <span className="text-[8px] px-2.5 py-0.5 bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#22C55E] rounded-md font-black uppercase tracking-wider">Screenshot Loaded</span>
+                    ) : (
+                      <span className="text-[8px] px-2.5 py-0.5 bg-[#F59E0B]/15 border border-[#F59E0B]/30 text-[#F59E0B] rounded-md font-black uppercase tracking-wider">No Visuals</span>
+                    )}
                   </div>
 
-                  {/* High Fidelity Glassmorphic Simulator Placeholder */}
-                  <div className="bg-[#09090E]/60 border border-white/5 rounded-xl p-10 flex flex-col items-center justify-center text-center space-y-4 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 pointer-events-none" />
-                    
-                    {/* Simulated blurred candle matrix background */}
-                    <div className="absolute inset-x-0 top-0 bottom-8 flex justify-around items-end opacity-[0.01] pointer-events-none">
-                      {[40, 60, 20, 80, 50, 90, 30, 70, 45, 65].map((h, i) => (
-                        <div key={i} className="w-4 bg-white" style={{ height: `${h}%` }} />
-                      ))}
-                    </div>
-
-                    <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-500 shadow-inner scale-110">
-                      <Clock className="w-6 h-6 text-[#64748B]" />
-                    </div>
-
-                    <div className="space-y-1 z-10 max-w-sm">
-                      <h4 className="text-sm font-extrabold text-white">Trade Replay Not Available</h4>
-                      <p className="text-xs text-[#64748B] leading-relaxed">
-                        This session was synchronized or created manually. Connect a verified commercial terminal (MT5) to activate deep-tick multi-timeframe replays and candle simulations.
-                      </p>
-                    </div>
-
-                    <div className="pt-2 z-10">
-                      <Link href="/connect">
-                        <button className="flex items-center gap-1.5 px-4.5 py-2.5 bg-white/5 hover:bg-white/10 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-white/10 transition-all hover:scale-105 active:scale-95 shadow-lg">
-                          Connect Terminal <ArrowRight className="w-3.5 h-3.5" />
+                  {selectedTrade.screenshot_url ? (
+                    /* Display Paste Screenshot with rich controls */
+                    <div className="relative group rounded-xl overflow-hidden border border-white/5 bg-[#09090E] shadow-inner max-w-full flex items-center justify-center transition-all duration-300" style={{ minHeight: '340px' }}>
+                      <img 
+                        src={selectedTrade.screenshot_url} 
+                        alt="Trade execution chart" 
+                        className="w-full h-auto object-contain max-h-[380px] p-2" 
+                      />
+                      <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-opacity duration-200">
+                        <a 
+                          href={selectedTrade.screenshot_url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="px-4 py-2.5 bg-primary hover:bg-primary/95 text-black font-black text-xs uppercase tracking-wider rounded-xl transition-transform hover:scale-105 active:scale-95 shadow-lg shadow-primary/20"
+                        >
+                          Open Original Image
+                        </a>
+                        <button
+                          onClick={deleteScreenshot}
+                          disabled={uploadingScreenshot}
+                          className="px-4 py-2.5 bg-[#EF4444] hover:bg-[#EF4444]/95 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-transform hover:scale-105 active:scale-95 shadow-lg"
+                        >
+                          Delete Visual
                         </button>
-                      </Link>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    /* Elegant upload/paste dropzone */
+                    <div className="border-2 border-dashed border-white/10 hover:border-[#F59E0B]/30 transition-colors rounded-xl p-12 text-center bg-[#09090E]/30 flex flex-col items-center justify-center space-y-4 relative" style={{ minHeight: '340px' }}>
+                      <div className="w-12 h-12 rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center text-primary shadow-inner scale-110">
+                        <Camera className="w-6 h-6 text-primary" />
+                      </div>
+                      
+                      {uploadingScreenshot ? (
+                        <div className="flex flex-col items-center space-y-2">
+                          <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                          <span className="text-xs text-[#64748B] font-mono">Syncing image payload to Supabase...</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 max-w-sm">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-extrabold text-white">Visual Screenshot Missing</h4>
+                            <p className="text-xs text-[#64748B] leading-relaxed">
+                              Paste your TradingView chart screenshot directly (**CTRL + V**) or click the button below to upload a file. 
+                            </p>
+                          </div>
+                          <input 
+                            type="file" 
+                            id={`screenshot-analysis-input-${selectedTrade.id}`}
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={e => {
+                              const file = e.target.files?.[0]
+                              if (file) uploadScreenshot(file)
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => document.getElementById(`screenshot-analysis-input-${selectedTrade.id}`)?.click()}
+                            className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold uppercase tracking-wider text-white border border-white/10 transition-all hover:scale-105 active:scale-95 shadow-md inline-block"
+                          >
+                            Select File
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* ── NOTION DOSSIER DETAILED WORKSPACE GRID ──────────────────────── */}
@@ -532,24 +647,6 @@ function TradeAnalysisContent() {
                               <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Lessons Logged</span>
                               <div className="border-l-2 border-[#F59E0B] bg-[#09090E]/60 p-3.5 rounded-r-xl text-xs text-slate-300 italic whitespace-pre-wrap font-medium shadow-inner">
                                 "{selectedTrade.notes}"
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Paste Screenshot Thumbnail */}
-                          {selectedTrade.screenshot_url && (
-                            <div className="space-y-1.5">
-                              <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Pasted Screenshot</span>
-                              <div className="relative rounded-xl overflow-hidden border border-white/10 max-w-[200px] bg-black">
-                                <img src={selectedTrade.screenshot_url} alt="Attached trade chart" className="w-full h-auto object-cover max-h-24 opacity-80" />
-                                <a 
-                                  href={selectedTrade.screenshot_url} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center text-[9px] uppercase tracking-widest font-black text-white"
-                                >
-                                  Open Image
-                                </a>
                               </div>
                             </div>
                           )}

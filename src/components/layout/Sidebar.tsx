@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { name: 'Performance', href: '/analysis/performance' },
       { name: 'Trade Analysis', href: '/analysis/trade-analysis' },
+      { name: 'Strategy Analysis', href: '/analysis/strategy-analysis' },
       { name: 'Accounts', href: '/analysis/accounts' },
     ],
   },
