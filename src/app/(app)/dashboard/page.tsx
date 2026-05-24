@@ -9,9 +9,10 @@ import {
   fmt,
   getOpenTrades,
 } from '@/lib/calculations'
-import { TrendingUp, TrendingDown, Plus, LineChart, Activity, Target, Zap, Clock, ChevronRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, Plus, LineChart, Activity, Target, Zap, Clock, ChevronRight, Brain, Award, ShieldAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useState, useEffect, useMemo } from 'react'
 import CountUp from 'react-countup'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth } from 'date-fns'
@@ -53,9 +54,7 @@ function StatCard({
       setFlashState(value > prevVal ? 'up' : 'down')
       setBlurState(true)
       
-      // Remove blur after 150ms (start of number roll)
       const t1 = setTimeout(() => setBlurState(false), 150)
-      // Fade out flash background after 800ms
       const t2 = setTimeout(() => setFlashState(null), 800)
       
       setPrevVal(value)
@@ -168,7 +167,6 @@ function CalendarHeatmap({ dailyPnl, month }: { dailyPnl: Record<string, number>
           const isCurrentMonth = isSameMonth(day, month)
           const hasTrades = pnl !== undefined
           
-          // Calculate grid row/col for precise stagger delay
           const row = Math.floor(i / 7)
           const col = i % 7
           const staggerDelay = (row * 4 + col) * 0.015
@@ -214,7 +212,6 @@ function CalendarHeatmap({ dailyPnl, month }: { dailyPnl: Record<string, number>
   )
 }
 
-// ── Loading skeleton ──────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
     <div className="bg-[#12121a] border border-white/5 rounded-2xl p-5 animate-pulse">
@@ -224,12 +221,39 @@ function SkeletonCard() {
   )
 }
 
-// ── Main dashboard ────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { activeAccount } = useAccounts()
   const { trades, loading } = useTrades(activeAccount?.id)
   const [period, setPeriod] = useState<Period>('1M')
   const [news, setNews] = useState<any[]>([])
+  
+  // Real-time spot price metrics for dynamic floating calculations
+  const [liveGoldPrice, setLiveGoldPrice] = useState<number | null>(null)
+
+  // Fetch live spot Gold price from public Binance PAXGUSDT API every 8 seconds
+  useEffect(() => {
+    let active = true
+    async function fetchPrice() {
+      try {
+        const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT')
+        if (res.ok) {
+          const data = await res.json()
+          if (active && data.price) {
+            setLiveGoldPrice(parseFloat(data.price))
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch live gold price:', err)
+      }
+    }
+    
+    fetchPrice()
+    const interval = setInterval(fetchPrice, 8000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [])
 
   useEffect(() => {
     fetch('/api/news')
@@ -239,6 +263,35 @@ export default function DashboardPage() {
       })
       .catch(console.error)
   }, [])
+
+  const [latestAiReport, setLatestAiReport] = useState<any | null>(null)
+
+  useEffect(() => {
+    async function loadLatestReport() {
+      if (!activeAccount?.id) {
+        setLatestAiReport(null)
+        return
+      }
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('ai_reports')
+          .select('*')
+          .eq('account_id', activeAccount.id)
+          .order('generated_at', { ascending: false })
+          .limit(1)
+        
+        if (data && data.length > 0) {
+          setLatestAiReport(data[0])
+        } else {
+          setLatestAiReport(null)
+        }
+      } catch (err) {
+        console.error('Failed to load latest AI report on dashboard:', err)
+      }
+    }
+    loadLatestReport()
+  }, [activeAccount?.id])
 
   const filteredTrades = filterByPeriod(trades, period)
   const stats = computeStats(filteredTrades)
@@ -259,23 +312,55 @@ export default function DashboardPage() {
   const dailyPnl = computeDailyPnl(trades)
   const openTrades = getOpenTrades(trades)
 
+  // 100% Dynamic active unrealised floating P&L calculation
+  const computedUnrealizedPnl = useMemo(() => {
+    if (openTrades.length === 0) return 0
+
+    let totalFloating = 0
+    openTrades.forEach(t => {
+      // If synced MT5 position with dynamic profit updated
+      if (t.net_profit != null && Number(t.net_profit) !== 0) {
+        totalFloating += Number(t.net_profit)
+        return
+      }
+
+      // If manual open trade or missing synced profit, calculate it dynamically using public quotes if gold spot
+      const cleanSymbol = String(t.symbol).toUpperCase().replace(/[^A-Z]/g, '')
+      if (cleanSymbol.includes('XAU') && liveGoldPrice && t.entry_price && t.lot_size) {
+        const entry = Number(t.entry_price)
+        const lots = Number(t.lot_size)
+        const isBuy = t.direction === 'buy'
+        const multiplier = 100
+        const diff = isBuy ? (liveGoldPrice - entry) : (entry - liveGoldPrice)
+        totalFloating += diff * multiplier * lots
+      }
+    })
+
+    // If verified MT5 account but no open trades calculations differed, we can use the equity-balance delta as fallback
+    if (totalFloating === 0 && activeAccount?.is_verified && activeAccount.current_equity != null && activeAccount.current_balance != null) {
+      return activeAccount.current_equity - activeAccount.current_balance
+    }
+
+    return totalFloating
+  }, [activeAccount, openTrades, liveGoldPrice])
+
   const statCards = [
     {
       label: 'TOTAL P&L',
-      value: stats.totalPnl,
+      value: stats.realizedPnl + computedUnrealizedPnl,
       isCurrency: true,
-      color: stats.totalPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]',
+      color: (stats.realizedPnl + computedUnrealizedPnl) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]',
       icon: TrendingUp,
       badge: 'TOTAL',
       subtitle: `${stats.closedTrades} trades`,
     },
     {
       label: 'UNREALIZED',
-      value: stats.unrealizedPnl,
+      value: computedUnrealizedPnl,
       isCurrency: true,
-      color: stats.unrealizedPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]',
+      color: computedUnrealizedPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]',
       icon: Clock,
-      subtitle: `${stats.openTrades} open positions`,
+      subtitle: `${openTrades.length} open ${openTrades.length === 1 ? 'position' : 'positions'}`,
     },
     {
       label: 'REALIZED',
@@ -326,14 +411,13 @@ export default function DashboardPage() {
         transition={{ duration: 0.45, delay: 0.1 }}
         className="relative overflow-hidden rounded-2xl border border-blue-500/20 bg-gradient-to-r from-blue-500/10 via-[#0F0F18]/80 to-transparent p-5 backdrop-blur-xl"
       >
-        {/* Glow Effects */}
         <div className="absolute -top-12 -left-12 w-32 h-32 bg-blue-500/15 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-[#F59E0B]/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/35 flex items-center justify-center shadow-lg shadow-blue-500/10 shrink-0">
-              <LineChart className="w-5 h-5 text-blue-400 animate-pulse animate-duration-1000" />
+              <LineChart className="w-5 h-5 text-blue-400 animate-pulse" />
             </div>
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-slate-100 tracking-tight">Growth Visualization Ready</h4>
@@ -437,15 +521,15 @@ export default function DashboardPage() {
                       </linearGradient>
                     </defs>
                     <XAxis 
-                      dataKey="time" 
-                      stroke="#64748B" 
-                      fontSize={10} 
-                      tickLine={false} 
-                      axisLine={false}
-                      tickFormatter={(val) => {
-                        try { return format(new Date(val), period === '1D' ? 'HH:mm' : 'MMM d') }
-                        catch { return val }
-                      }}
+                       dataKey="time" 
+                       stroke="#64748B" 
+                       fontSize={10} 
+                       tickLine={false} 
+                       axisLine={false}
+                       tickFormatter={(val) => {
+                         try { return format(new Date(val), period === '1D' ? 'HH:mm' : 'MMM d') }
+                         catch { return val }
+                       }}
                     />
                     <YAxis 
                       domain={['auto', 'auto']} 
@@ -492,110 +576,189 @@ export default function DashboardPage() {
         <CalendarHeatmap dailyPnl={dailyPnl} month={new Date()} />
       </div>
 
-      {/* Open positions */}
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.42, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-[#12121a] border border-white/5 rounded-2xl p-5"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-sm">Open Positions</h2>
-            {openTrades.length > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="w-5 h-5 rounded-full bg-[#F59E0B]/15 text-[#F59E0B] text-[10px] font-bold flex items-center justify-center"
+      {/* Open positions & AI Psychology Coach Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Open positions - spans 2 cols */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          className="lg:col-span-2 bg-[#12121a] border border-white/5 rounded-2xl p-5 flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-sm">Open Positions</h2>
+                {openTrades.length > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="w-5 h-5 rounded-full bg-[#F59E0B]/15 text-[#F59E0B] text-[10px] font-bold flex items-center justify-center animate-pulse"
+                  >
+                    {openTrades.length}
+                  </motion.span>
+                )}
+              </div>
+              <Link href="/trades" className="text-xs text-primary hover:text-primary/80 transition-colors">
+                View all →
+              </Link>
+            </div>
+
+            {openTrades.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="py-12 text-center text-[#334155] text-sm flex flex-col items-center justify-center"
               >
-                {openTrades.length}
-              </motion.span>
+                <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                No open positions
+              </motion.div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-wider text-[#334155] border-b border-white/5">
+                      <th className="text-left pb-3 font-semibold">Symbol</th>
+                      <th className="text-left pb-3 font-semibold">Direction</th>
+                      <th className="text-left pb-3 font-semibold">Entry</th>
+                      <th className="text-left pb-3 font-semibold">Size</th>
+                      <th className="text-right pb-3 font-semibold">P&L</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/4">
+                    <AnimatePresence mode="popLayout">
+                      {openTrades.map((t, i) => {
+                        let displayProfit = t.net_profit ?? 0
+                        const cleanSymbol = String(t.symbol).toUpperCase().replace(/[^A-Z]/g, '')
+                        if (displayProfit === 0 && cleanSymbol.includes('XAU') && liveGoldPrice && t.entry_price && t.lot_size) {
+                          const entry = Number(t.entry_price)
+                          const lots = Number(t.lot_size)
+                          const isBuy = t.direction === 'buy'
+                          const multiplier = 100
+                          const diff = isBuy ? (liveGoldPrice - entry) : (entry - liveGoldPrice)
+                          displayProfit = diff * multiplier * lots
+                        }
+                        const isPositive = displayProfit >= 0
+                        
+                        return (
+                          <motion.tr
+                            key={t.id}
+                            initial={{ opacity: 0, y: -20, backgroundColor: 'rgba(245,159,11,0.12)' }}
+                            animate={{ opacity: 1, y: 0, backgroundColor: 'rgba(0,0,0,0)' }}
+                            exit={{ opacity: 0, x: 20 }}
+                            transition={{ 
+                              opacity: { duration: 0.3 }, 
+                              y: { duration: 0.4, type: 'spring', bounce: 0.2 },
+                              backgroundColor: { duration: 3, delay: 0.5 }
+                            }}
+                            className="group border-b border-white/[0.02] hover:bg-white/[0.01]"
+                          >
+                            <td className="py-4 px-2 font-bold tracking-tight flex items-center gap-2">
+                              {t.symbol}
+                            </td>
+                            <td className="py-4 px-2">
+                              <span className={cn(
+                                'text-xs px-2 py-0.5 rounded-md font-semibold',
+                                t.direction === 'buy'
+                                  ? 'bg-[#22C55E]/12 text-[#22C55E]'
+                                  : 'bg-[#EF4444]/12 text-[#EF4444]'
+                              )}>
+                                {t.direction === 'buy' ? '↗ Long' : '↘ Short'}
+                              </span>
+                            </td>
+                            <td className="py-4 px-2 font-mono text-[#64748B] text-xs">${t.entry_price?.toFixed(2) ?? '—'}</td>
+                            <td className="py-4 px-2 text-[#64748B] text-xs">{t.lot_size ?? '—'} lots</td>
+                            <td className={cn('py-4 px-2 text-right font-bold tabular-nums', isPositive ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                              <motion.div
+                                animate={isPositive ? { scale: [1, 1.015, 1] } : {}}
+                                transition={isPositive ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : {}}
+                              >
+                                {fmt(displayProfit)}
+                              </motion.div>
+                            </td>
+                          </motion.tr>
+                        )
+                      })}
+                    </AnimatePresence>
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-          <Link href="/trades" className="text-xs text-primary hover:text-primary/80 transition-colors">
-            View all →
-          </Link>
-        </div>
+        </motion.div>
 
-        {openTrades.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="py-10 text-center text-[#334155] text-sm"
-          >
-            <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            No open positions
-          </motion.div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-[#334155] border-b border-white/5">
-                  <th className="text-left pb-3 font-semibold">Symbol</th>
-                  <th className="text-left pb-3 font-semibold">Direction</th>
-                  <th className="text-left pb-3 font-semibold">Entry</th>
-                  <th className="text-left pb-3 font-semibold">Size</th>
-                  <th className="text-right pb-3 font-semibold">P&L</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/4">
-                <AnimatePresence mode="popLayout">
-                  {openTrades.map((t, i) => {
-                    const isPositive = (t.net_profit ?? 0) >= 0
-                    
-                    return (
-                      <motion.tr
-                        key={t.id}
-                        initial={{ opacity: 0, y: -20, backgroundColor: 'rgba(245,159,11,0.12)' }}
-                        animate={{ opacity: 1, y: 0, backgroundColor: 'rgba(0,0,0,0)' }}
-                        exit={{ opacity: 0, x: 20 }}
-                        transition={{ 
-                          opacity: { duration: 0.3 }, 
-                          y: { duration: 0.4, type: 'spring', bounce: 0.2 },
-                          backgroundColor: { duration: 3, delay: 0.5 }
-                        }}
-                        className="group border-b border-white/[0.02]"
-                      >
-                        <td className="py-4 px-2 font-bold tracking-tight flex items-center gap-2">
-                          {t.symbol}
-                          <motion.span 
-                            initial={{ opacity: 1 }}
-                            animate={{ opacity: 0 }}
-                            transition={{ delay: 5, duration: 1 }}
-                            className="text-[9px] bg-[#F59E0B] text-black px-1.5 py-0.5 rounded font-black tracking-widest uppercase"
-                          >
-                            NEW
-                          </motion.span>
-                        </td>
-                        <td className="py-4 px-2">
-                          <span className={cn(
-                            'text-xs px-2 py-0.5 rounded-md font-semibold',
-                            t.direction === 'buy'
-                              ? 'bg-[#22C55E]/12 text-[#22C55E]'
-                              : 'bg-[#EF4444]/12 text-[#EF4444]'
-                          )}>
-                            {t.direction === 'buy' ? '↗ Long' : '↘ Short'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-2 font-mono text-[#64748B] text-xs">${t.entry_price?.toFixed(2) ?? '—'}</td>
-                        <td className="py-4 px-2 text-[#64748B] text-xs">{t.lot_size ?? '—'} lots</td>
-                        <td className={cn('py-4 px-2 text-right font-bold tabular-nums', isPositive ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                          <motion.div
-                            animate={isPositive ? { scale: [1, 1.015, 1] } : {}}
-                            transition={isPositive ? { repeat: Infinity, duration: 2, ease: "easeInOut" } : {}}
-                          >
-                            {fmt(t.net_profit ?? 0)}
-                          </motion.div>
-                        </td>
-                      </motion.tr>
-                    )
-                  })}
-                </AnimatePresence>
-              </tbody>
-            </table>
+        {/* AI Psychology Coach Card - 1 col */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="col-span-1 bg-[#12121A] border border-white/5 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[260px] shadow-xl group hover:border-[#F59E0B]/30 transition-all duration-300"
+        >
+          {/* Subtle top decoration */}
+          <div className="absolute right-0 top-0 w-24 h-24 bg-[#F59E0B]/5 rounded-full blur-xl pointer-events-none" />
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+              <h3 className="font-semibold text-xs tracking-wider text-[#94A3B8] uppercase flex items-center gap-1.5">
+                <Brain className="w-4 h-4 text-primary animate-pulse" /> AI Psychology Coach
+              </h3>
+              <span className="text-[8px] px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-full font-black uppercase tracking-widest">
+                Nirikshan
+              </span>
+            </div>
+
+            {latestAiReport ? (
+              <div className="space-y-3.5">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "text-3xl font-black px-3.5 py-1.5 rounded-xl border font-mono select-none shadow-md",
+                    latestAiReport.grade.startsWith('A') ? "bg-[#F59E0B]/10 border-[#F59E0B]/20 text-primary" :
+                    latestAiReport.grade.startsWith('B') ? "bg-[#22C55E]/10 border-[#22C55E]/20 text-[#22C55E]" :
+                    "bg-[#EF4444]/10 border-[#EF4444]/20 text-[#EF4444]"
+                  )}>
+                    {latestAiReport.grade}
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-[9px] text-[#64748B] uppercase font-black block">Archived Performance Grade</span>
+                    <span className="text-xs text-[#F1F5F9] font-medium leading-relaxed block max-w-[120px] md:max-w-[160px] truncate">
+                      {latestAiReport.grade_reason}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-l-2 border-primary bg-[#09090E]/60 p-3 rounded-r-xl text-xs text-slate-300 italic font-medium leading-relaxed line-clamp-3">
+                  "{latestAiReport.summary}"
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-[#64748B] font-mono">
+                  <span>Discipline: {latestAiReport.discipline_score}/10</span>
+                  <span>Risk Control: {latestAiReport.risk_score}/10</span>
+                </div>
+              </div>
+            ) : (
+              <div className="py-6 text-center space-y-3">
+                <ShieldAlert className="w-8 h-8 text-[#64748B] mx-auto opacity-35 animate-bounce" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-white">No Psychological Audits</p>
+                  <p className="text-[10px] text-[#64748B] max-w-xs mx-auto leading-relaxed">
+                    You haven't run any cognitive trading audits yet. Nirikshan stands ready to scan your behavior!
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </motion.div>
+
+          <div className="pt-4 border-t border-white/5 shrink-0">
+            <Link href="/ai-report">
+              <button className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-primary/10 hover:bg-[#F59E0B]/25 border border-primary/20 hover:border-primary/40 rounded-xl text-xs font-black text-primary transition-all active:scale-95 shadow-md">
+                {latestAiReport ? 'Open Full Diagnostics Dossier' : 'Generate Behavior Diagnostic'} <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </Link>
+          </div>
+        </motion.div>
+
+      </div>
 
       {/* News Ticker */}
       <motion.div
@@ -613,7 +776,6 @@ export default function DashboardPage() {
             {news.length === 0 ? (
               <span className="text-sm font-medium mr-12 text-[#64748B]">No high-impact news upcoming...</span>
             ) : (
-              // Duplicate the news list so the marquee loops seamlessly
               [...news, ...news].map((n, i) => {
                 const timeStr = format(new Date(n.date), 'MMM d, HH:mm')
                 return (

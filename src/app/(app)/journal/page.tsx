@@ -335,15 +335,29 @@ function TradeJournalCard({
                 <div className="pt-2">
                   <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">TradingView Chart Screenshot</label>
                   {screenshotUrl ? (
-                    <div className="relative group rounded-xl overflow-hidden border border-white/5 bg-[#09090e] shadow-lg max-w-md">
-                      <img src={screenshotUrl} alt="Trade screenshot chart" className="w-full h-auto object-contain max-h-48" />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
+                    <div className="space-y-3 max-w-md animate-in fade-in duration-200">
+                      <div className="relative rounded-xl overflow-hidden border border-white/5 bg-[#09090e] shadow-lg flex items-center justify-center">
+                        <img 
+                          src={screenshotUrl} 
+                          alt="Trade screenshot chart" 
+                          className="w-full h-auto object-contain max-h-64 p-1" 
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a 
+                          href={screenshotUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 text-center py-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all"
+                        >
+                          🔍 View Full Image
+                        </a>
                         <button
                           type="button"
                           onClick={deleteScreenshot}
-                          className="px-3 py-1.5 bg-[#EF4444] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:scale-105 transition-transform shadow-lg"
+                          className="px-3 py-2 bg-[#EF4444]/10 hover:bg-[#EF4444]/25 border border-[#EF4444]/30 text-[#EF4444] text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all"
                         >
-                          <Trash2 className="w-3.5 h-3.5" /> Delete Screenshot
+                          🗑️ Delete Screenshot
                         </button>
                       </div>
                     </div>

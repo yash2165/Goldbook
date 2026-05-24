@@ -47,12 +47,14 @@ export async function POST(req: Request) {
     }
   }
 
-  // Force manual trades to be closed
-  const final_close_time = close_time ?? open_time
+  const is_open_position = !exit_price
+
+  // Force manual trades to be closed only if exit price is provided
+  const final_close_time = is_open_position ? null : (close_time ?? open_time)
 
   // Duration in seconds
   let duration_seconds: number | null = null
-  if (open_time && final_close_time) {
+  if (!is_open_position && open_time && final_close_time) {
     duration_seconds = Math.floor(
       (new Date(final_close_time).getTime() - new Date(open_time).getTime()) / 1000
     )
@@ -76,7 +78,7 @@ export async function POST(req: Request) {
     direction,
     lot_size,
     entry_price,
-    exit_price,
+    exit_price: is_open_position ? null : exit_price,
     sl: sl ?? null,
     tp: tp ?? null,
     open_time,
@@ -88,7 +90,7 @@ export async function POST(req: Request) {
     swap: 0,
     pips,
     rr_ratio,
-    status: 'closed',
+    status: is_open_position ? 'open' : 'closed',
     source: 'manual',
     notes: notes ?? null,
     pre_trade_checklist: pre_trade_checklist ?? null,

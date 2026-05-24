@@ -458,6 +458,21 @@ function TradeAnalysisContent() {
                             `${(selectedTrade.duration_seconds / 3600).toFixed(1)}h`
                           ) : '—'}
                         </span>
+                        {(() => {
+                          if (!selectedTrade.open_time) return null
+                          const hour = new Date(selectedTrade.open_time).getUTCHours()
+                          const session = hour >= 0 && hour < 8 ? { label: 'Asian Session', emoji: '🌅', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' } :
+                                          hour >= 8 && hour < 16 ? { label: 'London Session', emoji: '🏰', color: 'bg-blue-500/10 border-blue-500/20 text-blue-400' } :
+                                          { label: 'New York Session', emoji: '🗽', color: 'bg-amber-500/10 border-amber-500/20 text-primary' }
+                          return (
+                            <>
+                              <span className="text-white/20">•</span>
+                              <span className={cn("inline-flex items-center gap-1 px-2.5 py-0.5 rounded border text-[9px] font-black uppercase tracking-wider", session.color)}>
+                                <span>{session.emoji}</span> <span>{session.label}</span>
+                              </span>
+                            </>
+                          )
+                        })()}
                       </div>
                     </div>
 
@@ -520,28 +535,32 @@ function TradeAnalysisContent() {
                   </div>
 
                   {selectedTrade.screenshot_url ? (
-                    /* Display Paste Screenshot with rich controls */
-                    <div className="relative group rounded-xl overflow-hidden border border-white/5 bg-[#09090E] shadow-inner max-w-full flex items-center justify-center transition-all duration-300" style={{ minHeight: '340px' }}>
-                      <img 
-                        src={selectedTrade.screenshot_url} 
-                        alt="Trade execution chart" 
-                        className="w-full h-auto object-contain max-h-[380px] p-2" 
-                      />
-                      <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-opacity duration-200">
+                    /* Display Paste Screenshot naturally without intrusive overlays */
+                    <div className="space-y-4">
+                      <div className="relative rounded-xl overflow-hidden border border-white/5 bg-[#09090E] shadow-inner max-w-full flex items-center justify-center transition-all duration-300" style={{ minHeight: '340px' }}>
+                        <img 
+                          src={selectedTrade.screenshot_url} 
+                          alt="Trade execution chart" 
+                          className="w-full h-auto object-contain max-h-[420px] p-2" 
+                        />
+                      </div>
+                      
+                      {/* Non-intrusive action controls below the chart screenshot */}
+                      <div className="flex items-center gap-3">
                         <a 
                           href={selectedTrade.screenshot_url} 
                           target="_blank" 
                           rel="noreferrer" 
-                          className="px-4 py-2.5 bg-primary hover:bg-primary/95 text-black font-black text-xs uppercase tracking-wider rounded-xl transition-transform hover:scale-105 active:scale-95 shadow-lg shadow-primary/20"
+                          className="flex-1 text-center py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-98"
                         >
-                          Open Original Image
+                          🔍 Open Full Resolution
                         </a>
                         <button
                           onClick={deleteScreenshot}
                           disabled={uploadingScreenshot}
-                          className="px-4 py-2.5 bg-[#EF4444] hover:bg-[#EF4444]/95 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-transform hover:scale-105 active:scale-95 shadow-lg"
+                          className="px-5 py-2.5 bg-[#EF4444]/10 hover:bg-[#EF4444]/25 border border-[#EF4444]/30 text-[#EF4444] text-[10px] font-black uppercase tracking-wider rounded-xl transition-all active:scale-98"
                         >
-                          Delete Visual
+                          🗑️ Delete Screenshot
                         </button>
                       </div>
                     </div>
@@ -647,6 +666,50 @@ function TradeAnalysisContent() {
                               <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Lessons Logged</span>
                               <div className="border-l-2 border-[#F59E0B] bg-[#09090E]/60 p-3.5 rounded-r-xl text-xs text-slate-300 italic whitespace-pre-wrap font-medium shadow-inner">
                                 "{selectedTrade.notes}"
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Mistakes & Compliance Auditing */}
+                          {selectedTrade.mistakes && selectedTrade.mistakes.length > 0 ? (
+                            <div className="space-y-1.5 pt-1">
+                              <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Logged Plan Breaches</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {selectedTrade.mistakes.map((m: string, idx: number) => (
+                                  <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-[#EF4444]/15 border border-[#EF4444]/30 text-[#EF4444] text-[9px] font-black uppercase tracking-wider">
+                                    ⚠️ {m}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 pt-1">
+                              <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Discipline Status</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#22C55E] text-[9px] font-black uppercase tracking-wider">
+                                ✓ Plan Adhered: No Violations
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Pre-Trade Checklist Compliance */}
+                          {selectedTrade.pre_trade_checklist && typeof selectedTrade.pre_trade_checklist === 'object' && Object.keys(selectedTrade.pre_trade_checklist).length > 0 && (
+                            <div className="space-y-1.5 pt-2.5 border-t border-white/5 mt-2.5">
+                              <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Pre-Trade Checklist Compliance</span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                                {Object.entries(selectedTrade.pre_trade_checklist).map(([item, checked]) => (
+                                  <div 
+                                    key={item} 
+                                    className={cn(
+                                      "flex items-center gap-1.5 px-2 py-1.5 rounded text-[10px] font-bold border select-none transition-colors",
+                                      checked
+                                        ? "bg-[#22C55E]/5 border-[#22C55E]/15 text-[#22C55E]"
+                                        : "bg-white/[0.01] border-white/5 text-[#64748B] line-through"
+                                    )}
+                                  >
+                                    <span>{checked ? '✓' : '✗'}</span>
+                                    <span className="truncate">{item}</span>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           )}

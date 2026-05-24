@@ -19,7 +19,9 @@ import {
   DollarSign, 
   Compass, 
   AlertCircle,
-  ShieldAlert
+  ShieldAlert,
+  Percent,
+  Sparkles
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -37,6 +39,11 @@ interface StrategyStats {
   beforeEmotions: Record<string, number>
   afterEmotions: Record<string, number>
   sessionHours: Record<string, number>
+  profitFactor: number
+  expectancy: number
+  avgWin: number
+  avgLoss: number
+  avgCompliance: number
 }
 
 // Helper to resolve expressive color-themed emotion labels with emojis
@@ -93,7 +100,12 @@ function StrategyAnalysisContent() {
           avgDuration: 0,
           beforeEmotions: {},
           afterEmotions: {},
-          sessionHours: {}
+          sessionHours: {},
+          profitFactor: 0,
+          expectancy: 0,
+          avgWin: 0,
+          avgLoss: 0,
+          avgCompliance: 0
         }
       }
 
@@ -149,6 +161,36 @@ function StrategyAnalysisContent() {
       const durValidCount = closed.filter(t => t.setup_tag === stat.name && t.duration_seconds != null).length
       stat.avgDuration = durValidCount > 0 ? stat.avgDuration / durValidCount : 0
 
+      // Expectancy & Profit Factor calculation details
+      const strategyTrades = closed.filter(t => (t.setup_tag?.trim() || 'Uncategorized Setup') === stat.name)
+      const strategyWins = strategyTrades.filter(t => (t.net_profit ?? 0) > 0)
+      const strategyLosses = strategyTrades.filter(t => (t.net_profit ?? 0) < 0)
+
+      const grossWins = strategyWins.reduce((sum, t) => sum + (t.net_profit ?? 0), 0)
+      const grossLosses = Math.abs(strategyLosses.reduce((sum, t) => sum + (t.net_profit ?? 0), 0))
+
+      stat.avgWin = strategyWins.length > 0 ? grossWins / strategyWins.length : 0
+      stat.avgLoss = strategyLosses.length > 0 ? grossLosses / strategyLosses.length : 0
+      
+      stat.profitFactor = grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : 0
+      
+      const wr = stat.winRate / 100
+      stat.expectancy = (wr * stat.avgWin) - ((1 - wr) * stat.avgLoss)
+
+      // Rule Compliance calculation details
+      let strategyChecklistChecked = 0
+      let strategyChecklistTotal = 0
+      strategyTrades.forEach(t => {
+        if (t.pre_trade_checklist && typeof t.pre_trade_checklist === 'object') {
+          const keys = Object.keys(t.pre_trade_checklist)
+          if (keys.length > 0) {
+            strategyChecklistTotal += keys.length
+            strategyChecklistChecked += Object.values(t.pre_trade_checklist).filter(Boolean).length
+          }
+        }
+      })
+      stat.avgCompliance = strategyChecklistTotal > 0 ? Math.round((strategyChecklistChecked / strategyChecklistTotal) * 100) : 0
+
       return stat
     }).sort((a, b) => b.totalProfit - a.totalProfit) // Sort by highest profitability first
   }, [closed])
@@ -157,10 +199,6 @@ function StrategyAnalysisContent() {
   const bestStrategy = useMemo(() => {
     if (strategies.length === 0) return null
     return strategies[0] // Since it's already sorted by profitability
-  }, [strategies])
-
-  const totalCategorizedTrades = useMemo(() => {
-    return strategies.reduce((sum, s) => sum + s.totalTrades, 0)
   }, [strategies])
 
   return (
@@ -351,8 +389,8 @@ function StrategyAnalysisContent() {
                       <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black text-center block">Win Rate</span>
                     </div>
 
-                    {/* Numeric stats */}
-                    <div className="col-span-2 grid grid-cols-2 gap-3 pl-2">
+                    {/* Highly advanced numeric stats for Strategy Auditing */}
+                    <div className="col-span-2 grid grid-cols-2 gap-x-4 gap-y-3 pl-2">
                       <div className="space-y-0.5">
                         <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-bold block">Avg P&L</span>
                         <span className={cn("text-xs font-black font-mono block", s.avgProfit >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
@@ -361,6 +399,20 @@ function StrategyAnalysisContent() {
                       </div>
                       
                       <div className="space-y-0.5">
+                        <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-bold block">Expectancy</span>
+                        <span className={cn("text-xs font-black font-mono block", s.expectancy >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
+                          {s.expectancy >= 0 ? '+' : ''}{fmt(s.expectancy)}
+                        </span>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-bold block">Profit Factor</span>
+                        <span className={cn("text-xs font-black font-mono block", s.profitFactor >= 1.5 ? "text-[#22C55E]" : s.profitFactor >= 1.0 ? "text-blue-400" : "text-[#EF4444]")}>
+                          {s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div className="space-y-0.5">
                         <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-bold block">Avg R:R Ratio</span>
                         <span className="text-xs font-black text-white font-mono block">
                           {s.avgRR > 0 ? `1:${s.avgRR.toFixed(1)}` : '—'}
@@ -368,7 +420,26 @@ function StrategyAnalysisContent() {
                       </div>
 
                       <div className="space-y-0.5">
-                        <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-bold block">Win/Loss Split</span>
+                        <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-bold block">Win / Loss Splits</span>
+                        <span className="text-[10px] font-bold block">
+                          <span className="text-[#22C55E] font-mono">+{fmt(s.avgWin)}</span>
+                          <span className="text-[#64748B] mx-1">/</span>
+                          <span className="text-[#EF4444] font-mono">-{fmt(s.avgLoss)}</span>
+                        </span>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-bold block">Rule Compliance</span>
+                        <span className={cn(
+                          "text-xs font-black block",
+                          s.avgCompliance >= 80 ? "text-[#22C55E]" : s.avgCompliance >= 60 ? "text-[#3B82F6]" : "text-[#EF4444]"
+                        )}>
+                          {s.avgCompliance}%
+                        </span>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-bold block">Win/Loss Count</span>
                         <span className="text-[10px] font-bold text-slate-300 block">
                           {s.wins}W - {s.losses}L {s.breakEvens > 0 ? `- ${s.breakEvens}B` : ''}
                         </span>
@@ -451,7 +522,10 @@ function StrategyAnalysisContent() {
                     <th className="py-2.5 font-bold">Strategy Setup</th>
                     <th className="py-2.5 font-bold text-center">Trades</th>
                     <th className="py-2.5 font-bold text-center">Win Rate</th>
+                    <th className="py-2.5 font-bold text-center">Profit Factor</th>
+                    <th className="py-2.5 font-bold text-center">Expectancy</th>
                     <th className="py-2.5 font-bold text-center">Avg R:R</th>
+                    <th className="py-2.5 font-bold text-center">Compliance</th>
                     <th className="py-2.5 font-bold text-right">Net yield</th>
                   </tr>
                 </thead>
@@ -471,8 +545,24 @@ function StrategyAnalysisContent() {
                             {s.winRate}%
                           </span>
                         </td>
+                        <td className="py-3 text-center font-mono font-bold">
+                          <span className={s.profitFactor >= 1.5 ? "text-[#22C55E]" : s.profitFactor >= 1.0 ? "text-blue-400" : "text-[#EF4444]"}>
+                            {s.profitFactor === Infinity ? '∞' : s.profitFactor.toFixed(2)}
+                          </span>
+                        </td>
+                        <td className={cn("py-3 text-center font-mono font-bold", s.expectancy >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
+                          {s.expectancy >= 0 ? '+' : ''}${s.expectancy.toFixed(0)}
+                        </td>
                         <td className="py-3 text-center text-slate-400 font-mono">
                           {s.avgRR > 0 ? `1:${s.avgRR.toFixed(1)}` : '—'}
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded font-extrabold text-[10px]",
+                            s.avgCompliance >= 80 ? "bg-[#22C55E]/10 text-[#22C55E]" : s.avgCompliance >= 60 ? "bg-[#3B82F6]/10 text-[#3B82F6]" : "bg-[#EF4444]/10 text-[#EF4444]"
+                          )}>
+                            {s.avgCompliance}%
+                          </span>
                         </td>
                         <td className={cn(
                           "py-3 text-right font-bold font-mono",
