@@ -169,7 +169,7 @@ void QuickSortInDeals(InDealInfo &arr[], int left, int right)
 }
 
 // Memory-only Binary Search to find matching IN deal by position ID
-int BinarySearchInDeals(const InDealInfo &arr[], int size, long posId)
+int BinarySearchInDeals(InDealInfo &arr[], int size, long posId)
 {
    int left = 0;
    int right = size - 1;

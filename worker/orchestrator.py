@@ -467,6 +467,11 @@ def sync_account(acc: dict) -> dict:
                 metaeditor_path = find_file_case_insensitive(global_install_dir, "metaeditor.exe")
 
             if not dst_ex5.exists() or should_compile:
+                if dst_ex5.exists():
+                    try:
+                        dst_ex5.unlink()
+                    except Exception:
+                        pass
                 log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 with Hangover native compilation ahead of time...")
                 comp_env = os.environ.copy()
                 comp_env["DISPLAY"] = DISPLAY
