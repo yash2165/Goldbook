@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
 import { getClosedTrades, fmt } from '@/lib/calculations'
@@ -11,27 +11,22 @@ import {
   TrendingDown, 
   Clock, 
   Hash, 
-  Play, 
-  Pause, 
-  RotateCcw, 
-  Sliders, 
-  X, 
+  Search, 
   Star, 
-  Calendar, 
+  BookOpen, 
   Loader2,
-  BookOpen
+  ChevronLeft,
+  Brain,
+  BarChart3,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  Sparkles,
+  Percent
 } from 'lucide-react'
-import { createChart, ColorType } from 'lightweight-charts'
-import { useSearchParams } from 'next/navigation'
-
-interface MockCandle {
-  time: number
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-}
+import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 // Helper to resolve expressive color-themed emotion labels with emojis
 function getEmotionCapsule(emo: string) {
@@ -59,623 +54,717 @@ function getEmotionCapsule(emo: string) {
   )
 }
 
-// ── REPLAY DRAWER WITH BINANCE REAL CHARTS & NOTION DOSSIER ───────────────────
-function ReplayDrawer({ trade, onClose }: { trade: any; onClose: () => void }) {
-  const [candles, setCandles] = useState<MockCandle[]>([])
-  const [currentStep, setCurrentStep] = useState(15) 
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [replaySpeed, setReplaySpeed] = useState(1000) 
-  const [loadingChart, setLoadingChart] = useState(true)
-  const [errorChart, setErrorChart] = useState<string | null>(null)
-  
-  const [entryIndex, setEntryIndex] = useState(15)
-  const [exitIndex, setExitIndex] = useState(40)
+// 100% Real dynamic database-backed score logic
+function calculateTradeQualityScore(trade: any) {
+  const profitability = (trade.net_profit ?? 0) > 0 ? 30 : (trade.net_profit ?? 0) === 0 ? 15 : 0
 
-  const chartContainerRef = useRef<HTMLDivElement>(null)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-
-  // A. Realistic Mock Candle Generator (Fallback)
-  const generateMockCandles = (t: any): MockCandle[] => {
-    const entry = Number(t.entry_price)
-    const exit = Number(t.exit_price || t.entry_price * (t.direction === 'buy' ? 1.01 : 0.99))
-    const isBuy = t.direction === 'buy'
-    const openTime = new Date(t.open_time || Date.now()).getTime()
-    const closeTime = new Date(t.close_time || openTime + 30 * 60000).getTime()
-    const totalDuration = closeTime - openTime
-    
-    const numTradeCandles = 25
-    const numBeforeCandles = 15
-    const numAfterCandles = 15
-    const timeStep = Math.max(60000, Math.floor(totalDuration / numTradeCandles))
-    const candlesList: MockCandle[] = []
-    let currentPrice = entry * (isBuy ? 0.992 : 1.008)
-
-    for (let i = numBeforeCandles; i > 0; i--) {
-      const timeMs = openTime - i * timeStep
-      const close = currentPrice + (Math.random() - 0.5) * (entry * 0.0015)
-      const open = currentPrice
-      const high = Math.max(open, close) + Math.random() * (entry * 0.0006)
-      const low = Math.min(open, close) - Math.random() * (entry * 0.0006)
-      candlesList.push({
-        time: Math.floor(timeMs / 1000),
-        open, high, low, close,
-        volume: Math.floor(Math.random() * 500)
-      })
-      currentPrice = close
-    }
-
-    currentPrice = entry
-
-    for (let i = 0; i <= numTradeCandles; i++) {
-      const timeMs = openTime + i * timeStep
-      const progress = i / numTradeCandles
-      const target = entry + (exit - entry) * progress
-      const close = target + (Math.random() - 0.5) * (entry * 0.002) * (1 - progress)
-      const open = i === 0 ? entry : candlesList[candlesList.length - 1].close
-      const high = Math.max(open, close) + Math.random() * (entry * 0.0009)
-      const low = Math.min(open, close) - Math.random() * (entry * 0.0009)
-      candlesList.push({
-        time: Math.floor(timeMs / 1000),
-        open, high, low,
-        close: i === numTradeCandles ? exit : close,
-        volume: Math.floor(Math.random() * 1000)
-      })
-    }
-
-    currentPrice = exit
-
-    for (let i = 1; i <= numAfterCandles; i++) {
-      const timeMs = closeTime + i * timeStep
-      const close = currentPrice + (Math.random() - 0.5) * (entry * 0.0015)
-      const open = currentPrice
-      const high = Math.max(open, close) + Math.random() * (entry * 0.0006)
-      const low = Math.min(open, close) - Math.random() * (entry * 0.0006)
-      candlesList.push({
-        time: Math.floor(timeMs / 1000),
-        open, high, low, close,
-        volume: Math.floor(Math.random() * 400)
-      })
-      currentPrice = close
-    }
-
-    return candlesList
+  // Execution Score: Max 40 points
+  // A. Checklist Compliance: Max 20 points
+  let checklistScore = 10 // baseline default
+  const checklist = trade.pre_trade_checklist
+  if (checklist && typeof checklist === 'object' && Object.keys(checklist).length > 0) {
+    const total = Object.keys(checklist).length
+    const checked = Object.values(checklist).filter(Boolean).length
+    checklistScore = Math.round((checked / total) * 20)
   }
 
-  // 1. Fetch free real gold and forex chart data from Binance API
-  useEffect(() => {
-    async function loadRealData() {
-      setLoadingChart(true)
-      setErrorChart(null)
+  // B. Risk-to-reward ratio: Max 10 points
+  const rrScore = trade.rr_ratio != null ? (trade.rr_ratio >= 1.5 ? 10 : 5) : 5
 
-      try {
-        const openTime = new Date(trade.open_time || Date.now()).getTime()
-        const closeTime = new Date(trade.close_time || openTime + 30 * 60000).getTime()
-        const durationMs = closeTime - openTime
-        const durationMin = Math.floor(durationMs / 60000)
+  // C. Mental discipline rating: Max 10 points
+  const mentalScore = trade.rating != null ? (trade.rating >= 4 ? 10 : trade.rating === 3 ? 5 : 0) : 0
 
-        // Dynamically compute interval step sizing depending on duration to maximize context
-        let interval = '1m'
-        let intervalMs = 60000
-        if (durationMin <= 120) {
-          interval = '1m'
-          intervalMs = 60000
-        } else if (durationMin <= 600) {
-          interval = '5m'
-          intervalMs = 300000
-        } else if (durationMin <= 2400) {
-          interval = '15m'
-          intervalMs = 900000
-        } else if (durationMin <= 9600) {
-          interval = '1h'
-          intervalMs = 3600000
-        } else {
-          interval = '1d'
-          intervalMs = 86400000
-        }
+  const execution = checklistScore + rrScore + mentalScore
 
-        // Map logged instrument to public Binance pairs
-        let binanceSymbol = 'PAXGUSDT' // Default to gold (tracks XAUUSD spot 1:1)
-        const cleanSymbol = String(trade.symbol).toUpperCase().replace(/[^A-Z]/g, '')
-        if (cleanSymbol.includes('EUR')) binanceSymbol = 'EURUSDT'
-        else if (cleanSymbol.includes('GBP')) binanceSymbol = 'GBPUSDT'
-        else if (cleanSymbol.includes('BTC')) binanceSymbol = 'BTCUSDT'
-        else if (cleanSymbol.includes('ETH')) binanceSymbol = 'ETHUSDT'
+  // Journal Richness: Max 20 points
+  const hasSetup = trade.setup_tag ? 5 : 0
+  const hasEmoBefore = trade.emotion_before ? 5 : 0
+  const hasEmoAfter = trade.emotion_after ? 5 : 0
+  const hasNotes = trade.notes && trade.notes.trim().length > 10 ? 5 : 0
+  const journal = hasSetup + hasEmoBefore + hasEmoAfter + hasNotes
 
-        // Shift startTime backward by 20 intervals to capture "before entry" price context
-        const startTime = openTime - 20 * intervalMs
-        const url = `https://api.binance.com/api/v3/klines?symbol=${binanceSymbol}&interval=${interval}&startTime=${startTime}&limit=80`
+  // Rating mapping: Max 10 points
+  const ratingScore = (trade.rating ?? 0) * 2
 
-        const res = await fetch(url)
-        if (!res.ok) {
-          throw new Error(`Binance API returned status: ${res.status}`)
-        }
+  const total = profitability + execution + journal + ratingScore
 
-        const data = await res.json()
-        if (!Array.isArray(data) || data.length === 0) {
-          throw new Error('No candlestick data returned from Binance')
-        }
-
-        const formatted = data.map((c: any) => ({
-          time: Math.floor(c[0] / 1000),
-          open: parseFloat(c[1]),
-          high: parseFloat(c[2]),
-          low: parseFloat(c[3]),
-          close: parseFloat(c[4]),
-          volume: parseFloat(c[5])
-        }))
-
-        // Mathematical timestamp alignment for Entry & Exit markers
-        let closestEntryIdx = 15
-        let closestExitIdx = 40
-        let minEntryDiff = Infinity
-        let minExitDiff = Infinity
-
-        const openSec = Math.floor(openTime / 1000)
-        const closeSec = Math.floor(closeTime / 1000)
-
-        formatted.forEach((c: any, idx: number) => {
-          const entryDiff = Math.abs(c.time - openSec)
-          if (entryDiff < minEntryDiff) {
-            minEntryDiff = entryDiff
-            closestEntryIdx = idx
-          }
-          const exitDiff = Math.abs(c.time - closeSec)
-          if (exitDiff < minExitDiff) {
-            minExitDiff = exitDiff
-            closestExitIdx = idx
-          }
-        })
-
-        setCandles(formatted)
-        setEntryIndex(closestEntryIdx)
-        setExitIndex(closestExitIdx)
-        setCurrentStep(closestEntryIdx) // Initialize simulator playback exactly at the Entry Candle
-      } catch (err: any) {
-        console.warn('Direct live feed failed; falling back to realistic engine:', err)
-        setErrorChart(err.message || 'API connection failed')
-        const fallback = generateMockCandles(trade)
-        setCandles(fallback)
-        setEntryIndex(15)
-        setExitIndex(40)
-        setCurrentStep(15)
-      } finally {
-        setLoadingChart(false)
-      }
+  return {
+    total,
+    breakdown: {
+      profitability,
+      execution,
+      journal,
+      rating: ratingScore
     }
-
-    loadRealData()
-  }, [trade])
-
-  // 2. Play/Pause ticks loop
-  useEffect(() => {
-    if (isPlaying) {
-      timerRef.current = setInterval(() => {
-        setCurrentStep(prev => {
-          if (prev >= candles.length) {
-            setIsPlaying(false)
-            return prev
-          }
-          return prev + 1
-        })
-      }, replaySpeed)
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-  }, [isPlaying, candles, replaySpeed])
-
-  // 3. Lightweight Charts rendering integration
-  useEffect(() => {
-    if (!chartContainerRef.current || candles.length === 0 || !trade) return
-
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: '#09090e' },
-        textColor: '#64748B',
-      },
-      grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.02)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.02)' },
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-        autoScale: true,
-      },
-      timeScale: {
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-        timeVisible: true,
-      },
-    })
-
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22C55E',
-      downColor: '#EF4444',
-      borderUpColor: '#22C55E',
-      borderDownColor: '#EF4444',
-      wickUpColor: '#22C55E',
-      wickDownColor: '#EF4444',
-    })
-
-    const visibleData = candles.slice(0, currentStep)
-    candlestickSeries.setData(visibleData as any)
-
-    // Highlight entry & exit coordinates on real chart
-    const markers: any[] = []
-    if (currentStep > entryIndex && candles[entryIndex]) {
-      markers.push({
-        time: candles[entryIndex].time,
-        position: 'belowBar',
-        color: '#F59E0B',
-        shape: 'arrowUp',
-        text: `BUY ENTRY @ $${Number(trade.entry_price).toFixed(2)}`,
-      })
-    }
-
-    if (currentStep > exitIndex && candles[exitIndex] && trade.exit_price) {
-      markers.push({
-        time: candles[exitIndex].time,
-        position: 'aboveBar',
-        color: '#EF4444',
-        shape: 'arrowDown',
-        text: `EXIT @ $${Number(trade.exit_price).toFixed(2)}`,
-      })
-    }
-
-    candlestickSeries.setMarkers(markers as any)
-    chart.timeScale().fitContent()
-
-    return () => {
-      chart.remove()
-    }
-  }, [candles, currentStep, entryIndex, exitIndex, trade])
-
-  const isBuy = trade.direction === 'buy'
-  const isProfit = (trade.net_profit ?? 0) >= 0
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-4xl h-full bg-[#12121a] border-l border-white/10 p-6 md:p-8 flex flex-col space-y-6 overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-300">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-xl text-[#64748B] hover:text-white transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-primary" /> Trade dossier Review
-              </h2>
-              <p className="text-xs text-[#64748B] mt-0.5">High-fidelity live chart replays & Notion-style structured logs.</p>
-            </div>
-          </div>
-          <span className={cn(
-            "text-[9px] px-2.5 py-1 rounded font-black tracking-widest uppercase border",
-            isBuy 
-              ? "bg-[#22C55E]/15 border-[#22C55E]/30 text-[#22C55E]" 
-              : "bg-[#EF4444]/15 border-[#EF4444]/30 text-[#EF4444]"
-          )}>
-            {trade.symbol} • {trade.direction === 'buy' ? 'Long' : 'Short'}
-          </span>
-        </div>
-
-        {/* Dynamic Volatility Replay Chart Container */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-[#F59E0B] uppercase tracking-wider">Live Volatility Chart Replay</h3>
-            <span className="text-[9px] font-bold text-slate-500 bg-white/5 px-2 py-0.5 rounded border border-white/5">
-              Source: {loadingChart ? 'Connecting...' : errorChart ? 'Fallback Simulation' : 'Binance Spot Live'}
-            </span>
-          </div>
-
-          <div className="bg-[#09090e] border border-white/5 rounded-2xl overflow-hidden relative" style={{ height: '320px' }}>
-            {loadingChart && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 space-y-2">
-                <Loader2 className="w-6 h-6 text-primary animate-spin" />
-                <span className="text-xs text-slate-400 font-medium">Syncing live klines...</span>
-              </div>
-            )}
-            <div className="w-full h-full" ref={chartContainerRef} />
-          </div>
-
-          {/* Controller Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-[#09090e] rounded-xl border border-white/5">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="w-10 h-10 rounded-xl bg-primary hover:bg-primary/90 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-primary/20"
-              >
-                {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white animate-[pulse_2s_infinite]" />}
-              </button>
-              <button
-                onClick={() => {
-                  setIsPlaying(false)
-                  setCurrentStep(entryIndex)
-                }}
-                className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-[#64748B] hover:text-white flex items-center justify-center border border-white/5 transition-all active:scale-95"
-                title="Reset to Entry"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-              <div className="text-xs text-[#64748B] font-mono ml-2">
-                Playback: {Math.max(0, Math.min(100, Math.floor(((currentStep - entryIndex) / (exitIndex - entryIndex || 1)) * 100)))}%
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Sliders className="w-4 h-4 text-[#64748B]" />
-              <label className="text-[10px] uppercase tracking-wider font-black text-[#64748B]">Sim Speed</label>
-              <select
-                value={replaySpeed}
-                onChange={e => setReplaySpeed(Number(e.target.value))}
-                className="bg-[#12121a] border border-white/10 rounded-lg px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-primary/50 [color-scheme:dark]"
-              >
-                <option value={1500}>0.5x Slow</option>
-                <option value={1000}>1.0x Normal</option>
-                <option value={500}>2.0x Fast</option>
-                <option value={200}>5.0x Turbo</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* ── NOTION-STYLE TRADE JOURNAL DOSSIER ───────────────────────────────── */}
-        <div className="space-y-4 pt-4 border-t border-white/5">
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-primary" />
-            <h3 className="text-sm font-black text-white uppercase tracking-wider">Structured Trade Journal Dossier</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* COLUMN 1: Compliance, Rating, and Setup */}
-            <div className="space-y-5">
-              
-              {/* Executive Rating Card */}
-              <div className="bg-[#09090e]/40 p-4 border border-white/5 rounded-2xl space-y-2.5">
-                <span className="text-[10px] text-[#64748B] uppercase tracking-widest font-black block">Execute Discipline Score</span>
-                <div className="flex items-center gap-1.5">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <Star 
-                      key={star} 
-                      className={cn(
-                        "w-5 h-5 transition-transform duration-300", 
-                        (trade.rating || 0) >= star 
-                          ? "text-amber-400 fill-amber-400 filter drop-shadow-[0_0_8px_rgba(251,191,36,0.4)] scale-110" 
-                          : "text-[#1E293B]"
-                      )} 
-                    />
-                  ))}
-                  <span className="text-xs font-black text-white ml-2">({trade.rating || 0} / 5 Stars)</span>
-                </div>
-              </div>
-
-              {/* Strategy Setup Card */}
-              <div className="bg-[#09090e]/40 p-4 border border-white/5 rounded-2xl space-y-2.5">
-                <span className="text-[10px] text-[#64748B] uppercase tracking-widest font-black block">Setup Tag / Strategy Pattern</span>
-                <span className="inline-flex px-3.5 py-1.5 bg-primary/10 border border-primary/20 text-primary text-xs font-black rounded-xl uppercase tracking-widest">
-                  {trade.setup_tag || 'Manual Strategy Setup'}
-                </span>
-              </div>
-
-              {/* Pre-Trade Checklist Compliance Card */}
-              <div className="bg-[#09090e]/40 p-4 border border-white/5 rounded-2xl space-y-3">
-                <span className="text-[10px] text-[#64748B] uppercase tracking-widest font-black block">Pre-Flight Checklist Compliance</span>
-                <div className="space-y-2">
-                  {!trade.pre_trade_checklist || Object.keys(trade.pre_trade_checklist).length === 0 ? (
-                    <p className="text-xs text-[#64748B] italic">No checklist items registered for this trade session.</p>
-                  ) : (
-                    Object.entries(trade.pre_trade_checklist).map(([rule, checked]) => (
-                      <div 
-                        key={rule} 
-                        className={cn(
-                          "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-xs transition-colors",
-                          checked 
-                            ? "bg-[#22C55E]/5 border-[#22C55E]/10 text-white font-medium" 
-                            : "bg-white/2 border-white/5 text-[#64748B]"
-                        )}
-                      >
-                        <span className="truncate">{rule}</span>
-                        <span className={cn(
-                          "w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black border",
-                          checked 
-                            ? "bg-[#22C55E]/20 border-[#22C55E]/40 text-[#22C55E]" 
-                            : "bg-white/5 border-white/5 text-slate-500"
-                        )}>
-                          {checked ? '✓' : '✗'}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* COLUMN 2: Emotional profiling and Notes lessons */}
-            <div className="space-y-5">
-              
-              {/* Psychological Comparative Profiling Capsule */}
-              <div className="bg-[#09090e]/40 p-4 border border-white/5 rounded-2xl space-y-3">
-                <span className="text-[10px] text-[#64748B] uppercase tracking-widest font-black block">Psychological Profiling</span>
-                <div className="grid grid-cols-2 gap-3 text-center">
-                  <div className="bg-[#12121a]/60 p-3.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-bold block mb-2">Before Entry</span>
-                    {trade.emotion_before ? getEmotionCapsule(trade.emotion_before) : <span className="text-xs text-[#64748B] font-medium">😐 None</span>}
-                  </div>
-                  <div className="bg-[#12121a]/60 p-3.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-bold block mb-2">After Exit</span>
-                    {trade.emotion_after ? getEmotionCapsule(trade.emotion_after) : <span className="text-xs text-[#64748B] font-medium">😐 None</span>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Lessons quote block */}
-              <div className="bg-[#09090e]/40 p-4 border border-white/5 rounded-2xl space-y-3">
-                <span className="text-[10px] text-[#64748B] uppercase tracking-widest font-black block">Lessons & Insights</span>
-                <div className="border-l-3 border-[#F59E0B] bg-[#09090e]/80 p-4 rounded-r-2xl text-xs leading-relaxed text-slate-200 italic whitespace-pre-wrap font-sans shadow-inner">
-                  {trade.notes || '"No lessons logged. Be sure to document your mental state and rules adherence next session."'}
-                </div>
-              </div>
-            </div>
-
-            {/* FULL WIDTH: TradingView screenshot attachment */}
-            {trade.screenshot_url && (
-              <div className="bg-[#09090e]/40 p-4 border border-white/5 rounded-2xl space-y-3 col-span-1 md:col-span-2">
-                <span className="text-[10px] text-[#64748B] uppercase tracking-widest font-black block">Attached Chart Screenshot</span>
-                <div className="rounded-xl overflow-hidden border border-white/10 bg-[#09090e] shadow-lg relative group">
-                  <img src={trade.screenshot_url} alt="Attached TradingView screen" className="w-full h-auto object-contain max-h-96 mx-auto" />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
-                    <a 
-                      href={trade.screenshot_url} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="px-4 py-2 bg-primary hover:bg-primary/95 text-black rounded-lg text-xs font-black uppercase tracking-wider transition-transform hover:scale-105"
-                    >
-                      Open Original Image
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
-        </div>
-
-      </div>
-    </div>
-  )
+  }
 }
 
-// ── MAIN TRADE ANALYSIS PAGE COMPONENT ────────────────────────────────────────
+// Dynamic average stats generator for vs average comparison
+function calculateAverages(closedTrades: any[]) {
+  const winners = closedTrades.filter(t => (t.net_profit ?? 0) > 0)
+  const avgWinnerPnl = winners.length > 0
+    ? winners.reduce((sum, t) => sum + (t.net_profit ?? 0), 0) / winners.length
+    : 0
+
+  const withDuration = closedTrades.filter(t => t.duration_seconds != null)
+  const avgDurationSeconds = withDuration.length > 0
+    ? withDuration.reduce((sum, t) => sum + t.duration_seconds, 0) / withDuration.length
+    : 0
+
+  return {
+    avgWinnerPnl,
+    avgDurationSeconds
+  }
+}
+
 function TradeAnalysisContent() {
   const { activeAccount } = useAccounts()
   const { trades, loading } = useTrades(activeAccount?.id)
   const closed = getClosedTrades(trades)
-  const [selectedTrade, setSelectedTrade] = useState<any | null>(null)
   
+  const [selectedTrade, setSelectedTrade] = useState<any | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeTab, setActiveTab] = useState<'all' | 'winners' | 'losers'>('all')
+
   const searchParams = useSearchParams()
   const replayId = searchParams.get('replay')
+  const router = useRouter()
 
-  // Auto-trigger replay modal drawer if URL contains trade ID query parameter
+  // Sync parameters & auto-selection on mount
   useEffect(() => {
-    if (replayId && closed.length > 0) {
-      const match = closed.find(t => t.id === replayId)
-      if (match) {
-        setSelectedTrade(match)
+    if (closed.length > 0) {
+      if (replayId) {
+        const match = closed.find(t => t.id === replayId)
+        if (match) {
+          setSelectedTrade(match)
+          return
+        }
+      }
+      // If no replay parameter or match, select the first closed trade automatically
+      if (!selectedTrade) {
+        setSelectedTrade(closed[0])
       }
     }
   }, [replayId, closed])
 
+  // Reset selected trade if list becomes empty or account shifts
+  useEffect(() => {
+    if (closed.length === 0) {
+      setSelectedTrade(null)
+    } else if (selectedTrade && !closed.some(t => t.id === selectedTrade.id)) {
+      setSelectedTrade(closed[0])
+    }
+  }, [closed])
+
+  // Filter calculations
+  const filtered = closed.filter(t => {
+    const matchesSearch = String(t.symbol).toLowerCase().includes(searchQuery.toLowerCase())
+    if (!matchesSearch) return false
+
+    if (activeTab === 'winners') return (t.net_profit ?? 0) > 0
+    if (activeTab === 'losers') return (t.net_profit ?? 0) < 0
+    return true
+  })
+
+  // Global averages calculations
+  const { avgWinnerPnl, avgDurationSeconds } = calculateAverages(closed)
+
+  const handleSelectTrade = (trade: any) => {
+    setSelectedTrade(trade)
+    // Update the URL query params without breaking page states
+    router.replace(`/analysis/trade-analysis?replay=${trade.id}`, { scroll: false })
+  }
+
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Trade Analysis</h1>
-        <p className="text-sm text-[#64748B] mt-1">Deep dive into each trade's performance and run visual execution replays.</p>
+    <div className="p-4 md:p-6 max-w-[1400px] mx-auto space-y-6">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            <Brain className="w-5 h-5 text-primary" /> Trade Analysis
+          </h1>
+          <p className="text-xs md:text-sm text-[#64748B] mt-0.5">Evaluate execution discipline, review journal dossiers, and compare trade qualities.</p>
+        </div>
+        <div className="bg-[#12121A] border border-[#1A1A2E] px-3.5 py-1.5 rounded-xl text-xs font-bold hidden sm:block">
+          <span className="text-[#64748B]">Total Closed: </span>
+          <span className="font-extrabold text-white text-sm">{closed.length}</span>
+        </div>
       </div>
 
       {loading ? (
-        <div className="py-20 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="py-24 flex flex-col items-center justify-center space-y-4">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <span className="text-xs text-[#64748B] font-medium font-mono">Syncing database analysis console...</span>
         </div>
       ) : closed.length === 0 ? (
-        <div className="bg-[#12121a] border border-white/5 rounded-xl py-20 text-center">
-          <Hash className="w-10 h-10 mx-auto text-[#334155] mb-3" />
-          <p className="text-[#64748B]">No closed trades to analyze yet</p>
+        <div className="bg-[#12121a] border border-white/5 rounded-2xl py-24 text-center max-w-xl mx-auto space-y-4 shadow-xl">
+          <BarChart3 className="w-12 h-12 mx-auto text-[#1E293B] mb-2" />
+          <div className="space-y-1">
+            <p className="text-base font-bold text-white">No Closed Trades Available</p>
+            <p className="text-xs text-[#64748B] max-w-xs mx-auto">This account has no closed trades on record. Connect an active MT5 account or log trades manually to unlock performance dossiers.</p>
+          </div>
+          <div className="pt-2">
+            <Link href="/trades">
+              <button className="px-4 py-2 bg-primary hover:bg-primary/95 text-black font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-primary/20">
+                Log Manual Trade
+              </button>
+            </Link>
+          </div>
         </div>
       ) : (
-        <div className="bg-[#12121a] border border-white/5 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-[#334155] border-b border-white/5 bg-white/2">
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">#</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">Date</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">Symbol</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">Direction</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">Entry</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">Exit</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">Size</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">Duration</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">R:R</th>
-                <th className="text-right px-6 py-3 font-semibold text-[#64748B]">P&L</th>
-                <th className="text-left px-6 py-3 font-semibold text-[#64748B]">Setup</th>
-                <th className="text-right px-6 py-3 font-semibold text-[#64748B]">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.03]">
-              {closed.map((t, i) => {
-                const durationMin = t.duration_seconds ? Math.round(t.duration_seconds / 60) : null
-                const durationStr = durationMin
-                  ? durationMin < 60 ? `${durationMin}m`
-                    : durationMin < 1440 ? `${Math.round(durationMin / 60)}h`
-                    : `${Math.round(durationMin / 1440)}d`
-                  : '—'
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start h-[calc(100vh-170px)] md:h-[calc(100vh-200px)] overflow-hidden">
+          
+          {/* LEFT SIDEBAR: Trades list panel */}
+          <div className={cn(
+            "col-span-1 bg-[#12121A] border border-white/5 rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl transition-all duration-300",
+            selectedTrade && "hidden lg:flex"
+          )}>
+            {/* Sidebar Top Filter Box */}
+            <div className="p-4 border-b border-white/5 space-y-3 shrink-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-white/95 uppercase tracking-wider">Trading Sessions</span>
+                <span className="text-[10px] px-2 py-0.5 bg-white/5 rounded font-black text-[#64748B] uppercase border border-white/5">{filtered.length} trades</span>
+              </div>
+              
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-[#64748B] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search symbol..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#09090E] border border-white/5 focus:border-[#F59E0B]/50 rounded-xl py-2 pl-9 pr-4 text-xs font-bold text-white placeholder-slate-600 focus:outline-none transition-all"
+                />
+              </div>
 
-                return (
-                  <tr key={t.id} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="px-6 py-3.5 text-[#334155] font-mono text-xs">{i + 1}</td>
-                    <td className="px-6 py-3.5 text-xs text-[#64748B]">
-                      {t.close_time ? format(new Date(t.close_time), 'MMM dd, HH:mm') : '—'}
-                    </td>
-                    <td className="px-6 py-3.5 font-bold text-white">{t.symbol}</td>
-                    <td className="px-6 py-3.5">
-                      <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-semibold',
-                        t.direction === 'buy' ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-[#EF4444]')}>
-                        {t.direction === 'buy' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {t.direction === 'buy' ? 'Long' : 'Short'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 font-mono text-[#94A3B8] text-xs">${t.entry_price?.toFixed(2) ?? '—'}</td>
-                    <td className="px-6 py-3.5 font-mono text-[#94A3B8] text-xs">${t.exit_price?.toFixed(2) ?? '—'}</td>
-                    <td className="px-6 py-3.5 text-[#94A3B8] text-xs">{t.lot_size ?? '—'}</td>
-                    <td className="px-6 py-3.5 text-xs text-[#64748B]">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-[#64748B]" /> {durationStr}
+              {/* Filtering tabs */}
+              <div className="flex bg-[#09090E] rounded-xl p-1 gap-1 text-[10px] uppercase font-black border border-white/5">
+                {(['all', 'winners', 'losers'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={cn(
+                      'flex-1 py-2 rounded-lg text-center transition-all duration-200 active:scale-95',
+                      activeTab === tab 
+                        ? 'bg-primary text-black shadow-md shadow-primary/10' 
+                        : 'text-[#64748B] hover:text-white'
+                    )}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Vertical Scroll List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar">
+              {filtered.length === 0 ? (
+                <div className="py-12 text-center text-xs text-[#64748B] italic">
+                  No matching sessions logged.
+                </div>
+              ) : (
+                filtered.map(t => {
+                  const isSelected = selectedTrade?.id === t.id
+                  const isProfit = (t.net_profit ?? 0) >= 0
+                  const isBuy = t.direction === 'buy'
+
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => handleSelectTrade(t)}
+                      className={cn(
+                        "p-4 rounded-xl cursor-pointer transition-all duration-300 border relative group",
+                        isSelected 
+                          ? "bg-[#09090E] border-[#F59E0B]/50 shadow-[0_0_15px_rgba(245,159,11,0.05)]" 
+                          : "bg-[#0F0F18]/40 border-white/[0.02] hover:bg-[#0F0F18] hover:border-white/10"
+                      )}
+                    >
+                      {/* Selected edge glow accent */}
+                      {isSelected && (
+                        <div className="absolute left-0 top-3 bottom-3 w-1 bg-primary rounded-r" />
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black text-white group-hover:text-primary transition-colors flex items-center gap-1.5">
+                            {t.symbol}
+                            {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+                          </span>
+                          <span className="text-[10px] text-[#64748B] font-semibold mt-1">
+                            {t.close_time ? format(new Date(t.close_time), 'MMM dd, HH:mm') : '—'}
+                          </span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className={cn(
+                            "text-xs font-black font-mono tracking-tight",
+                            isProfit ? "text-[#22C55E]" : "text-[#EF4444]"
+                          )}>
+                            {isProfit ? '+' : ''}{t.net_profit != null ? fmt(t.net_profit) : '—'}
+                          </span>
+                          <div className="flex items-center gap-1 justify-end mt-1">
+                            <span className={cn(
+                              "text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded border shrink-0",
+                              isBuy
+                                ? "bg-[#22C55E]/10 border-[#22C55E]/20 text-[#22C55E]"
+                                : "bg-[#EF4444]/10 border-[#EF4444]/20 text-[#EF4444]"
+                            )}>
+                              {isBuy ? 'Long' : 'Short'}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-3.5 text-xs">
-                      {t.rr_ratio != null ? (
-                        <span className={cn('font-bold', t.rr_ratio >= 1.5 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                          1:{t.rr_ratio.toFixed(2)}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-6 py-3.5 text-right font-mono">
-                      <span className={cn('font-bold tabular-nums', (t.net_profit ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                        {t.net_profit !== null ? fmt(t.net_profit) : '—'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      {t.setup_tag ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-bold uppercase tracking-wider">{t.setup_tag}</span>
-                      ) : <span className="text-[#334155]">—</span>}
-                    </td>
-                    <td className="px-6 py-3.5 text-right">
-                      <button
-                        onClick={() => setSelectedTrade(t)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 rounded-lg text-xs font-bold text-primary transition-all active:scale-95 shadow-[0_0_10px_rgba(245,159,11,0.05)]"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-primary" /> Trade Replay
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
 
-      {selectedTrade && (
-        <ReplayDrawer 
-          trade={selectedTrade} 
-          onClose={() => setSelectedTrade(null)} 
-        />
+          {/* RIGHT PANEL: Notion dossier and analytics detail panel */}
+          <div className={cn(
+            "col-span-1 lg:col-span-2 flex flex-col h-full overflow-y-auto pr-1 bg-[#12121A]/30 lg:bg-transparent rounded-2xl lg:p-0 p-4 border border-white/5 lg:border-none",
+            !selectedTrade && "hidden lg:flex"
+          )}>
+            {selectedTrade ? (
+              <div className="space-y-6">
+                
+                {/* Mobile Back Button */}
+                <button
+                  onClick={() => setSelectedTrade(null)}
+                  className="lg:hidden flex items-center gap-1.5 text-xs font-bold text-[#64748B] hover:text-white pb-2"
+                >
+                  <ChevronLeft className="w-4 h-4" /> Back to Trades list
+                </button>
+
+                {/* Trade Executive Summary Banner */}
+                <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden">
+                  
+                  {/* Subtle background glow */}
+                  <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-xl md:text-2xl font-black text-white tracking-tight">{selectedTrade.symbol}</span>
+                        <span className={cn(
+                          "text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded border",
+                          (selectedTrade.net_profit ?? 0) >= 0
+                            ? "bg-[#22C55E]/15 border-[#22C55E]/30 text-[#22C55E]"
+                            : "bg-[#EF4444]/15 border-[#EF4444]/30 text-[#EF4444]"
+                        )}>
+                          {(selectedTrade.net_profit ?? 0) >= 0 ? '🏆 Winner' : '💀 Loser'}
+                        </span>
+                        
+                        {/* Score Indicator Badge */}
+                        <span className={cn(
+                          "text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded border",
+                          calculateTradeQualityScore(selectedTrade).total >= 80 
+                            ? "bg-[#22C55E]/10 border-[#22C55E]/20 text-[#22C55E]" 
+                            : calculateTradeQualityScore(selectedTrade).total >= 60 
+                            ? "bg-[#3B82F6]/10 border-[#3B82F6]/20 text-[#3B82F6]"
+                            : calculateTradeQualityScore(selectedTrade).total >= 40 
+                            ? "bg-[#F59E0B]/10 border-[#F59E0B]/20 text-[#F59E0B]"
+                            : "bg-[#EF4444]/10 border-[#EF4444]/20 text-[#EF4444]"
+                        )}>
+                          Score: {calculateTradeQualityScore(selectedTrade).total}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-[#64748B] font-semibold">
+                        <span className="capitalize">{selectedTrade.direction === 'buy' ? '↗ Buy Order' : '↘ Sell Order'}</span>
+                        <span className="text-white/20">•</span>
+                        <span>Opened: {selectedTrade.open_time ? format(new Date(selectedTrade.open_time), 'MMM dd, HH:mm') : '—'}</span>
+                        <span className="text-white/20">•</span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          {selectedTrade.duration_seconds ? (
+                            selectedTrade.duration_seconds < 60 ? `${selectedTrade.duration_seconds}s` :
+                            selectedTrade.duration_seconds < 3600 ? `${Math.round(selectedTrade.duration_seconds / 60)}m` :
+                            `${(selectedTrade.duration_seconds / 3600).toFixed(1)}h`
+                          ) : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="md:text-right border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
+                      <span className="text-[10px] text-[#64748B] uppercase tracking-widest font-black block mb-1">Session Profit & Loss</span>
+                      <span className={cn(
+                        "text-2xl md:text-3xl font-black font-mono tracking-tight block",
+                        (selectedTrade.net_profit ?? 0) >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"
+                      )}>
+                        {(selectedTrade.net_profit ?? 0) >= 0 ? '+' : ''}{selectedTrade.net_profit != null ? fmt(selectedTrade.net_profit) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4-Grid Metrics Ribbon */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Entry Price', value: selectedTrade.entry_price ? `$${Number(selectedTrade.entry_price).toFixed(2)}` : '—' },
+                    { label: 'Exit Price', value: selectedTrade.exit_price ? `$${Number(selectedTrade.exit_price).toFixed(2)}` : '—' },
+                    { label: 'Quantity / Lot', value: selectedTrade.lot_size ?? '—' },
+                    { 
+                      label: 'Price Move %', 
+                      value: (() => {
+                        if (!selectedTrade.entry_price || !selectedTrade.exit_price) return '—'
+                        const diff = Number(selectedTrade.exit_price) - Number(selectedTrade.entry_price)
+                        const pct = (diff / Number(selectedTrade.entry_price)) * 100
+                        const adjusted = selectedTrade.direction === 'buy' ? pct : -pct
+                        return (adjusted >= 0 ? '+' : '') + adjusted.toFixed(2) + '%'
+                      })(),
+                      colorClass: (() => {
+                        if (!selectedTrade.entry_price || !selectedTrade.exit_price) return 'text-[#94A3B8]'
+                        const diff = Number(selectedTrade.exit_price) - Number(selectedTrade.entry_price)
+                        const pct = (diff / Number(selectedTrade.entry_price)) * 100
+                        const adjusted = selectedTrade.direction === 'buy' ? pct : -pct
+                        return adjusted >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'
+                      })()
+                    }
+                  ].map((metric, idx) => (
+                    <div key={idx} className="bg-[#12121A] border border-white/5 rounded-2xl p-4 space-y-1.5 shadow-md">
+                      <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">{metric.label}</span>
+                      <span className={cn("text-base font-extrabold text-white font-mono tracking-tight", metric.colorClass)}>
+                        {metric.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── PREMIUM TRADE REPLAY NOT AVAILABLE PLACEHOLDER ───────────────── */}
+                <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
+                      <BarChart3 className="w-4 h-4 text-primary" /> Visual Replay Simulator
+                    </h3>
+                    <span className="text-[8px] px-2 py-0.5 bg-[#EF4444]/10 text-[#EF4444] rounded border border-[#EF4444]/20 font-black uppercase tracking-wider">Replay Locked</span>
+                  </div>
+
+                  {/* High Fidelity Glassmorphic Simulator Placeholder */}
+                  <div className="bg-[#09090E]/60 border border-white/5 rounded-xl p-10 flex flex-col items-center justify-center text-center space-y-4 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 pointer-events-none" />
+                    
+                    {/* Simulated blurred candle matrix background */}
+                    <div className="absolute inset-x-0 top-0 bottom-8 flex justify-around items-end opacity-[0.01] pointer-events-none">
+                      {[40, 60, 20, 80, 50, 90, 30, 70, 45, 65].map((h, i) => (
+                        <div key={i} className="w-4 bg-white" style={{ height: `${h}%` }} />
+                      ))}
+                    </div>
+
+                    <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-500 shadow-inner scale-110">
+                      <Clock className="w-6 h-6 text-[#64748B]" />
+                    </div>
+
+                    <div className="space-y-1 z-10 max-w-sm">
+                      <h4 className="text-sm font-extrabold text-white">Trade Replay Not Available</h4>
+                      <p className="text-xs text-[#64748B] leading-relaxed">
+                        This session was synchronized or created manually. Connect a verified commercial terminal (MT5) to activate deep-tick multi-timeframe replays and candle simulations.
+                      </p>
+                    </div>
+
+                    <div className="pt-2 z-10">
+                      <Link href="/connect">
+                        <button className="flex items-center gap-1.5 px-4.5 py-2.5 bg-white/5 hover:bg-white/10 text-white font-bold text-xs uppercase tracking-wider rounded-xl border border-white/10 transition-all hover:scale-105 active:scale-95 shadow-lg">
+                          Connect Terminal <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── NOTION DOSSIER DETAILED WORKSPACE GRID ──────────────────────── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  
+                  {/* CARD 1: Journal Entries Dossier */}
+                  <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-5 flex flex-col justify-between h-full min-h-[380px]">
+                    
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
+                        <BookOpen className="w-4 h-4 text-primary" /> Session Journal Entry
+                      </h3>
+                      {selectedTrade.setup_tag || selectedTrade.notes ? (
+                        <span className="text-[8px] px-2 py-0.5 bg-[#22C55E]/10 text-[#22C55E] rounded border border-[#22C55E]/20 font-black uppercase tracking-wider">Journaled</span>
+                      ) : (
+                        <span className="text-[8px] px-2 py-0.5 bg-[#F59E0B]/10 text-[#F59E0B] rounded border border-[#F59E0B]/20 font-black uppercase tracking-wider">Not Journaled</span>
+                      )}
+                    </div>
+
+                    {/* Content Details */}
+                    <div className="flex-1 flex flex-col justify-center space-y-4 pt-1">
+                      {selectedTrade.setup_tag || selectedTrade.notes || selectedTrade.emotion_before || selectedTrade.emotion_after ? (
+                        <div className="space-y-4 text-left">
+                          {/* Strategy tag */}
+                          {selectedTrade.setup_tag && (
+                            <div className="space-y-1.5">
+                              <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Strategy Setup Pattern</span>
+                              <span className="inline-flex px-3 py-1 bg-primary/10 border border-primary/20 text-primary text-xs font-black rounded-lg uppercase tracking-wider">
+                                {selectedTrade.setup_tag}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Emotions Profiling */}
+                          {(selectedTrade.emotion_before || selectedTrade.emotion_after) && (
+                            <div className="space-y-1.5">
+                              <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Mindset Capsules</span>
+                              <div className="flex items-center gap-3">
+                                {selectedTrade.emotion_before && (
+                                  <div className="flex flex-col space-y-0.5">
+                                    <span className="text-[8px] text-[#64748B] font-bold uppercase tracking-wider">Before Entry</span>
+                                    {getEmotionCapsule(selectedTrade.emotion_before)}
+                                  </div>
+                                )}
+                                {selectedTrade.emotion_after && (
+                                  <div className="flex flex-col space-y-0.5">
+                                    <span className="text-[8px] text-[#64748B] font-bold uppercase tracking-wider">After Exit</span>
+                                    {getEmotionCapsule(selectedTrade.emotion_after)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Notes Quotes */}
+                          {selectedTrade.notes && (
+                            <div className="space-y-1.5">
+                              <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Lessons Logged</span>
+                              <div className="border-l-2 border-[#F59E0B] bg-[#09090E]/60 p-3.5 rounded-r-xl text-xs text-slate-300 italic whitespace-pre-wrap font-medium shadow-inner">
+                                "{selectedTrade.notes}"
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Paste Screenshot Thumbnail */}
+                          {selectedTrade.screenshot_url && (
+                            <div className="space-y-1.5">
+                              <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Pasted Screenshot</span>
+                              <div className="relative rounded-xl overflow-hidden border border-white/10 max-w-[200px] bg-black">
+                                <img src={selectedTrade.screenshot_url} alt="Attached trade chart" className="w-full h-auto object-cover max-h-24 opacity-80" />
+                                <a 
+                                  href={selectedTrade.screenshot_url} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center text-[9px] uppercase tracking-widest font-black text-white"
+                                >
+                                  Open Image
+                                </a>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 space-y-3">
+                          <AlertCircle className="w-8 h-8 text-[#64748B] mx-auto opacity-40" />
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-white">Empty Journal Log</p>
+                            <p className="text-[10px] text-[#64748B] max-w-xs mx-auto leading-relaxed">
+                              You haven't logged your mental states, trading setups, checklists, or notes for this trade session yet. 
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer buttons redirecting loop */}
+                    <div className="pt-4 border-t border-white/5">
+                      <Link href={`/journal?tradeId=${selectedTrade.id}`}>
+                        <button className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 rounded-xl text-xs font-black text-primary transition-all active:scale-98">
+                          <FileText className="w-3.5 h-3.5" /> 
+                          {selectedTrade.setup_tag || selectedTrade.notes ? 'Edit Journal Entry' : 'Add Journal Entry'}
+                        </button>
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* CARD 2: Dynamic Trade Quality Score */}
+                  {(() => {
+                    const { total: score, breakdown } = calculateTradeQualityScore(selectedTrade)
+                    
+                    // Circular Progress variables
+                    const radius = 38
+                    const circumference = 2 * Math.PI * radius
+                    const strokeDashoffset = circumference - (score / 100) * circumference
+
+                    // Color themed selections
+                    let strokeColor = 'stroke-[#EF4444]'
+                    let textColor = 'text-[#EF4444]'
+                    let label = 'Needs Work'
+                    let glowColor = 'shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                    
+                    if (score >= 80) {
+                      strokeColor = 'stroke-[#22C55E]'
+                      textColor = 'text-[#22C55E]'
+                      label = 'Excellent Plan'
+                      glowColor = 'shadow-[0_0_15px_rgba(34,197,94,0.2)]'
+                    } else if (score >= 60) {
+                      strokeColor = 'stroke-[#3B82F6]'
+                      textColor = 'text-[#3B82F6]'
+                      label = 'Good Plan'
+                      glowColor = 'shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                    } else if (score >= 40) {
+                      strokeColor = 'stroke-[#F59E0B]'
+                      textColor = 'text-[#F59E0B]'
+                      label = 'Average'
+                      glowColor = 'shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                    }
+
+                    return (
+                      <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-5 flex flex-col justify-between h-full min-h-[380px]">
+                        
+                        {/* Header */}
+                        <div className="flex items-center justify-between border-b border-white/5 pb-3 shrink-0">
+                          <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
+                            <Sparkles className="w-4 h-4 text-primary" /> Session Discipline Score
+                          </h3>
+                          <span className={cn("text-[9px] px-2 py-0.5 rounded font-black uppercase tracking-wider border bg-white/[0.02]", textColor, strokeColor.replace('stroke', 'border'))}>
+                            {label}
+                          </span>
+                        </div>
+
+                        {/* Circular Visualization Panel */}
+                        <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-2">
+                          <div className="relative flex items-center justify-center">
+                            <svg className="w-24 h-24 transform -rotate-90">
+                              <circle
+                                cx="48"
+                                cy="48"
+                                r={radius}
+                                className="stroke-white/[0.02] fill-transparent"
+                                strokeWidth="6.5"
+                              />
+                              <circle
+                                cx="48"
+                                cy="48"
+                                r={radius}
+                                className={cn("fill-transparent transition-all duration-700", strokeColor)}
+                                strokeWidth="6.5"
+                                strokeDasharray={circumference}
+                                strokeDashoffset={strokeDashoffset}
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-0.5">
+                              <span className={cn("text-2xl font-black font-mono tracking-tighter block", textColor)}>{score}</span>
+                              <span className="text-[8px] uppercase tracking-widest text-[#64748B] font-extrabold block">Points</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Component Progress Bars Breakdown */}
+                        <div className="space-y-3 shrink-0">
+                          {[
+                            { label: 'Profitability', current: breakdown.profitability, max: 30 },
+                            { label: 'Execution', current: breakdown.execution, max: 40 },
+                            { label: 'Journal Quality', current: breakdown.journal, max: 20 },
+                            { label: 'Rating Contribution', current: breakdown.rating, max: 10 }
+                          ].map((item, idx) => {
+                            const pct = (item.current / item.max) * 100
+                            return (
+                              <div key={idx} className="space-y-1">
+                                <div className="flex items-center justify-between text-[10px] font-bold">
+                                  <span className="text-[#64748B]">{item.label}</span>
+                                  <span className="text-white font-mono">{item.current} / {item.max} pts</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-[#09090E] rounded-full overflow-hidden border border-white/[0.02]">
+                                  <div 
+                                    className="h-full bg-primary rounded-full transition-all duration-700" 
+                                    style={{ width: `${pct}%` }} 
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                {/* AI Insights & Performance comparison (vs average) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* AI Insights */}
+                  <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                        <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
+                          <Percent className="w-4 h-4 text-primary" /> AI Pattern Analysis
+                        </h3>
+                        <span className="text-[8px] px-2 py-0.5 bg-[#3B82F6]/10 text-[#3B82F6] rounded border border-[#3B82F6]/20 font-black uppercase tracking-wider">Coming Soon</span>
+                      </div>
+                      <p className="text-xs text-[#64748B] leading-relaxed">
+                        Personalized AI analysis evaluates strategy patterns, identifies behavioral biases, and alerts you about structural emotional weaknesses based on your historical journals.
+                      </p>
+                    </div>
+                    <div className="pt-4 mt-4 border-t border-white/5">
+                      <Link href="/ai-report">
+                        <button className="w-full flex items-center justify-center gap-1 px-4 py-2 bg-[#09090E] border border-white/5 hover:border-white/10 rounded-xl text-xs font-bold text-[#64748B] hover:text-white transition-all">
+                          Open AI Hub <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* VS Average comparison */}
+                  <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
+                        <BarChart3 className="w-4 h-4 text-primary" /> Session Comparative Metrics
+                      </h3>
+                      <span className="text-[8px] px-2 py-0.5 bg-white/5 text-[#64748B] rounded border border-white/5 font-black uppercase tracking-wider font-mono">VS Benchmark</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      
+                      {/* Metric win */}
+                      <div className="bg-[#09090E]/60 border border-white/5 rounded-xl p-3.5 text-center space-y-1">
+                        <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Vs Average Winner</span>
+                        <span className={cn(
+                          "text-sm font-extrabold font-mono",
+                          (selectedTrade.net_profit ?? 0) >= avgWinnerPnl ? "text-[#22C55E]" : "text-[#EF4444]"
+                        )}>
+                          {selectedTrade.net_profit != null && avgWinnerPnl > 0
+                            ? `${(((selectedTrade.net_profit) / avgWinnerPnl) * 100).toFixed(0)}%`
+                            : '—'}
+                        </span>
+                        <span className="text-[8px] text-[#64748B] block">avg: ${avgWinnerPnl.toFixed(0)}</span>
+                      </div>
+
+                      {/* Metric hold */}
+                      <div className="bg-[#09090E]/60 border border-white/5 rounded-xl p-3.5 text-center space-y-1">
+                        <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Hold Duration Ratio</span>
+                        <span className="text-sm font-extrabold font-mono text-white">
+                          {selectedTrade.duration_seconds && avgDurationSeconds > 0
+                            ? `${(selectedTrade.duration_seconds / avgDurationSeconds).toFixed(1)}x`
+                            : '—'}
+                        </span>
+                        <span className="text-[8px] text-[#64748B] block">
+                          avg: {avgDurationSeconds ? (
+                            avgDurationSeconds < 60 ? `${avgDurationSeconds.toFixed(0)}s` :
+                            avgDurationSeconds < 3600 ? `${Math.round(avgDurationSeconds / 60)}m` :
+                            `${(avgDurationSeconds / 3600).toFixed(1)}h`
+                          ) : '—'}
+                        </span>
+                      </div>
+
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            ) : (
+              <div className="bg-[#12121A] border border-white/5 rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-3 h-full">
+                <BookOpen className="w-12 h-12 text-[#1E293B]" />
+                <h4 className="text-sm font-extrabold text-white">No Session Highlighted</h4>
+                <p className="text-xs text-[#64748B] max-w-xs mx-auto">Click any closed trade in the left column list to review structured Notion logs, performance stars, and checklists.</p>
+              </div>
+            )}
+          </div>
+
+        </div>
       )}
     </div>
   )
@@ -684,7 +773,7 @@ function TradeAnalysisContent() {
 export default function TradeAnalysisPage() {
   return (
     <Suspense fallback={
-      <div className="py-20 flex items-center justify-center">
+      <div className="py-24 flex items-center justify-center">
         <Loader2 className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     }>

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
 import { getClosedTrades, fmt } from '@/lib/calculations'
@@ -164,6 +165,7 @@ function TradeJournalCard({
 
   return (
     <motion.div
+      id={`trade-card-${trade.id}`}
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -450,7 +452,7 @@ function TradeJournalCard({
   )
 }
 
-export default function JournalPage() {
+function JournalPageContent() {
   const { activeAccount } = useAccounts()
   const { trades, loading } = useTrades(activeAccount?.id)
   const closed = getClosedTrades(trades)
@@ -459,6 +461,27 @@ export default function JournalPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [profileChecklist, setProfileChecklist] = useState<string[]>([])
   const [profileSetups, setProfileSetups] = useState<{name: string, description: string}[]>([])
+
+  const searchParams = useSearchParams()
+  const tradeId = searchParams.get('tradeId')
+
+  // Auto-expand & scroll trade card if tradeId is in query parameters
+  useEffect(() => {
+    if (tradeId && closed.length > 0) {
+      const match = closed.some(t => t.id === tradeId)
+      if (match) {
+        setExpandedId(tradeId)
+        
+        // Let expanding animation start and scroll card into view
+        setTimeout(() => {
+          const el = document.getElementById(`trade-card-${tradeId}`)
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 400)
+      }
+    }
+  }, [tradeId, closed])
 
   useEffect(() => {
     async function load() {
@@ -520,5 +543,15 @@ export default function JournalPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function JournalPage() {
+  return (
+    <Suspense fallback={
+      <div className="py-20 text-center text-[#64748B]">Loading journal entries...</div>
+    }>
+      <JournalPageContent />
+    </Suspense>
   )
 }
