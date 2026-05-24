@@ -131,51 +131,133 @@ string GetBalanceJson()
 }
 
 //+------------------------------------------------------------------+
+//| Struct and helpers for ultra-fast memory-based deal matching     |
+//+------------------------------------------------------------------+
+struct InDealInfo
+{
+   long   posId;
+   double price;
+   long   time;
+   int    type;
+};
+
+// Memory-only QuickSort to sort IN deals by position ID
+void QuickSortInDeals(InDealInfo &arr[], int left, int right)
+{
+   if(left >= right) return;
+   
+   int i = left, j = right;
+   long pivot = arr[(left + right) / 2].posId;
+   
+   while(i <= j)
+   {
+      while(arr[i].posId < pivot) i++;
+      while(arr[j].posId > pivot) j--;
+      
+      if(i <= j)
+      {
+         InDealInfo temp = arr[i];
+         arr[i] = arr[j];
+         arr[j] = temp;
+         i++;
+         j--;
+      }
+   }
+   
+   QuickSortInDeals(arr, left, j);
+   QuickSortInDeals(arr, i, right);
+}
+
+// Memory-only Binary Search to find matching IN deal by position ID
+int BinarySearchInDeals(const InDealInfo &arr[], int size, long posId)
+{
+   int left = 0;
+   int right = size - 1;
+   
+   while(left <= right)
+   {
+      int mid = left + (right - left) / 2;
+      if(arr[mid].posId == posId)
+      {
+         return mid;
+      }
+      if(arr[mid].posId < posId)
+      {
+         left = mid + 1;
+      }
+      else
+      {
+         right = mid - 1;
+      }
+   }
+   return -1;
+}
+
+//+------------------------------------------------------------------+
 //| 2. Closed deals from last HistoryDays                           |
 //+------------------------------------------------------------------+
 string GetClosedDealsJson()
 {
    datetime fromDate = TimeCurrent() - (datetime)(HistoryDays * 86400);
    if(!HistorySelect(fromDate, TimeCurrent())) return "";
-
+ 
    int total = HistoryDealsTotal();
    if(total == 0) return "";
-
-   // ── Pass 1: Collect all OUT tickets to preserve list before switching history selection ──
+ 
+   // ── Pass 1: Collect all IN deals and OUT tickets in a single scan ──
+   InDealInfo inDeals[];
    ulong out_tickets[];
+   ArrayResize(inDeals, total);
    ArrayResize(out_tickets, total);
-   int out_count = 0;
-
+   
+   int inCount = 0;
+   int outCount = 0;
+   
    for(int i = 0; i < total; i++)
    {
       ulong t = HistoryDealGetTicket(i);
       if(!t) continue;
-
+      
       ENUM_DEAL_ENTRY entry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(t, DEAL_ENTRY);
-      if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_INOUT) continue;
-
-      string sym = HistoryDealGetString(t, DEAL_SYMBOL);
-      if(sym == "") continue; // skip deposits / balance ops
-
-      out_tickets[out_count] = t;
-      out_count++;
+      if(entry == DEAL_ENTRY_IN)
+      {
+         inDeals[inCount].posId = HistoryDealGetInteger(t, DEAL_POSITION_ID);
+         inDeals[inCount].price = HistoryDealGetDouble(t, DEAL_PRICE);
+         inDeals[inCount].time  = HistoryDealGetInteger(t, DEAL_TIME);
+         inDeals[inCount].type  = (int)HistoryDealGetInteger(t, DEAL_TYPE);
+         inCount++;
+      }
+      else if(entry == DEAL_ENTRY_OUT || entry == DEAL_ENTRY_INOUT)
+      {
+         string sym = HistoryDealGetString(t, DEAL_SYMBOL);
+         if(sym != "") // skip deposits / balance ops
+         {
+            out_tickets[outCount] = t;
+            outCount++;
+         }
+      }
    }
-
-   if(out_count == 0) return "";
-
-   // ── Pass 2: Build JSON using fast indexed HistorySelectByPosition ──
+   
+   if(outCount == 0) return "";
+   
+   // ── Sort the IN deals by posId for fast binary searching ──
+   if(inCount > 1)
+   {
+      QuickSortInDeals(inDeals, 0, inCount - 1);
+   }
+   
+   // ── Pass 2: Build JSON for OUT deals using binary search matching ──
    string arr = "[";
    bool   first = true;
    int    count = 0;
-
-   for(int i = 0; i < out_count; i++)
+ 
+   for(int i = 0; i < outCount; i++)
    {
       ulong t = out_tickets[i];
-
+ 
       // Retrieve properties for the OUT deal
-      // We must explicitly select the deal first to populate the HistoryDeal cache
       if(!HistoryDealSelect(t)) continue;
-
+ 
       string sym = HistoryDealGetString(t, DEAL_SYMBOL);
       long   posId  = HistoryDealGetInteger(t, DEAL_POSITION_ID);
       double vol    = HistoryDealGetDouble(t,  DEAL_VOLUME);
@@ -184,28 +266,20 @@ string GetClosedDealsJson()
       double swap   = HistoryDealGetDouble(t,  DEAL_SWAP);
       double comm   = HistoryDealGetDouble(t,  DEAL_COMMISSION);
       long   ctime  = HistoryDealGetInteger(t, DEAL_TIME);
-
-      // Fast indexed query for the matching DEAL_ENTRY_IN deal
+ 
+      // Match with IN deal to get true entry price & direction
       double entryPx = exitPx;
       long   otime   = ctime;
       string dir     = "buy";
-
-      if(HistorySelectByPosition(posId))
+ 
+      int idx = BinarySearchInDeals(inDeals, inCount, posId);
+      if(idx != -1)
       {
-         int p_total = HistoryDealsTotal();
-         for(int p_idx = 0; p_idx < p_total; p_idx++)
-         {
-            ulong t_in = HistoryDealGetTicket(p_idx);
-            if(t_in && (ENUM_DEAL_ENTRY)HistoryDealGetInteger(t_in, DEAL_ENTRY) == DEAL_ENTRY_IN)
-            {
-               entryPx = HistoryDealGetDouble(t_in, DEAL_PRICE);
-               otime   = HistoryDealGetInteger(t_in, DEAL_TIME);
-               dir     = ((ENUM_DEAL_TYPE)HistoryDealGetInteger(t_in, DEAL_TYPE) == DEAL_TYPE_BUY) ? "buy" : "sell";
-               break;
-            }
-         }
+         entryPx = inDeals[idx].price;
+         otime   = inDeals[idx].time;
+         dir     = (inDeals[idx].type == DEAL_TYPE_BUY) ? "buy" : "sell";
       }
-
+ 
       if(!first) arr += ",";
       arr += StringFormat(
          "{\"mt5_ticket\":%d,\"position_id\":%d,\"symbol\":\"%s\","
