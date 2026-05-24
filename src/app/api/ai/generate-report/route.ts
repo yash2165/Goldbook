@@ -11,6 +11,8 @@ import {
   checkRuleViolations,
   buildEmotionStats,
   compilePsychologicalTelemetry,
+  compileLinguisticTelemetry,
+  journalQualityGate,
   type TradingRule,
 } from '@/lib/ai'
 import type { Trade } from '@/lib/calculations'
@@ -53,6 +55,20 @@ export async function POST(req: Request) {
       )
     }
 
+    // ── 1.5. Journal Quality Gate ───────────────────────────────────────────
+    const quality = journalQualityGate(allTrades)
+    if (!quality.pass) {
+      return NextResponse.json({ error: quality.message }, { status: 400 })
+    }
+
+    // Fetch user's trading style from profiles
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('trading_style')
+      .eq('id', user.id)
+      .single()
+    const tradingStyle = profile?.trading_style || 'day_trading'
+
     // ── 2. Fetch active trading rules ───────────────────────────────────────
     const { data: rulesData } = await supabase
       .from('trading_rules')
@@ -70,7 +86,7 @@ export async function POST(req: Request) {
     }
 
     const { violations: ruleViolations, revengeTradeCount } =
-      checkRuleViolations(allTrades, activeRules, accountBalance)
+      checkRuleViolations(allTrades, activeRules, accountBalance, tradingStyle)
 
     // ── 4. Build emotion stats from journal ─────────────────────────────────
     const emotionStats = buildEmotionStats(allTrades)
@@ -84,6 +100,9 @@ export async function POST(req: Request) {
     // ── 6. Compute deep psychological telemetry ─────────────────────────────
     const telemetry = compilePsychologicalTelemetry(allTrades)
 
+    // ── 6.5. Compute linguistic telemetry ───────────────────────────────────
+    const linguisticTelemetry = compileLinguisticTelemetry(allTrades)
+
     // ── 7. Call AI coach ────────────────────────────────────────────────────
     const { report, provider } = await generateAIReport({
       stats,
@@ -96,6 +115,7 @@ export async function POST(req: Request) {
       revengeTradeCount,
       period: 'alltime',
       telemetry,
+      linguisticTelemetry,
     })
 
     // ── 8. Save report to DB ────────────────────────────────────────────────
@@ -128,6 +148,7 @@ export async function POST(req: Request) {
         cognitive_biases: report.cognitive_biases ?? [],
         emotion_correlations: report.emotion_correlations ?? [],
         discipline_breaches_correlation: report.discipline_breaches_correlation ?? '',
+        linguistic_telemetry: linguisticTelemetry,
       },
       rules_violations_count: ruleViolations.reduce((s, v) => s + v.count, 0),
       rules_compliance_score: report.rules_compliance_score ?? null,

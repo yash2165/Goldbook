@@ -1,66 +1,36 @@
 'use client'
 
-import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  ArrowRight, 
-  Bot, 
-  Shield, 
-  Zap, 
-  BarChart2, 
-  BookOpen, 
-  Activity, 
-  ChevronRight, 
-  CheckCircle2, 
-  Volume2, 
-  TrendingUp, 
-  AlertTriangle, 
-  Users, 
-  Lock, 
-  Clock, 
-  Plus, 
-  Check, 
-  DollarSign, 
-  Play, 
-  X,
-  FileText
+  ArrowRight, Bot, Shield, Zap, BarChart2, BookOpen, Activity, 
+  ChevronRight, CheckCircle2, XCircle, Volume2, TrendingUp, AlertTriangle, 
+  Users, Lock, Clock, Plus, Check, DollarSign, Play, X, FileText, Award, Scale, Timer, Gauge
 } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
-import { InteractiveBackground } from '@/components/InteractiveBackground'
-import FloatingLines from '@/components/FloatingLines'
 import GoldBookLogo from '@/components/GoldBookLogo'
 
-// Reusable animated container variant
-const fadeUp = (delay = 0) => ({
-  initial: { opacity: 0, y: 30 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: "-100px" },
-  transition: { duration: 0.7, delay, ease: [0.21, 0.47, 0.32, 0.98] as any },
-})
+// Reusable custom Obsidian UI Components
+import dynamic from 'next/dynamic'
 
-const STATIC_LINES_GRADIENT = ['#FFD700', '#F59E0B', '#B8860B', '#996515']
-const STATIC_ENABLED_WAVES: ('top' | 'middle' | 'bottom')[] = ['top', 'bottom', 'middle']
-const STATIC_LINE_DISTANCE = [6, 5, 4]
+const ParticleBackground = dynamic(
+  () => import('@/components/obsidian/ParticleBackground').then(mod => mod.ParticleBackground),
+  { ssr: false }
+)
 
+import { ParallaxSection } from '@/components/obsidian/ParallaxSection'
+import { ScrollReveal } from '@/components/obsidian/ScrollReveal'
+import { MagneticButton } from '@/components/obsidian/MagneticButton'
+import { LiquidProgress } from '@/components/obsidian/LiquidProgress'
+import { HolographicTilt } from '@/components/obsidian/HolographicTilt'
 
 export default function LandingPage() {
-  const { scrollY } = useScroll()
-  
-  // Responsive 1:1 Scroll Parallax (Smooth Mobile kinetic style scroll)
-  const smoothYHero = useTransform(scrollY, [0, 600], [0, -90])
-  const smoothOpacityHero = useTransform(scrollY, [0, 450], [1, 0])
-  const smoothYShowcase = useTransform(scrollY, [0, 900], [40, -40])
-  const smoothScaleShowcase = useTransform(scrollY, [0, 900], [0.96, 1.03])
-  const smoothYBgGlow = useTransform(scrollY, [0, 1200], [0, 250])
-
-  // Navigation active states
   const [activeFeature, setActiveFeature] = useState<number>(0)
-
-  // State for Mockup 4: High-Fidelity Analytics
   const [analyticsTab, setAnalyticsTab] = useState<'equity' | 'calendar' | 'stats'>('equity')
   const [aiTab, setAiTab] = useState<'bias' | 'emotions'>('bias')
   const [selectedDay, setSelectedDay] = useState<number>(21)
+
   const mockCalendarDays = [
     { day: 10, profit: 450, win: true },
     { day: 11, profit: 820, win: true },
@@ -75,409 +45,433 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-transparent text-[#F1F5F9] overflow-x-hidden selection:bg-[#F59E0B]/30 relative font-sans isolate">
-      {/* Cinematic Glowing Backdrop */}
-      <InteractiveBackground />
+    <div className="min-h-screen bg-[#050508] text-[#F1F5F9] overflow-x-hidden selection:bg-[#D4AF37]/30 relative font-sans antialiased">
+      {/* 1px Fine Scanlines Texture Overlay */}
+      <div 
+        className="fixed inset-0 pointer-events-none z-10 opacity-[0.03]" 
+        style={{ 
+          backgroundImage: 'repeating-linear-gradient(0deg, #000 0px, #000 1px, transparent 1px, transparent 2px)',
+          backgroundSize: '100% 2px'
+        }} 
+      />
 
-      {/* Dynamic Animated Line Waves Backdrop */}
-      <div className="fixed inset-0 pointer-events-none h-screen w-screen opacity-50" style={{ zIndex: 1 }}>
-        <FloatingLines
-          linesGradient={STATIC_LINES_GRADIENT}
-          enabledWaves={STATIC_ENABLED_WAVES}
-          lineCount={12}
-          lineDistance={STATIC_LINE_DISTANCE}
-          bendRadius={7.0}
-          bendStrength={-0.35}
-          interactive={true}
-          parallax={true}
-          animationSpeed={1.5}
-        />
-      </div>
+      {/* Global Terminal Grid Background */}
+      <div 
+        className="fixed inset-0 pointer-events-none opacity-[0.02] z-0"
+        style={{
+          backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)',
+          backgroundSize: '45px 45px'
+        }}
+      />
 
-      <div className="relative z-10">
-        {/* Floating Lights with smooth parallax scroll */}
-        <motion.div style={{ y: smoothYBgGlow }} className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/8 blur-[180px] rounded-full pointer-events-none mix-blend-screen" />
-        <motion.div style={{ y: smoothYBgGlow }} className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/6 blur-[200px] rounded-full pointer-events-none mix-blend-screen" />
+      {/* Primary Gold & Secondary Cyan ambient backdrop glow */}
+      <div className="fixed top-[-10%] left-[-10%] w-[55vw] h-[55vw] bg-gradient-to-r from-[#D4AF37]/4 to-transparent blur-[160px] rounded-full pointer-events-none -z-10 select-none transform translateZ(0)" />
+      <div className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-gradient-to-r from-[#00D4AA]/3 to-transparent blur-[180px] rounded-full pointer-events-none -z-10 select-none transform translateZ(0)" />
 
-      {/* Nav */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 bg-[#050508]/75 backdrop-blur-md">
+      {/* Premium Fixed Nav */}
+      <nav className="fixed top-0 inset-x-0 z-50 border-b border-[#D4AF37]/8 bg-[#050508]/85 backdrop-blur-md transition-all duration-300">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 font-black text-xl tracking-tight">
-            <GoldBookLogo size={30} className="shadow-[0_0_15px_rgba(255,215,0,0.2)]" />
+            <GoldBookLogo size={30} className="shadow-[0_0_20px_rgba(212,175,55,0.15)]" />
             <span className="font-extrabold text-lg tracking-wider">
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37]">GOLD</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#FFD700] to-[#FFE066]">GOLD</span>
               <span className="text-white/90 font-light">BOOK</span>
             </span>
           </div>
 
-          <div className="hidden md:flex items-center gap-8 text-sm font-semibold tracking-wide text-white/60">
-            <a href="#telemetry" className="hover:text-[#FFD700] transition-colors">Telemetry</a>
-            <a href="#ai-coach" className="hover:text-[#FFD700] transition-colors">AI Coaching</a>
-            <a href="#discipline" className="hover:text-[#FFD700] transition-colors">Discipline</a>
-            <a href="#analytics" className="hover:text-[#FFD700] transition-colors">Analytics</a>
-            <a href="#community" className="hover:text-[#FFD700] transition-colors">Community</a>
+          <div className="hidden md:flex items-center gap-8 text-xs uppercase tracking-widest font-bold text-white/50">
+            <a href="#telemetry" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">Telemetry</a>
+            <a href="#ai-coach" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">AI Coaching</a>
+            <a href="#discipline" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">Discipline</a>
+            <a href="#analytics" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">Analytics</a>
+            <a href="#community" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">Community</a>
           </div>
 
           <div className="flex items-center gap-4">
-            <Link href="/auth" className="text-sm font-bold text-white/70 hover:text-white transition-colors hidden sm:block">
+            <Link href="/auth" className="text-xs font-black uppercase tracking-widest text-white/70 hover:text-white transition-colors hidden sm:block">
               Sign In
             </Link>
             <Link href="/auth">
-              <button className="relative group px-6 py-2.5 bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37] text-black font-bold text-xs uppercase tracking-widest rounded-lg transition-transform hover:scale-105 shadow-[0_0_20px_rgba(255,215,0,0.2)]">
+              <MagneticButton className="relative group px-5 py-2 border border-[#D4AF37]/30 hover:border-[#D4AF37]/80 bg-gradient-to-b from-white/5 to-transparent text-white font-extrabold text-[10px] uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(212,175,55,0.05)] cursor-pointer overflow-hidden">
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#D4AF37]/15 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
                 <span className="relative z-10 flex items-center gap-2">
                   Launch Terminal <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </span>
-              </button>
+              </MagneticButton>
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-36 pb-24 px-6 overflow-hidden">
-        {/* Decorative Grid Mesh Overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:32px_32px] opacity-25 pointer-events-none" />
+      {/* SECTION 1: Hero — "The Observatory" */}
+      <section className="relative min-h-screen flex flex-col justify-center items-center px-6 pt-24 overflow-hidden border-b border-[#D4AF37]/8">
+        <ParticleBackground density={1200} />
+        
+        <div className="max-w-6xl mx-auto text-center space-y-8 relative z-10 py-16">
+          {/* Status Badge */}
+          <ScrollReveal delay={0.1}>
+            <div className="inline-flex items-center gap-2.5 px-4.5 py-2 rounded-full border border-[#D4AF37]/20 bg-[#D4AF37]/5 text-[10px] font-black uppercase tracking-widest text-[#D4AF37] backdrop-blur-lg">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#D4AF37] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#D4AF37]" />
+              </span>
+              Real-Time MT5 Telemetry & AI Behavioral Assessment
+            </div>
+          </ScrollReveal>
 
-        <motion.div style={{ y: smoothYHero, opacity: smoothOpacityHero }} className="max-w-6xl mx-auto text-center space-y-8 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#FFD700]/20 bg-[#FFD700]/5 text-xs font-semibold text-[#FFD700] tracking-wider uppercase backdrop-blur-lg"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FFD700] opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#FFD700]" />
-            </span>
-            Real-Time MT5 Telemetry & AI Behavioral Assessment
-          </motion.div>
+          {/* Line by Line Reveal Headline */}
+          <ScrollReveal delay={0.2} direction="up" className="space-y-2">
+            <h1 className="text-4xl sm:text-6xl md:text-8xl font-black tracking-tight leading-[0.98] uppercase">
+              Master Your Discipline. <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#FFF] to-[#D4AF37] drop-shadow-[0_0_20px_rgba(212,175,55,0.15)] animate-[pulse_4s_infinite]">
+                Own Your Edge.
+              </span>
+            </h1>
+          </ScrollReveal>
 
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-5xl md:text-8xl font-black tracking-tight leading-[1.05] uppercase"
-          >
-            Master Your Discipline. <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#FFE066] to-[#D4AF37] drop-shadow-[0_0_20px_rgba(255,215,0,0.15)]">
-              Own Your Edge.
-            </span>
-          </motion.h1>
+          <ScrollReveal delay={0.35}>
+            <p className="text-base sm:text-lg text-[#94A3B8] max-w-3xl mx-auto leading-relaxed font-semibold">
+              Connect MT5 instantly. Stream trade telemetry. Let Nirikshan AI dissect your psychology, block revenge trading, and enforce concrete discipline metrics.
+            </p>
+          </ScrollReveal>
 
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg md:text-xl text-[#94A3B8] max-w-3xl mx-auto leading-relaxed"
-          >
-            Connect MT5 instantly. Stream trade telemetry. Let Nirikshan AI dissect your psychology, block revenge trading, and enforce concrete discipline metrics.
-          </motion.p>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
-          >
+          {/* Pill Shaped CTA with magnetic shimmer sweep */}
+          <ScrollReveal delay={0.5} className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Link href="/auth">
-              <button className="group relative px-8 py-4 bg-white text-black hover:bg-neutral-100 rounded-lg text-sm font-bold uppercase tracking-wider transition-all hover:scale-105 shadow-[0_5px_30px_rgba(255,255,255,0.15)]">
+              <MagneticButton className="group relative px-8 py-3.5 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:from-[#FFD700] hover:to-[#D4AF37] text-black font-black text-xs uppercase tracking-widest rounded-full transition-all hover:scale-105 shadow-[0_5px_25px_rgba(212,175,55,0.2)] cursor-pointer">
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
                 <span className="relative z-10 flex items-center gap-3">
-                  Start Trading Free
+                  Initialize Connection
                   <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </span>
-              </button>
+              </MagneticButton>
             </Link>
-            <a href="#telemetry" className="px-7 py-4 text-[#94A3B8] hover:text-white text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-2 group">
-              <Activity className="w-4 h-4 group-hover:text-[#FFD700]" /> Explore Features
+            <a href="#telemetry" className="px-7 py-3.5 text-[#94A3B8] hover:text-white text-xs font-black uppercase tracking-widest transition-colors flex items-center gap-2 group border border-white/5 hover:border-white/20 rounded-full bg-white/[0.02]">
+              <Activity className="w-4 h-4 group-hover:text-[#D4AF37] animate-pulse" /> Explore Features
             </a>
-          </motion.div>
-        </motion.div>
+          </ScrollReveal>
+        </div>
 
-        {/* Cinematic Dashboard Showcase Mockup */}
-        <motion.div
-          initial={{ opacity: 0, y: 80, rotateX: 10 }}
-          animate={{ opacity: 1, y: 0, rotateX: 0 }}
-          transition={{ duration: 0.9, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          style={{ y: smoothYShowcase, scale: smoothScaleShowcase }}
-          className="mt-20 max-w-5xl mx-auto relative z-20"
-        >
-          <div className="absolute -inset-2 bg-gradient-to-b from-[#F59E0B]/10 to-transparent blur-2xl -z-10 rounded-[2.5rem]" />
+        {/* High-Fidelity Holographic Dashboard Showcase Mockup */}
+        <ScrollReveal delay={0.6} direction="up" className="w-full max-w-5xl mx-auto px-4 z-20 pb-16">
+          <HolographicTilt>
+            <div className="absolute -inset-2 bg-gradient-to-b from-[#D4AF37]/8 to-transparent blur-2xl -z-10 rounded-[2rem]" />
 
-          <div className="bg-[#0c0c14]/90 border border-white/10 rounded-2xl overflow-hidden shadow-[0_30px_70px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col h-[480px]">
-            {/* Window control header */}
-            <div className="h-11 border-b border-white/5 flex items-center justify-between px-4 bg-white/[0.01]">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-white/10" />
-                <div className="w-3 h-3 rounded-full bg-white/10" />
-                <div className="w-3 h-3 rounded-full bg-white/10" />
-              </div>
-              <div className="text-[10px] font-mono text-[#64748B] uppercase tracking-widest px-4 py-1 rounded bg-white/5 border border-white/5">
-                GOLDBOOK TERMINAL — VERIFIED ENGINE
-              </div>
-              <div className="w-12" />
-            </div>
-
-            <div className="flex flex-1 overflow-hidden">
-              {/* Mock Sidebar */}
-              <div className="w-48 border-r border-white/5 bg-[#07070b]/60 p-3 hidden md:flex flex-col gap-1.5">
-                {[
-                  { icon: Activity, label: 'Dashboard', active: true },
-                  { icon: BarChart2, label: 'Trade Analytics', active: false },
-                  { icon: Bot, label: 'Nirikshan AI Coach', active: false },
-                  { icon: Shield, label: 'Discipline Rules', active: false },
-                  { icon: Users, label: 'Trading Rooms', active: false },
-                ].map(item => (
-                  <div key={item.label} className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer text-xs font-semibold", 
-                    item.active ? "bg-[#FFD700]/10 text-[#FFD700]" : "text-[#64748B] hover:text-white/80"
-                  )}>
-                    <item.icon className="w-4 h-4 shrink-0" />
-                    <span className="tracking-wide">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Mock Main Console Panel */}
-              <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="text-xl font-bold tracking-tight text-white">Console Overview</h3>
-                    <p className="text-[#64748B] text-xs">Live Telemetry Link established via MT5.</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs font-semibold bg-[#22C55E]/10 text-[#22C55E] px-3.5 py-1.5 rounded-full border border-[#22C55E]/20">
-                    <span className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
-                    MT5_CONNECTED
-                  </div>
+            <div className="bg-[#050508]/90 border border-[#D4AF37]/12 rounded-2xl overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.85)] flex flex-col h-[480px]">
+              {/* Window control header */}
+              <div className="h-11 border-b border-white/5 flex items-center justify-between px-4 bg-white/[0.01]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/30" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/30" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500/30" />
                 </div>
+                <div className="text-[9px] font-mono text-[#D4AF37]/60 uppercase tracking-widest px-4 py-1 rounded bg-[#D4AF37]/5 border border-[#D4AF37]/12">
+                  GOLDBOOK TERMINAL — ENGINE ACTIVE
+                </div>
+                <div className="w-12" />
+              </div>
 
-                {/* Key Metric Blocks */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex flex-1 overflow-hidden">
+                {/* Mock Sidebar */}
+                <div className="w-48 border-r border-white/5 bg-[#050508]/70 p-3 hidden md:flex flex-col gap-1.5">
                   {[
-                    { label: 'Account Balance', val: '$24,850.50', color: 'text-white' },
-                    { label: 'Today\'s P&L', val: '+$530.00', color: 'text-[#22C55E]' },
-                    { label: 'Rule Violations', val: '0 STRIKES', color: 'text-[#22C55E]' },
-                    { label: 'Discipline Grade', val: 'A (EXCELLENT)', color: 'text-[#FFD700]' },
-                  ].map((s) => (
-                    <div key={s.label} className="bg-[#10101a] border border-white/5 rounded-xl p-4 flex flex-col justify-between">
-                      <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold">{s.label}</p>
-                      <p className={cn("text-base font-extrabold mt-1.5", s.color)}>{s.val}</p>
+                    { icon: Activity, label: 'Dashboard', active: true },
+                    { icon: BarChart2, label: 'Trade Analytics', active: false },
+                    { icon: Bot, label: 'Nirikshan AI Coach', active: false },
+                    { icon: Shield, label: 'Discipline Rules', active: false },
+                    { icon: Users, label: 'Trading Rooms', active: false },
+                  ].map(item => (
+                    <div key={item.label} className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer text-[10px] uppercase font-black tracking-widest", 
+                      item.active ? "bg-[#D4AF37]/8 text-[#D4AF37] border border-[#D4AF37]/15" : "text-[#64748B] hover:text-white/85"
+                    )}>
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
                     </div>
                   ))}
                 </div>
 
-                {/* Live Trade Ticker Widget inside the Hero Terminal */}
-                <div className="bg-[#10101a] border border-white/5 rounded-xl p-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold">Active Telemetry Stream</p>
-                    <span className="text-[10px] font-mono text-[#64748B] bg-white/5 px-2 py-0.5 rounded">Latency: 14ms</span>
+                {/* Mock Main Console Panel */}
+                <div className="flex-1 p-6 space-y-6 overflow-y-auto custom-scrollbar">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-sm uppercase font-black tracking-widest text-white">Console Overview</h3>
+                      <p className="text-[#64748B] text-[10px] font-mono">Live Telemetry Link established via MT5.</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-[9px] font-black uppercase bg-[#00D4AA]/8 text-[#00D4AA] px-3 py-1.5 rounded-full border border-[#00D4AA]/15">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA] animate-pulse" />
+                      MT5_CONNECTED
+                    </div>
                   </div>
-                  <div className="space-y-2">
+
+                  {/* Key Metric Blocks */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                      { id: 1, pair: 'XAUUSD', type: 'BUY', size: 1.00, entry: 2345.20, current: 2348.50, profit: 330.00 },
-                      { id: 2, pair: 'EURUSD', type: 'SELL', size: 2.00, entry: 1.08250, current: 1.08180, profit: 140.00 },
-                      { id: 3, pair: 'GBPUSD', type: 'BUY', size: 1.50, entry: 1.26420, current: 1.26460, profit: 60.00 }
-                    ].map(t => (
-                      <div key={t.id} className="flex items-center justify-between p-2.5 bg-white/[0.02] border border-white/[0.03] rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <span className={cn(
-                            "text-[10px] px-2 py-0.5 rounded font-black tracking-wide",
-                            t.type === 'BUY' ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-[#EF4444]'
-                          )}>{t.type}</span>
-                          <span className="text-xs font-bold text-white/90">{t.pair}</span>
-                          <span className="text-[10px] text-[#64748B]">{t.size.toFixed(2)} Lots</span>
-                        </div>
-                        <div className="flex items-center gap-6">
-                          <div className="text-right">
-                            <span className="text-[10px] text-[#64748B] block">Entry Level</span>
-                            <span className="text-xs font-mono font-semibold text-white/80">{t.entry.toFixed(2)}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-[#64748B] block">Live Price</span>
-                            <span className="text-xs font-mono font-semibold text-white/80">{t.current.toFixed(2)}</span>
-                          </div>
-                          <div className="w-20 text-right">
-                            <span className={cn(
-                              "text-xs font-bold font-mono",
-                              t.profit >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"
-                            )}>
-                              {t.profit >= 0 ? '+' : ''}${t.profit.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
+                      { label: 'Account Balance', val: '$24,850.50', color: 'text-white' },
+                      { label: 'Today\'s P&L', val: '+$530.00', color: 'text-[#00D4AA]' },
+                      { label: 'Rule Violations', val: '0 STRIKES', color: 'text-[#00D4AA]' },
+                      { label: 'Discipline Grade', val: 'A (EXCELLENT)', color: 'text-[#D4AF37]' },
+                    ].map((s) => (
+                      <div key={s.label} className="bg-gradient-to-b from-white/3 to-transparent border border-white/5 rounded-xl p-4 flex flex-col justify-between transform translateZ(0)">
+                        <p className="text-[9px] text-[#64748B] uppercase tracking-widest font-black">{s.label}</p>
+                        <p className={cn("text-sm font-black tracking-wide mt-1.5", s.color)}>{s.val}</p>
                       </div>
                     ))}
+                  </div>
+
+                  {/* Live Trade Ticker Widget inside the Hero Terminal */}
+                  <div className="bg-[#050508]/80 border border-[#00D4AA]/12 rounded-xl p-4 transform translateZ(0)">
+                    <div className="flex justify-between items-center mb-3">
+                      <p className="text-[9px] text-[#00D4AA] uppercase tracking-widest font-black">Active Telemetry Stream</p>
+                      <span className="text-[9px] font-mono text-[#64748B] bg-white/5 px-2 py-0.5 rounded">Latency: 14ms</span>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { id: 1, pair: 'XAUUSD', type: 'BUY', size: 1.00, entry: 2345.20, current: 2348.50, profit: 330.00 },
+                        { id: 2, pair: 'EURUSD', type: 'SELL', size: 2.00, entry: 1.08250, current: 1.08180, profit: 140.00 },
+                        { id: 3, pair: 'GBPUSD', type: 'BUY', size: 1.50, entry: 1.26420, current: 1.26460, profit: 60.00 }
+                      ].map(t => (
+                        <div key={t.id} className="flex items-center justify-between p-2.5 bg-[#050508]/50 border border-white/5 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <span className={cn(
+                              "text-[8px] px-2 py-0.5 rounded font-black tracking-wider",
+                              t.type === 'BUY' ? 'bg-[#00D4AA]/8 text-[#00D4AA] border border-[#00D4AA]/15' : 'bg-red-500/8 text-red-400 border border-red-500/15'
+                            )}>{t.type}</span>
+                            <span className="text-xs font-black text-white">{t.pair}</span>
+                            <span className="text-[10px] text-[#64748B] font-mono">{t.size.toFixed(2)} Lots</span>
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <div className="text-right hidden sm:block">
+                              <span className="text-[8px] text-[#64748B] uppercase block">Entry</span>
+                              <span className="text-xs font-mono font-semibold text-white/80">{t.entry.toFixed(2)}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[8px] text-[#64748B] uppercase block">Live</span>
+                              <span className="text-xs font-mono font-semibold text-white/80">{t.current.toFixed(2)}</span>
+                            </div>
+                            <div className="w-20 text-right">
+                              <span className={cn(
+                                "text-xs font-black font-mono",
+                                t.profit >= 0 ? "text-[#00D4AA]" : "text-red-400"
+                              )}>
+                                {t.profit >= 0 ? '+' : ''}${t.profit.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </motion.div>
+          </HolographicTilt>
+        </ScrollReveal>
+
+        {/* Self-drawing Scroll Indicator */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none">
+          <span className="text-[8px] font-mono uppercase tracking-widest text-[#D4AF37]/50">Scroll Terminal</span>
+          <motion.div 
+            className="w-[1.5px] h-10 bg-gradient-to-b from-[#D4AF37] to-transparent origin-top"
+            animate={{ scaleY: [0, 1, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        </div>
       </section>
 
-      {/* Feature Narrative Intro Header */}
-      <div className="max-w-4xl mx-auto text-center mt-20 mb-10 px-6">
-        <h2 className="text-xs font-bold text-[#FFD700] uppercase tracking-widest">Platform Breakdown</h2>
-        <p className="text-3xl md:text-5xl font-black tracking-tight uppercase mt-2">Engineered For Psychological Edge</p>
-        <p className="text-[#94A3B8] text-sm mt-3">A sequential, comprehensive walk-through of the GoldBook tracking & assistance suite.</p>
-      </div>
+      {/* SECTION 2: Live Telemetry — "The Stream" */}
+      <section id="telemetry" className="relative py-36 overflow-hidden border-b border-[#00D4AA]/8">
+        {/* Subtle Horizontal Scanline & Dark Texture Background */}
+        <div className="absolute inset-0 bg-[#050508] pointer-events-none -z-20" />
+        <div 
+          className="absolute inset-0 pointer-events-none -z-10 opacity-[0.03]" 
+          style={{ 
+            backgroundImage: 'repeating-linear-gradient(90deg, #D4AF37 0px, #D4AF37 1px, transparent 1px, transparent 6px)',
+          }} 
+        />
 
-      {/* alternating sequential features blocks */}
-
-      {/* SECTION 1: Live MT5 Telemetry Stream */}
-      <section id="telemetry" className="py-24 border-t border-white/5 relative bg-[#050508]/40">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-16">
-          <motion.div {...fadeUp(0)} className="flex-1 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#FFD700]/10 border border-[#FFD700]/20 text-[10px] font-bold text-[#FFD700] uppercase tracking-widest">
-              <Zap className="w-3 h-3" /> Live Synchronization
-            </div>
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight uppercase leading-none text-white">
-              Zero Manual Entry. <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#F59E0B]">
-                Immediate Telemetry.
-              </span>
-            </h2>
-            <p className="text-[#94A3B8] leading-relaxed text-sm">
-              Stop messing with spreadsheets or manual logs. Simply connect your MT5 investor password. GoldBook securely logs in with read-only authorization and streams every execution directly, evaluating your metrics instantly without interrupting your trading desk.
-            </p>
-            <div className="space-y-3.5">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          {/* Left Side: Parallax Speed 1.0 Content */}
+          <div className="space-y-6">
+            <ScrollReveal direction="left" delay={0.1}>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#00D4AA]/8 border border-[#00D4AA]/15 text-[9px] font-black text-[#00D4AA] uppercase tracking-widest">
+                <Zap className="w-3 h-3" /> Live Synchronization
+              </div>
+            </ScrollReveal>
+            <ScrollReveal direction="left" delay={0.2}>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight uppercase leading-none text-white">
+                Zero Manual Entry. <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D4AA] to-[#008066]">
+                  Immediate Telemetry.
+                </span>
+              </h2>
+            </ScrollReveal>
+            <ScrollReveal direction="left" delay={0.3}>
+              <p className="text-[#94A3B8] leading-relaxed text-xs sm:text-sm font-medium">
+                Stop messing with spreadsheets or manual logs. Simply connect your MT5 investor password. GoldBook securely logs in with read-only authorization and streams every execution directly, evaluating your metrics instantly without interrupting your trading desk.
+              </p>
+            </ScrollReveal>
+            
+            <div className="space-y-4 pt-2">
               {[
                 { title: "Universal MT5 Connection", desc: "Connect Exness, IC Markets, Pepperstone, or any MT5 broker server globally." },
                 { title: "Read-Only Security Guarantee", desc: "Secure credentials architecture. Your principal capital remains completely untouched." },
                 { title: "Sub-Second Live Syncing", desc: "Open positions are tracked, evaluated, and synced with 15ms resolution." }
-              ].map(item => (
-                <div key={item.title} className="flex gap-3">
-                  <Check className="w-4 h-4 text-[#FFD700] shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">{item.title}</h4>
-                    <p className="text-[#64748B] text-xs mt-0.5">{item.desc}</p>
+              ].map((item, idx) => (
+                <ScrollReveal key={item.title} direction="left" delay={0.35 + idx * 0.1} className="flex gap-3">
+                  <div className="w-5 h-5 rounded-full bg-[#00D4AA]/10 border border-[#00D4AA]/25 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-[#00D4AA]" />
                   </div>
-                </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest">{item.title}</h4>
+                    <p className="text-[#64748B] text-xs mt-0.5 font-medium">{item.desc}</p>
+                  </div>
+                </ScrollReveal>
               ))}
             </div>
-            <div className="pt-2">
+
+            <ScrollReveal direction="left" delay={0.65} className="pt-2">
               <Link href="/auth">
-                <button className="flex items-center gap-2 text-xs font-bold text-white hover:text-[#FFD700] uppercase tracking-wider transition-colors">
-                  Setup Live Sync Account <ArrowRight className="w-4 h-4" />
+                <button className="flex items-center gap-2 text-[10px] font-black text-[#00D4AA] uppercase tracking-widest hover:text-white transition-colors cursor-pointer group">
+                  Setup Live Sync Account <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               </Link>
-            </div>
-          </motion.div>
+            </ScrollReveal>
+          </div>
 
-          {/* Interactive Mockup 1: Live MT5 Ticker Panel (Static High-Fidelity Example) */}
-          <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
-            <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl relative">
-              <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[9px] font-mono text-[#22C55E] bg-[#22C55E]/10 border border-[#22C55E]/20 px-2 py-0.5 rounded">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
-                LIVE STREAMING
-              </div>
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-1">MT5 Telemetry Feed</h3>
-              <p className="text-[#64748B] text-[11px] mb-4">Simulating ticking prices from your MT5 terminal.</p>
+          {/* Right Side: Parallax Speed 0.6 Telemetry Stream floating behind */}
+          <div className="w-full relative">
+            <ParallaxSection speed={0.6}>
+              <div className="bg-[#08080f]/90 border border-[#00D4AA]/12 rounded-2xl p-5 shadow-[0_30px_60px_rgba(0,0,0,0.7)] backdrop-blur-md relative transform translateZ(0)">
+                <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[8px] font-mono text-[#00D4AA] bg-[#00D4AA]/8 border border-[#00D4AA]/15 px-2 py-0.5 rounded">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA] animate-pulse" />
+                  LIVE STREAMING
+                </div>
+                <h3 className="text-[10px] uppercase font-black text-white tracking-widest mb-1">MT5 Telemetry Feed</h3>
+                <p className="text-[#64748B] text-[9px] font-mono mb-4">Simulating ticking prices from your MT5 terminal.</p>
 
-              <div className="space-y-3">
-                {[
-                  { id: 1, pair: 'XAUUSD', type: 'BUY', size: 1.00, entry: 2345.20, current: 2348.50, profit: 330.00 },
-                  { id: 2, pair: 'EURUSD', type: 'SELL', size: 2.00, entry: 1.08250, current: 1.08180, profit: 140.00 },
-                  { id: 3, pair: 'GBPUSD', type: 'BUY', size: 1.50, entry: 1.26420, current: 1.26460, profit: 60.00 }
-                ].map(t => (
-                  <div key={t.id} className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
+                <div className="space-y-3">
+                  {[
+                    { id: 1, pair: 'XAUUSD', type: 'BUY', size: 1.00, entry: 2345.20, current: 2348.50, profit: 330.00 },
+                    { id: 2, pair: 'EURUSD', type: 'SELL', size: 2.00, entry: 1.08250, current: 1.08180, profit: 140.00 },
+                    { id: 3, pair: 'GBPUSD', type: 'BUY', size: 1.50, entry: 1.26420, current: 1.26460, profit: 60.00 }
+                  ].map(t => (
+                    <div key={t.id} className="p-3 bg-gradient-to-b from-white/3 to-transparent border border-white/5 rounded-xl flex items-center justify-between transform translateZ(0)">
+                      <div className="relative">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "text-[8px] px-1.5 py-0.5 rounded font-black tracking-wider relative",
+                            t.type === 'BUY' ? 'bg-[#00D4AA]/8 text-[#00D4AA] border border-[#00D4AA]/15' : 'bg-red-500/8 text-red-400 border border-red-500/15'
+                          )}>
+                            {/* Pulse glow indicator strictly O(n) opacity CSS */}
+                            <span className="absolute inset-0 rounded bg-inherit opacity-45 animate-ping pointer-events-none" />
+                            {t.type}
+                          </span>
+                          <span className="text-xs font-black text-white font-mono">{t.pair}</span>
+                          <span className="text-[9px] font-mono text-[#64748B]">{t.size.toFixed(2)} Lots</span>
+                        </div>
+                        <div className="flex gap-4 mt-2 font-mono text-[9px] text-[#64748B]">
+                          <span>Entry: <span className="text-white/80">{t.entry.toFixed(2)}</span></span>
+                          <span>Live: <span className="text-white/80">{t.current.toFixed(2)}</span></span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[8px] text-[#64748B] block uppercase tracking-widest font-black">Unrealized P&L</span>
                         <span className={cn(
-                          "text-[9px] px-1.5 py-0.5 rounded font-black tracking-wider",
-                          t.type === 'BUY' ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-[#EF4444]'
-                        )}>{t.type}</span>
-                        <span className="text-sm font-bold text-white">{t.pair}</span>
-                        <span className="text-[10px] text-[#64748B]">{t.size.toFixed(2)} Lots</span>
-                      </div>
-                      <div className="flex gap-4 mt-2">
-                        <span className="text-[10px] text-[#64748B]">Entry: <span className="font-mono text-white/80">{t.entry.toFixed(2)}</span></span>
-                        <span className="text-[10px] text-[#64748B]">Current: <span className="font-mono text-white/80">{t.current.toFixed(2)}</span></span>
+                          "text-xs font-black font-mono",
+                          t.profit >= 0 ? "text-[#00D4AA]" : "text-red-400"
+                        )}>
+                          {t.profit >= 0 ? '+' : ''}${t.profit.toFixed(2)}
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-[#64748B] block uppercase tracking-wider font-bold">Unrealized P&L</span>
-                      <span className={cn(
-                        "text-sm font-extrabold font-mono",
-                        t.profit >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"
-                      )}>
-                        {t.profit >= 0 ? '+' : ''}${t.profit.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-[10px] text-[#64748B]">
-                <span>Total Trades Active: 3</span>
-                <span className="flex items-center gap-1.5 font-bold text-white">
-                  Net Open P&L: 
-                  <span className="text-[#22C55E] font-mono text-xs">
-                    +$530.00
+                <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-[9px] font-mono text-[#64748B]">
+                  <span>Total Trades Active: 3</span>
+                  <span className="flex items-center gap-1.5 font-black text-white">
+                    Net Open P&L: 
+                    <span className="text-[#00D4AA] text-xs font-black">
+                      +$530.00
+                    </span>
                   </span>
-                </span>
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </ParallaxSection>
+          </div>
         </div>
       </section>
 
-      {/* SECTION 2: Nirikshan AI Coach */}
-      <section id="ai-coach" className="py-24 border-t border-white/5 relative bg-[#050508]/10">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col lg:flex-row-reverse items-center gap-16">
-          <motion.div {...fadeUp(0)} className="flex-1 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#FFD700]/10 border border-[#FFD700]/20 text-[10px] font-bold text-[#FFD700] uppercase tracking-widest">
-              <Bot className="w-3 h-3" /> Cognitive Assistant
-            </div>
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight uppercase leading-none text-white">
-              Nirikshan AI. <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#F59E0B]">
-                Your Psychological Shield.
-              </span>
-            </h2>
-            <p className="text-[#94A3B8] leading-relaxed text-sm">
-              Most traders don't lack strategies—they lack emotional discipline. Nirikshan AI is a cognitive trading model trained to recognize revenge trading cycles, FOMO entry signals, greed holds, and exhaustion. It grades your execution quality on every execution, delivering behavioral diagnostics when you need them.
-            </p>
-            <div className="space-y-3.5">
+      {/* SECTION 3: Nirikshan AI — "The Cognitive Shield" */}
+      <section id="ai-coach" className="relative py-36 overflow-hidden border-b border-[#D4AF37]/8">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row-reverse items-center gap-16">
+          
+          {/* Left side text */}
+          <div className="flex-1 space-y-6">
+            <ScrollReveal direction="right" delay={0.1}>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#D4AF37]/8 border border-[#D4AF37]/15 text-[9px] font-black text-[#D4AF37] uppercase tracking-widest">
+                <Bot className="w-3 h-3 animate-pulse" /> Cognitive Assistant
+              </div>
+            </ScrollReveal>
+            <ScrollReveal direction="right" delay={0.2}>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight uppercase leading-none text-white">
+                Nirikshan AI. <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#B8860B]">
+                  Your Cognitive Shield.
+                </span>
+              </h2>
+            </ScrollReveal>
+            <ScrollReveal direction="right" delay={0.3}>
+              <p className="text-[#94A3B8] leading-relaxed text-xs sm:text-sm font-medium">
+                Most traders don't lack strategies—they lack emotional discipline. Nirikshan AI is a cognitive trading model trained to recognize revenge trading cycles, FOMO entry signals, greed holds, and exhaustion. It grades your execution quality on every execution, delivering behavioral diagnostics when you need them.
+              </p>
+            </ScrollReveal>
+
+            <div className="space-y-4 pt-2">
               {[
                 { title: "Revenge trading lockout warning", desc: "Flags frequent re-entries within 15 minutes of a loss to prevent drawdowns." },
                 { title: "Psychological profile matrix", desc: "Constructs a personalized profile map based on your logged emotion tags." },
                 { title: "Behavioral edge reports", desc: "Pinpoints exactly which emotions lead to profitable executions and which destroy your P&L." }
-              ].map(item => (
-                <div key={item.title} className="flex gap-3">
-                  <Check className="w-4 h-4 text-[#FFD700] shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">{item.title}</h4>
-                    <p className="text-[#64748B] text-xs mt-0.5">{item.desc}</p>
+              ].map((item, idx) => (
+                <ScrollReveal key={item.title} direction="right" delay={0.35 + idx * 0.1} className="flex gap-3">
+                  <div className="w-5 h-5 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/25 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-[#D4AF37]" />
                   </div>
-                </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest">{item.title}</h4>
+                    <p className="text-[#64748B] text-xs mt-0.5 font-medium">{item.desc}</p>
+                  </div>
+                </ScrollReveal>
               ))}
             </div>
-            <div className="pt-2">
+
+            <ScrollReveal direction="right" delay={0.65} className="pt-2">
               <Link href="/auth">
-                <button className="flex items-center gap-2 text-xs font-bold text-white hover:text-[#FFD700] uppercase tracking-wider transition-colors">
-                  Consult Nirikshan AI <ArrowRight className="w-4 h-4" />
+                <button className="flex items-center gap-2 text-[10px] font-black text-[#D4AF37] uppercase tracking-widest hover:text-white transition-colors cursor-pointer group">
+                  Consult Nirikshan AI <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               </Link>
-            </div>
-          </motion.div>
+            </ScrollReveal>
+          </div>
 
-          {/* Interactive Mockup 2: Nirikshan AI Cognitive Bias Matrix & Emotion Correlation (Real App Interface) */}
-          <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
-            <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl flex flex-col h-[430px]">
+          {/* Right side interactive console tab */}
+          <div className="flex-1 w-full">
+            <div className="bg-[#08080f]/90 border border-[#D4AF37]/12 rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.7)] backdrop-blur-md flex flex-col h-[430px] transform translateZ(0)">
               {/* Tab Selector */}
-              <div className="flex border-b border-white/5 bg-white/[0.01] rounded-t-xl overflow-hidden">
+              <div className="flex border-b border-white/5 bg-white/[0.01] rounded-t-xl overflow-hidden shrink-0">
                 <button 
                   onClick={() => setAiTab('bias')}
-                  className={cn("flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-colors", 
-                    aiTab === 'bias' ? "bg-white/5 text-[#FFD700] border-b border-[#FFD700]" : "text-[#64748B] hover:text-white"
+                  className={cn("flex-1 py-3.5 text-[9px] font-black uppercase tracking-widest transition-colors", 
+                    aiTab === 'bias' ? "bg-white/5 text-[#D4AF37] border-b border-[#D4AF37]" : "text-[#64748B] hover:text-white"
                   )}
                 >
                   Cognitive Bias Matrix
                 </button>
                 <button 
                   onClick={() => setAiTab('emotions')}
-                  className={cn("flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-colors", 
-                    aiTab === 'emotions' ? "bg-white/5 text-[#FFD700] border-b border-[#FFD700]" : "text-[#64748B] hover:text-white"
+                  className={cn("flex-1 py-3.5 text-[9px] font-black uppercase tracking-widest transition-colors", 
+                    aiTab === 'emotions' ? "bg-white/5 text-[#D4AF37] border-b border-[#D4AF37]" : "text-[#64748B] hover:text-white"
                   )}
                 >
                   Emotion Correlations
@@ -485,56 +479,59 @@ export default function LandingPage() {
               </div>
 
               {/* Tab Content */}
-              <div className="flex-1 p-5 overflow-y-auto space-y-4">
+              <div className="flex-1 p-5 overflow-y-auto space-y-4 custom-scrollbar">
                 {aiTab === 'bias' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 h-full">
                     {[
                       { 
                         name: "Loss Aversion", 
                         severity: "CRITICAL", 
-                        color: "text-[#EF4444]", 
-                        glow: "shadow-[0_0_15px_rgba(239,68,68,0.2)] border-[#EF4444]/30 bg-[#EF4444]/5",
+                        color: "text-red-500", 
+                        glow: "border-red-500/20 bg-red-500/[0.02]",
                         evidence: "Losing trades held 3.2x longer than wins (avg: 207s vs 64s).",
                         exercise: "Enforce hard 15-minute Time-Stops. If an execution isn't profitable in 15 mins, close at market."
                       },
                       { 
                         name: "Revenge Trading", 
                         severity: "MODERATE", 
-                        color: "text-[#F59E0B]", 
-                        glow: "shadow-[0_0_15px_rgba(245,158,11,0.15)] border-[#F59E0B]/30 bg-[#F59E0B]/5",
+                        color: "text-[#D4AF37]", 
+                        glow: "border-[#D4AF37]/20 bg-[#D4AF37]/[0.02]",
                         evidence: "Lot size spikes 1.8x on trades within 15 min of a closed loss.",
                         exercise: "Cooling period: strict 30-minute cooling lockout automatically enforced on your account."
                       },
                       { 
                         name: "Mental Fatigue", 
                         severity: "CRITICAL", 
-                        color: "text-[#EF4444]", 
-                        glow: "shadow-[0_0_15px_rgba(239,68,68,0.2)] border-[#EF4444]/30 bg-[#EF4444]/5",
+                        color: "text-red-500", 
+                        glow: "border-red-500/20 bg-red-500/[0.02]",
                         evidence: "Expectancy decays 85% after 4+ daily trades (+$120 avg drops to -$143).",
                         exercise: "Daily quota: hard lock after 4 trades. Stop trading completely regardless of outcomes."
                       },
                       { 
                         name: "FOMO / Overconfidence", 
                         severity: "HEALTHY", 
-                        color: "text-[#22C55E]", 
-                        glow: "shadow-[0_0_15px_rgba(34,197,94,0.15)] border-[#22C55E]/30 bg-[#22C55E]/5",
+                        color: "text-[#00D4AA]", 
+                        glow: "border-[#00D4AA]/20 bg-[#00D4AA]/[0.02]",
                         evidence: "Pre-trade checklist compliance rate remains stable at 88%.",
                         exercise: "No critical cognitive bias detected. Continue systematic plan tracking."
                       }
                     ].map(bias => (
-                      <div key={bias.name} className={cn("p-3 border rounded-xl flex flex-col justify-between transition-all", bias.glow)}>
+                      <div key={bias.name} className={cn("p-3.5 border rounded-xl flex flex-col justify-between transition-all border-white/5", bias.glow)}>
                         <div>
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-[10px] font-black uppercase text-white tracking-wide">{bias.name}</span>
-                            <span className={cn("text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded bg-black/40 border border-white/5", bias.color)}>{bias.severity}</span>
+                            <span className="text-[9px] font-black uppercase text-white tracking-widest">{bias.name}</span>
+                            <span className={cn("text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded bg-black/45 border border-white/5 flex items-center gap-1", bias.color)}>
+                              <span className={cn("w-1 h-1 rounded-full", bias.severity === 'HEALTHY' ? 'bg-[#00D4AA]' : bias.severity === 'MODERATE' ? 'bg-[#D4AF37]' : 'bg-red-500')} />
+                              {bias.severity}
+                            </span>
                           </div>
                           <p className="text-[9px] text-[#94A3B8] leading-normal font-medium mb-1">
                             <span className="text-white/80 font-bold">Evidence:</span> {bias.evidence}
                           </p>
                         </div>
-                        <div className="pt-1.5 border-t border-white/5">
+                        <div className="pt-2 mt-2 border-t border-white/5">
                           <p className="text-[9px] text-[#64748B] leading-normal italic">
-                            <span className="text-[#FFD700] not-italic font-bold uppercase tracking-wide text-[7px] block mb-0.5">Cognitive Exercise:</span> "{bias.exercise}"
+                            <span className="text-[#D4AF37] not-italic font-black uppercase tracking-widest text-[7px] block mb-0.5">Therapeutic Protocol:</span> "{bias.exercise}"
                           </p>
                         </div>
                       </div>
@@ -544,33 +541,33 @@ export default function LandingPage() {
 
                 {aiTab === 'emotions' && (
                   <div className="space-y-3">
-                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold">Emotion-to-Performance Correlations</p>
+                    <p className="text-[9px] text-[#64748B] uppercase tracking-widest font-black">Emotion-to-Performance Correlations</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {[
-                        { emotion: "Confident", trades: 12, wr: 75, pnl: 180.50, compliance: 95, color: "text-[#22C55E]", bg: "bg-[#22C55E]/5 border-[#22C55E]/20" },
-                        { emotion: "Greedy", trades: 8, wr: 25, pnl: -240.00, compliance: 35, color: "text-[#EF4444]", bg: "bg-[#EF4444]/5 border-[#EF4444]/20" },
-                        { emotion: "Nervous", trades: 6, wr: 50, pnl: -12.50, compliance: 80, color: "text-[#F59E0B]", bg: "bg-[#F59E0B]/5 border-[#F59E0B]/20" },
-                        { emotion: "Frustrated", trades: 5, wr: 0, pnl: -410.00, compliance: 10, color: "text-[#EF4444]", bg: "bg-[#EF4444]/5 border-[#EF4444]/20" }
+                        { emotion: "Confident", trades: 12, wr: 75, pnl: 180.50, compliance: 95, color: "text-[#00D4AA]", bg: "bg-[#00D4AA]/[0.02] border-[#00D4AA]/15" },
+                        { emotion: "Greedy", trades: 8, wr: 25, pnl: -240.00, compliance: 35, color: "text-red-500", bg: "bg-red-500/[0.01] border-red-500/15" },
+                        { emotion: "Nervous", trades: 6, wr: 50, pnl: -12.50, compliance: 80, color: "text-[#D4AF37]", bg: "bg-[#D4AF37]/[0.02] border-[#D4AF37]/15" },
+                        { emotion: "Frustrated", trades: 5, wr: 0, pnl: -410.00, compliance: 10, color: "text-red-500", bg: "bg-red-500/[0.01] border-red-500/15" }
                       ].map(item => (
-                        <div key={item.emotion} className={cn("p-3 border rounded-xl flex flex-col justify-between", item.bg)}>
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-[10px] font-black uppercase text-white tracking-wide">{item.emotion}</span>
-                            <span className="text-[8px] font-mono text-[#64748B] bg-black/35 px-1.5 py-0.5 rounded border border-white/5">{item.trades} trades</span>
+                        <div key={item.emotion} className={cn("p-3 border border-white/5 rounded-xl flex flex-col justify-between", item.bg)}>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[10px] font-black uppercase text-white tracking-widest">{item.emotion}</span>
+                            <span className="text-[8px] font-mono text-[#64748B] bg-black/40 px-1.5 py-0.5 rounded border border-white/5">{item.trades} trades</span>
                           </div>
-                          <div className="space-y-1 text-[9px] text-[#94A3B8]">
+                          <div className="space-y-1.5 text-[9px] font-mono text-[#94A3B8]">
                             <div className="flex justify-between">
                               <span>Win Rate:</span>
-                              <span className={cn("font-bold", item.wr >= 50 ? "text-[#22C55E]" : "text-[#EF4444]")}>{item.wr}%</span>
+                              <span className={cn("font-bold", item.wr >= 50 ? "text-[#00D4AA]" : "text-red-400")}>{item.wr}%</span>
                             </div>
                             <div className="flex justify-between">
                               <span>Average P&L:</span>
-                              <span className={cn("font-mono font-bold", item.pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
+                              <span className={cn("font-bold", item.pnl >= 0 ? "text-[#00D4AA]" : "text-red-400")}>
                                 {item.pnl >= 0 ? '+' : ''}${item.pnl.toFixed(2)}
                               </span>
                             </div>
                             <div className="flex justify-between">
                               <span>Plan Compliance:</span>
-                              <span className="text-[#FFD700] font-bold">{item.compliance}%</span>
+                              <span className="text-[#D4AF37] font-bold">{item.compliance}%</span>
                             </div>
                           </div>
                         </div>
@@ -580,344 +577,313 @@ export default function LandingPage() {
                 )}
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
-      {/* SECTION 3: Discipline Rule Engine */}
-      <section id="discipline" className="py-24 border-t border-white/5 relative bg-[#050508]/40">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-16">
-          <motion.div {...fadeUp(0)} className="flex-1 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#FFD700]/10 border border-[#FFD700]/20 text-[10px] font-bold text-[#FFD700] uppercase tracking-widest">
-              <Shield className="w-3 h-3" /> Hard Safeguards
-            </div>
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight uppercase leading-none text-white">
-              Strict Rule Framework. <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#F59E0B]">
-                Enforce Your Limits.
-              </span>
-            </h2>
-            <p className="text-[#94A3B8] leading-relaxed text-sm">
-              Define your custom parameters for maximum daily loss, maximum lot size limits, risk-reward ratios, and session restraints. GoldBook continuously calculates risk constraints against your active balance, flashing immediate warnings and logging violations to keep you transparent.
-            </p>
-            <div className="space-y-3.5">
+      {/* SECTION 4: Discipline Safeguards — "The Framework" */}
+      <section id="discipline" className="relative py-36 overflow-hidden border-b border-[#00D4AA]/8">
+        {/* Scroll blueprint grid background */}
+        <div className="absolute inset-0 bg-[#050508] pointer-events-none -z-20" />
+        <div 
+          className="absolute inset-0 pointer-events-none -z-10 opacity-[0.03] transition-opacity duration-1000"
+          style={{
+            backgroundImage: 'radial-gradient(circle, #00D4AA 1px, transparent 1px)',
+            backgroundSize: '24px 24px'
+          }}
+        />
+
+        <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-16">
+          {/* Left side text info */}
+          <div className="flex-1 space-y-6">
+            <ScrollReveal direction="left" delay={0.1}>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#00D4AA]/8 border border-[#00D4AA]/15 text-[9px] font-black text-[#00D4AA] uppercase tracking-widest">
+                <Shield className="w-3 h-3" /> Hard Safeguards
+              </div>
+            </ScrollReveal>
+            <ScrollReveal direction="left" delay={0.2}>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight uppercase leading-none text-white">
+                Strict Rule Framework. <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D4AA] to-[#008066]">
+                  Enforce Your Limits.
+                </span>
+              </h2>
+            </ScrollReveal>
+            <ScrollReveal direction="left" delay={0.3}>
+              <p className="text-[#94A3B8] leading-relaxed text-xs sm:text-sm font-medium">
+                Define your custom parameters for maximum daily loss, maximum lot size limits, risk-reward ratios, and session restraints. GoldBook continuously calculates risk constraints against your active balance, flashing immediate warnings and logging violations to keep you transparent.
+              </p>
+            </ScrollReveal>
+
+            <div className="space-y-4 pt-2">
               {[
                 { title: "Dynamic balance-based % calculations", desc: "Daily drawdown bounds recalculate automatically relative to your high water mark." },
                 { title: "Permanent violation logging system", desc: "Infractions are permanently logged to enforce accountability and remove rule fatigue." },
                 { title: "Automated restraint warnings", desc: "Flags aggressive trade executions happening in too short of a timeline." }
-              ].map(item => (
-                <div key={item.title} className="flex gap-3">
-                  <Check className="w-4 h-4 text-[#FFD700] shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">{item.title}</h4>
-                    <p className="text-[#64748B] text-xs mt-0.5">{item.desc}</p>
+              ].map((item, idx) => (
+                <ScrollReveal key={item.title} direction="left" delay={0.35 + idx * 0.1} className="flex gap-3">
+                  <div className="w-5 h-5 rounded-full bg-[#00D4AA]/10 border border-[#00D4AA]/25 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-[#00D4AA]" />
                   </div>
-                </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest">{item.title}</h4>
+                    <p className="text-[#64748B] text-xs mt-0.5 font-medium">{item.desc}</p>
+                  </div>
+                </ScrollReveal>
               ))}
             </div>
-            <div className="pt-2">
+
+            <ScrollReveal direction="left" delay={0.65} className="pt-2">
               <Link href="/auth">
-                <button className="flex items-center gap-2 text-xs font-bold text-white hover:text-[#FFD700] uppercase tracking-wider transition-colors">
-                  Establish Discipline Board <ArrowRight className="w-4 h-4" />
+                <button className="flex items-center gap-2 text-[10px] font-black text-[#00D4AA] uppercase tracking-widest hover:text-white transition-colors cursor-pointer group">
+                  Establish Discipline Board <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               </Link>
-            </div>
-          </motion.div>
+            </ScrollReveal>
+          </div>
 
-          {/* Interactive Mockup 3: Rule Compliance Board (Static High-Fidelity Example) */}
-          <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
-            <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl relative space-y-5">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Discipline Dashboard</h3>
-                  <p className="text-[#64748B] text-[10px]">Real-time balance-linked parameter engine.</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-[#64748B] block uppercase font-bold">Rule Score</span>
-                  <span className="text-sm font-black text-[#22C55E]">
-                    96% SECURE
-                  </span>
-                </div>
-              </div>
-
-              {/* Rule Card 1: Daily Drawdown (Static Premium Progress Bar) */}
-              <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-[#FFD700]" />
-                    <span className="font-bold text-white uppercase tracking-wide">Daily Loss Cap</span>
-                  </div>
-                  <span className="text-[#64748B] text-[11px]">Loss: <span className="text-white font-bold">$120</span> / limit: <span className="text-[#FFD700] font-bold">$500</span></span>
-                </div>
-                
-                {/* Static Progress Bar */}
-                <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full bg-gradient-to-r from-[#FFD700] to-[#F59E0B]" style={{ width: '24%' }} />
-                </div>
-                
-                <p className="text-[9px] text-[#64748B] leading-none">
-                  Drawdown parameters active. 76% daily capital headroom remaining.
-                </p>
-              </div>
-
-              {/* Rule Card 2: Lot Constraint */}
-              <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-[#FFD700]" />
-                    <span className="font-bold text-white uppercase tracking-wide">Max Lot Allocation</span>
-                  </div>
-                  <span className="text-[#64748B] text-[11px]">Active: <span className="text-white font-bold">1.50 Lots</span> / limit: <span className="text-[#FFD700] font-bold">2.00 Lots</span></span>
-                </div>
-
-                {/* Static visual representation */}
-                <div className="flex gap-2">
-                  <div className="flex-1 py-1.5 text-[10px] font-bold uppercase rounded border text-center bg-white/10 border-white/20 text-white">
-                    1.50 Lots Active
-                  </div>
-                  <div className="flex-1 py-1.5 text-[10px] font-bold uppercase rounded border text-center bg-white/5 border-white/5 text-[#64748B]">
-                    2.00 Lots Max
-                  </div>
-                </div>
-
-                <div className="p-2.5 bg-[#22C55E]/10 border border-[#22C55E]/20 rounded-lg flex items-center gap-2.5">
-                  <Check className="w-4 h-4 text-[#22C55E] shrink-0" />
+          {/* Right side card showing liquid tubes and holographic tilt */}
+          <div className="flex-1 w-full">
+            <HolographicTilt>
+              <div className="bg-[#08080f]/90 border border-[#00D4AA]/12 rounded-2xl p-5 shadow-[0_30px_60px_rgba(0,0,0,0.7)] backdrop-blur-md relative space-y-6 transform translateZ(0)">
+                <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="text-[10px] font-bold text-[#22C55E] uppercase tracking-wider">RULE CHECKS COMPLIANT</h4>
-                    <p className="text-[9px] text-[#64748B]">Positions respect active risk allocations. All entries verified.</p>
+                    <h3 className="text-xs font-black uppercase text-white tracking-widest">Discipline Dashboard</h3>
+                    <p className="text-[#64748B] text-[9px] font-mono">Real-time balance-linked parameter engine.</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[8px] text-[#64748B] block uppercase tracking-widest font-black font-mono">Rule Score</span>
+                    <span className="text-xs font-black text-[#00D4AA]">
+                      96% SECURE
+                    </span>
+                  </div>
+                </div>
+
+                {/* Rule Card 1: Daily Drawdown using Liquid fill progress bar */}
+                <div className="p-4 bg-[#050508]/40 border border-white/5 rounded-xl space-y-3 transform translateZ(0)">
+                  <div className="flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-[#D4AF37]" />
+                      <span className="font-black text-white uppercase tracking-widest text-[10px]">Daily Loss Cap</span>
+                    </div>
+                    <span className="text-[#64748B] text-[10px] font-mono">Loss: <span className="text-white font-bold">$120</span> / limit: <span className="text-[#D4AF37] font-bold">$500</span></span>
+                  </div>
+                  
+                  {/* Liquid filled tube */}
+                  <LiquidProgress value={24} color="#D4AF37" />
+                  
+                  <p className="text-[9px] text-[#64748B] leading-none font-medium">
+                    Drawdown parameters active. 76% daily capital headroom remaining.
+                  </p>
+                </div>
+
+                {/* Rule Card 2: Lot Constraint */}
+                <div className="p-4 bg-[#050508]/40 border border-white/5 rounded-xl space-y-3 transform translateZ(0)">
+                  <div className="flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-[#00D4AA]" />
+                      <span className="font-black text-white uppercase tracking-widest text-[10px]">Max Lot Allocation</span>
+                    </div>
+                    <span className="text-[#64748B] text-[10px] font-mono">Active: <span className="text-white font-bold">1.50 Lots</span> / limit: <span className="text-[#00D4AA] font-bold">2.00 Lots</span></span>
+                  </div>
+
+                  {/* Liquid fill progress */}
+                  <LiquidProgress value={75} color="#00D4AA" />
+
+                  <div className="p-2.5 bg-[#00D4AA]/8 border border-[#00D4AA]/15 rounded-lg flex items-center gap-2.5 transform translateZ(0)">
+                    <Check className="w-4 h-4 text-[#00D4AA] shrink-0" />
+                    <div>
+                      <h4 className="text-[9px] font-black text-[#00D4AA] uppercase tracking-widest">RULE CHECKS COMPLIANT</h4>
+                      <p className="text-[9px] text-[#64748B] font-medium">Positions respect active risk allocations. All entries verified.</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
+            </HolographicTilt>
+          </div>
         </div>
       </section>
 
-      {/* SECTION 4: High-Fidelity Analytics */}
-      <section id="analytics" className="py-24 border-t border-white/5 relative bg-[#050508]/10">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col lg:flex-row-reverse items-center gap-16">
-          <motion.div {...fadeUp(0)} className="flex-1 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#FFD700]/10 border border-[#FFD700]/20 text-[10px] font-bold text-[#FFD700] uppercase tracking-widest">
-              <BarChart2 className="w-3 h-3" /> Visual Analytics
-            </div>
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight uppercase leading-none text-white">
-              Dynamic Analytics. <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#F59E0B]">
-                Discover Your Edge.
-              </span>
-            </h2>
-            <p className="text-[#94A3B8] leading-relaxed text-sm">
-              Ditch static spreadsheets. GoldBook constructs high-fidelity equity curves, win/loss calendars, session payout mapping, and precise metrics. See immediately which time blocks, assets, and lot-profiles contribute to your growth and which damage your profile.
-            </p>
-            <div className="space-y-3.5">
+      {/* SECTION 5: Visual Analytics — "The Edge" */}
+      <section id="analytics" className="relative py-36 overflow-hidden border-b border-[#D4AF37]/8">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row-reverse items-center gap-16">
+          {/* Left/Right Text copy */}
+          <div className="flex-1 space-y-6">
+            <ScrollReveal direction="right" delay={0.1}>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#D4AF37]/8 border border-[#D4AF37]/15 text-[9px] font-black text-[#D4AF37] uppercase tracking-widest">
+                <BarChart2 className="w-3 h-3" /> Visual Analytics
+              </div>
+            </ScrollReveal>
+            <ScrollReveal direction="right" delay={0.2}>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight uppercase leading-none text-white">
+                Dynamic Analytics. <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#B8860B]">
+                  Discover Your Edge.
+                </span>
+              </h2>
+            </ScrollReveal>
+            <ScrollReveal direction="right" delay={0.3}>
+              <p className="text-[#94A3B8] leading-relaxed text-xs sm:text-sm font-medium">
+                Ditch static spreadsheets. GoldBook constructs high-fidelity equity curves, win/loss calendars, session payout mapping, and precise metrics. See immediately which time blocks, assets, and lot-profiles contribute to your growth and which damage your profile.
+              </p>
+            </ScrollReveal>
+
+            <div className="space-y-4 pt-2">
               {[
                 { title: "Dynamic Equity Curve Plotting", desc: "Plots absolute growth progress maps with standard error bounding bands." },
                 { title: "Heatmapped calendar logs", desc: "A gorgeous calendar showcasing exact daily gains, losses, and emotion flags." },
-                { title: "Advanced statistics indicators", desc: "Computes Profit Factor, Sharpe Ratio, Win/Loss Standard Deviation, and R-multiple." }
-              ].map(item => (
-                <div key={item.title} className="flex gap-3">
-                  <Check className="w-4 h-4 text-[#FFD700] shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">{item.title}</h4>
-                    <p className="text-[#64748B] text-xs mt-0.5">{item.desc}</p>
+                { title: "Advanced statistics indicators", desc: "Computes Sharpe Ratio, Profit Factor, Win/Loss Standard Deviation, and R-multiple." }
+              ].map((item, idx) => (
+                <ScrollReveal key={item.title} direction="right" delay={0.35 + idx * 0.1} className="flex gap-3">
+                  <div className="w-5 h-5 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/25 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-[#D4AF37]" />
                   </div>
-                </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest">{item.title}</h4>
+                    <p className="text-[#64748B] text-xs mt-0.5 font-medium">{item.desc}</p>
+                  </div>
+                </ScrollReveal>
               ))}
             </div>
-            <div className="pt-2">
+
+            <ScrollReveal direction="right" delay={0.65} className="pt-2">
               <Link href="/auth">
-                <button className="flex items-center gap-2 text-xs font-bold text-white hover:text-[#FFD700] uppercase tracking-wider transition-colors">
-                  Open Analytics Dashboard <ArrowRight className="w-4 h-4" />
+                <button className="flex items-center gap-2 text-[10px] font-black text-[#D4AF37] uppercase tracking-widest hover:text-white transition-colors cursor-pointer group">
+                  Open Analytics Dashboard <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               </Link>
-            </div>
-          </motion.div>
+            </ScrollReveal>
+          </div>
 
-          {/* Interactive Mockup 4: Analytics Console & Performance Calendar */}
-          <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
-            <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl flex flex-col h-[400px]">
-              {/* Tab selector */}
-              <div className="flex border-b border-white/5 bg-white/[0.01] rounded-t-xl overflow-hidden mb-4">
-                <button 
-                  onClick={() => setAnalyticsTab('equity')}
-                  className={cn("flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors", 
-                    analyticsTab === 'equity' ? "bg-white/5 text-[#FFD700] border-b border-[#FFD700]" : "text-[#64748B] hover:text-white"
-                  )}
-                >
-                  Equity Curve
-                </button>
-                <button 
-                  onClick={() => setAnalyticsTab('calendar')}
-                  className={cn("flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors", 
-                    analyticsTab === 'calendar' ? "bg-white/5 text-[#FFD700] border-b border-[#FFD700]" : "text-[#64748B] hover:text-white"
-                  )}
-                >
-                  PnL Calendar
-                </button>
-                <button 
-                  onClick={() => setAnalyticsTab('stats')}
-                  className={cn("flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider transition-colors", 
-                    analyticsTab === 'stats' ? "bg-white/5 text-[#FFD700] border-b border-[#FFD700]" : "text-[#64748B] hover:text-white"
-                  )}
-                >
-                  Edge Stats
-                </button>
+          {/* Right Side: Parallax gallery - 3 depths (0.6x, 1.0x, 1.2x) that separate and converge */}
+          <div className="flex-1 w-full relative h-[400px]">
+            <ParallaxSection speed={0.6} className="absolute inset-0 z-0">
+              {/* Back Layer: SVG Equity Curve */}
+              <div className="bg-[#08080f]/95 border border-[#D4AF37]/10 rounded-2xl p-5 shadow-2xl h-[260px] flex flex-col justify-between transform translateZ(0)">
+                <div className="flex justify-between items-center text-[9px] font-mono">
+                  <span className="text-[#64748B] uppercase tracking-widest font-black">Net Growth Curve</span>
+                  <span className="text-[#00D4AA] font-bold">+$4,250.00 Overall</span>
+                </div>
+                <div className="relative h-32 w-full bg-white/[0.01] border border-white/5 rounded-xl overflow-hidden flex items-end">
+                  <svg className="absolute inset-0 w-full h-full p-2" viewBox="0 0 100 50" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#D4AF37" stopOpacity="0.2"/>
+                        <stop offset="100%" stopColor="#D4AF37" stopOpacity="0"/>
+                      </linearGradient>
+                    </defs>
+                    <path d="M 0 50 L 10 45 L 20 40 L 30 46 L 40 38 L 50 35 L 60 22 L 70 28 L 80 20 L 90 12 L 100 8 L 100 50 Z" fill="url(#chartGradient)" />
+                    <path d="M 0 50 L 10 45 L 20 40 L 30 46 L 40 38 L 50 35 L 60 22 L 70 28 L 80 20 L 90 12 L 100 8" fill="none" stroke="#D4AF37" strokeWidth="1.5" />
+                    <circle cx="60" cy="22" r="1.2" fill="#D4AF37" />
+                    <circle cx="100" cy="8" r="1.2" fill="#D4AF37" />
+                  </svg>
+                  <div className="absolute bottom-2 left-2 text-[8px] font-mono text-[#64748B]">May 1</div>
+                  <div className="absolute bottom-2 right-2 text-[8px] font-mono text-[#64748B]">May 21</div>
+                </div>
               </div>
+            </ParallaxSection>
 
-              <div className="flex-1 overflow-y-auto px-1">
-                {analyticsTab === 'equity' && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-[#64748B] uppercase tracking-wide">Net Growth Curve</span>
-                      <span className="text-[#22C55E] font-bold font-mono">+$4,250.00 Overall</span>
-                    </div>
-                    {/* SVG Equity Line */}
-                    <div className="relative h-44 w-full bg-white/[0.01] border border-white/5 rounded-xl overflow-hidden flex items-end">
-                      <svg className="absolute inset-0 w-full h-full p-2" viewBox="0 0 100 50" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#FFD700" stopOpacity="0.2"/>
-                            <stop offset="100%" stopColor="#FFD700" stopOpacity="0"/>
-                          </linearGradient>
-                        </defs>
-                        {/* Area */}
-                        <path d="M 0 50 L 10 45 L 20 40 L 30 46 L 40 38 L 50 35 L 60 22 L 70 28 L 80 20 L 90 12 L 100 8 L 100 50 Z" fill="url(#chartGradient)" />
-                        {/* Line */}
-                        <path d="M 0 50 L 10 45 L 20 40 L 30 46 L 40 38 L 50 35 L 60 22 L 70 28 L 80 20 L 90 12 L 100 8" fill="none" stroke="#FFD700" strokeWidth="1.5" />
-                        {/* Highlights */}
-                        <circle cx="60" cy="22" r="1.5" fill="#FFD700" className="animate-pulse" />
-                        <circle cx="100" cy="8" r="1.5" fill="#FFD700" className="animate-pulse" />
-                      </svg>
-                      <div className="absolute bottom-2 left-2 text-[9px] font-mono text-[#64748B]">May 1</div>
-                      <div className="absolute bottom-2 right-2 text-[9px] font-mono text-[#64748B]">May 21</div>
-                    </div>
-                  </div>
-                )}
-
-                {analyticsTab === 'calendar' && (
-                  <div className="space-y-4">
-                    <p className="text-[10px] text-[#64748B] uppercase tracking-wide">Interactive Session Calendar (Click days)</p>
-                    
-                    <div className="grid grid-cols-5 gap-2.5 max-w-sm mx-auto">
-                      {mockCalendarDays.map((d) => (
-                        <div 
-                          key={d.day}
-                          onClick={() => setSelectedDay(d.day)}
-                          className={cn(
-                            "aspect-square rounded-lg flex flex-col justify-center items-center cursor-pointer border transition-all text-xs font-bold",
-                            d.win === true ? "bg-[#22C55E]/10 border-[#22C55E]/20 text-[#22C55E] hover:bg-[#22C55E]/20" : 
-                            d.win === false ? "bg-[#EF4444]/10 border-[#EF4444]/20 text-[#EF4444] hover:bg-[#EF4444]/20" : 
-                            "bg-white/5 border-white/5 text-[#64748B]",
-                            selectedDay === d.day ? "ring-2 ring-[#FFD700] ring-offset-2 ring-offset-[#0c0c14]" : ""
-                          )}
-                        >
-                          <span>{d.day}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Day Details card details */}
-                    <AnimatePresence mode="wait">
-                      {selectedDay && (
-                        <motion.div 
-                          key={selectedDay}
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0 }}
-                          className="p-3 bg-white/[0.02] border border-white/5 rounded-xl text-[11px]"
-                        >
-                          <div className="flex justify-between items-center font-bold text-white mb-2 uppercase tracking-wider text-[10px]">
-                            <span>Session Detail — May {selectedDay}</span>
-                            <span className={cn(
-                              mockCalendarDays.find(d => d.day === selectedDay)?.profit ?? 0 >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"
-                            )}>
-                              {mockCalendarDays.find(d => d.day === selectedDay)?.profit ?? 0 >= 0 ? '+' : ''}
-                              ${mockCalendarDays.find(d => d.day === selectedDay)?.profit}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-[#64748B]">
-                            <span>Executions: <span className="text-white font-semibold">3 (MT5 Synced)</span></span>
-                            <span>Avg RR Achieved: <span className="text-white font-semibold">1:2.8</span></span>
-                            <span>Main Tag: <span className="text-white font-semibold uppercase">Calm / Discipline</span></span>
-                            <span>Revenge Trades: <span className="text-white font-semibold">0</span></span>
-                          </div>
-                        </motion.div>
+            <ParallaxSection speed={1.0} className="absolute inset-x-4 top-24 z-10">
+              {/* Middle Layer: Win/Loss Calendar */}
+              <div className="bg-[#08080f]/98 border border-[#00D4AA]/10 rounded-2xl p-5 shadow-2xl space-y-3 transform translateZ(0) max-w-sm mx-auto">
+                <p className="text-[8px] text-[#64748B] uppercase tracking-widest font-black">Performance Calendar Logs</p>
+                <div className="grid grid-cols-5 gap-2.5">
+                  {mockCalendarDays.map((d) => (
+                    <div 
+                      key={d.day}
+                      onClick={() => setSelectedDay(d.day)}
+                      className={cn(
+                        "aspect-square rounded-lg flex flex-col justify-center items-center cursor-pointer border transition-all text-[10px] font-mono font-bold",
+                        d.win === true ? "bg-[#00D4AA]/8 border-[#00D4AA]/15 text-[#00D4AA]" : 
+                        d.win === false ? "bg-red-500/8 border-red-500/15 text-red-400" : 
+                        "bg-white/5 border-white/5 text-[#64748B]",
+                        selectedDay === d.day ? "ring-1 ring-[#D4AF37]" : ""
                       )}
-                    </AnimatePresence>
-                  </div>
-                )}
-
-                {analyticsTab === 'stats' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: 'Profit Factor', val: '2.84', desc: 'Ratio of gross wins to gross losses' },
-                      { label: 'Sharpe Ratio', val: '1.92', desc: 'Risk-adjusted investment return profile' },
-                      { label: 'Average RR', val: '1:3.2', desc: 'Realized stop-loss to target metrics' },
-                      { label: 'Execution Rate', val: '94.2%', desc: 'Percentage of trades matching rules' }
-                    ].map(s => (
-                      <div key={s.label} className="p-3 bg-white/[0.02] border border-white/5 rounded-xl">
-                        <span className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold block">{s.label}</span>
-                        <span className="text-sm font-extrabold text-[#FFD700] block mt-0.5">{s.val}</span>
-                        <span className="text-[9px] text-[#64748B] leading-none mt-1 block">{s.desc}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                    >
+                      <span>{d.day}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </ParallaxSection>
+
+            <ParallaxSection speed={1.2} className="absolute right-4 top-48 z-20 max-w-[220px]">
+              {/* Front Layer: Stats card details */}
+              <div className="bg-[#08080f] border border-[#D4AF37]/12 rounded-2xl p-4 shadow-2xl space-y-3 transform translateZ(0)">
+                <div className="flex justify-between items-center text-[8px] font-mono">
+                  <span className="text-white font-black uppercase tracking-widest">Sharpe Ratio</span>
+                  <span className="text-[#D4AF37] font-black">1.92</span>
+                </div>
+                <div className="flex justify-between items-center text-[8px] font-mono">
+                  <span className="text-white font-black uppercase tracking-widest">Profit Factor</span>
+                  <span className="text-[#00D4AA] font-black">2.84</span>
+                </div>
+              </div>
+            </ParallaxSection>
+          </div>
         </div>
       </section>
 
-      {/* SECTION 5: Collaborative Trading Hub */}
-      <section id="community" className="py-24 border-t border-white/5 relative bg-[#050508]/40">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-16">
-          <motion.div {...fadeUp(0)} className="flex-1 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#FFD700]/10 border border-[#FFD700]/20 text-[10px] font-bold text-[#FFD700] uppercase tracking-widest">
-              <Users className="w-3 h-3" /> Peer Collaboration
-            </div>
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight uppercase leading-none text-white">
-              Shared Rooms. <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#F59E0B]">
-                Trade in Synchrony.
-              </span>
-            </h2>
-            <p className="text-[#94A3B8] leading-relaxed text-sm">
-              Don't isolate yourself in trading. Join collaborative GoldBook voice rooms where you can discuss live market flows, share trading plans, and broadcast verified executions. Build social accountability structures to stay aligned with your goals.
-            </p>
-            <div className="space-y-3.5">
+      {/* SECTION 5.5: Peer Collaboration — "The Voice Channel" */}
+      <section id="community" className="relative py-36 overflow-hidden border-b border-[#00D4AA]/8">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-16">
+          {/* Left Side: Parallax Speed 1.0 Content */}
+          <div className="flex-1 space-y-6">
+            <ScrollReveal direction="left" delay={0.1}>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#00D4AA]/8 border border-[#00D4AA]/15 text-[9px] font-black text-[#00D4AA] uppercase tracking-widest">
+                <Users className="w-3 h-3" /> Peer Collaboration
+              </div>
+            </ScrollReveal>
+            <ScrollReveal direction="left" delay={0.2}>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tight uppercase leading-none text-white">
+                Shared Rooms. <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D4AA] to-[#008066]">
+                  Trade in Synchrony.
+                </span>
+              </h2>
+            </ScrollReveal>
+            <ScrollReveal direction="left" delay={0.3}>
+              <p className="text-[#94A3B8] leading-relaxed text-xs sm:text-sm font-medium">
+                Don't isolate yourself in trading. Join collaborative GoldBook voice rooms where you can discuss live market flows, share trading plans, and broadcast verified executions. Build social accountability structures to stay aligned with your goals.
+              </p>
+            </ScrollReveal>
+            
+            <div className="space-y-4 pt-2">
               {[
                 { title: "High-fidelity social voice rooms", desc: "Collaborate instantly on active levels with integrated voice latency controls." },
                 { title: "Verified plan broadcasting feed", desc: "Broadcast live plans directly. Peers see verified entry and statistics overlays." },
                 { title: "Group accountability checklists", desc: "Establish shared rules. Room participants receive notifications when rules are violated." }
-              ].map(item => (
-                <div key={item.title} className="flex gap-3">
-                  <Check className="w-4 h-4 text-[#FFD700] shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">{item.title}</h4>
-                    <p className="text-[#64748B] text-xs mt-0.5">{item.desc}</p>
+              ].map((item, idx) => (
+                <ScrollReveal key={item.title} direction="left" delay={0.35 + idx * 0.1} className="flex gap-3">
+                  <div className="w-5 h-5 rounded-full bg-[#00D4AA]/10 border border-[#00D4AA]/25 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-3 h-3 text-[#00D4AA]" />
                   </div>
-                </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest">{item.title}</h4>
+                    <p className="text-[#64748B] text-xs mt-0.5 font-medium">{item.desc}</p>
+                  </div>
+                </ScrollReveal>
               ))}
             </div>
-            <div className="pt-2">
+
+            <ScrollReveal direction="left" delay={0.65} className="pt-2">
               <Link href="/auth">
-                <button className="flex items-center gap-2 text-xs font-bold text-white hover:text-[#FFD700] uppercase tracking-wider transition-colors">
-                  Join Peer Ecosystem <ArrowRight className="w-4 h-4" />
+                <button className="flex items-center gap-2 text-[10px] font-black text-[#00D4AA] uppercase tracking-widest hover:text-white transition-colors cursor-pointer group">
+                  Join Peer Ecosystem <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               </Link>
-            </div>
-          </motion.div>
+            </ScrollReveal>
+          </div>
 
-          {/* Interactive Mockup 5: Voice Channel & Shared Trades Hub (Static High-Fidelity Example) */}
-          <motion.div {...fadeUp(0.2)} className="flex-1 w-full">
-            <div className="bg-[#0c0c14]/80 border border-white/10 rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl relative space-y-4">
+          {/* Right Side Mockup */}
+          <div className="flex-1 w-full">
+            <div className="bg-[#08080f]/90 border border-[#00D4AA]/12 rounded-2xl p-5 shadow-[0_30px_60px_rgba(0,0,0,0.7)] backdrop-blur-md relative space-y-4 transform translateZ(0)">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Trading Room Voice</h3>
-                  <p className="text-[#64748B] text-[10px]">Active Room: <span className="text-[#FFD700] font-semibold">XAUUSD Live Scalpers</span></p>
+                  <h3 className="text-xs font-black uppercase text-white tracking-widest">Trading Room Voice</h3>
+                  <p className="text-[#64748B] text-[9px] font-mono">Active Room: <span className="text-[#00D4AA] font-bold">XAUUSD Live Scalpers</span></p>
                 </div>
-                <div className="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-white/5 border border-white/10 text-white/80">
+                <div className="px-3.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest bg-white/5 border border-white/5 text-white/80">
                   Room Full
                 </div>
               </div>
@@ -934,26 +900,26 @@ export default function LandingPage() {
                     <div 
                       key={u.name} 
                       className={cn(
-                        "p-3 rounded-xl border flex items-center gap-3 transition-all",
+                        "p-3 rounded-xl border flex items-center gap-3 transition-all border-white/5",
                         u.speaking 
-                          ? "bg-[#FFD700]/5 border-[#FFD700]/20 shadow-[0_0_12px_rgba(255,215,0,0.1)]" 
-                          : "bg-white/[0.01] border-white/5"
+                          ? "bg-[#D4AF37]/5 border-[#D4AF37]/20 shadow-[0_0_12px_rgba(212,175,55,0.08)]" 
+                          : "bg-white/[0.01]"
                       )}
                     >
                       <div className={cn(
-                        "w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs relative",
-                        u.speaking ? "bg-[#FFD700] text-black" : "bg-white/10 text-white/80"
+                        "w-8 h-8 rounded-full flex items-center justify-center font-black text-xs relative",
+                        u.speaking ? "bg-[#D4AF37] text-black" : "bg-white/10 text-white/80"
                       )}>
                         {u.avatar}
                         {u.speaking && (
-                          <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#FFD700] rounded-full border-2 border-[#0c0c14] flex items-center justify-center">
+                          <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[#D4AF37] rounded-full border border-[#08080f] flex items-center justify-center">
                             <Volume2 className="w-2.5 h-2.5 text-black" />
                           </span>
                         )}
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-white/95 block">{u.name}</span>
-                        <span className="text-[9px] text-[#64748B] uppercase tracking-wider font-semibold">{u.role}</span>
+                        <span className="text-xs font-black text-white/95 block">{u.name}</span>
+                        <span className="text-[8px] text-[#64748B] uppercase tracking-widest font-black">{u.role}</span>
                       </div>
                     </div>
                   )
@@ -961,68 +927,75 @@ export default function LandingPage() {
               </div>
 
               {/* Shared Live Trade Card in room */}
-              <div className="bg-[#10101a] border border-white/5 rounded-xl p-3.5 space-y-2">
-                <div className="flex justify-between items-center text-[10px] text-[#64748B]">
-                  <span className="uppercase tracking-wider font-bold text-white/60">Verified Broadcast from Room</span>
+              <div className="bg-[#050508]/60 border border-white/5 rounded-xl p-3.5 space-y-2 transform translateZ(0)">
+                <div className="flex justify-between items-center text-[8px] font-mono text-[#64748B]">
+                  <span className="uppercase tracking-widest font-black text-white/60">Verified Broadcast</span>
                   <span>10 mins ago</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black uppercase bg-[#22C55E]/10 text-[#22C55E] px-1.5 py-0.5 rounded">LIMIT BUY</span>
-                    <span className="text-xs font-bold text-white">XAUUSD</span>
+                    <span className="text-[8px] font-black uppercase bg-[#00D4AA]/8 text-[#00D4AA] px-1.5 py-0.5 rounded border border-[#00D4AA]/15">LIMIT BUY</span>
+                    <span className="text-xs font-black text-white">XAUUSD</span>
                   </div>
-                  <span className="text-xs font-mono font-bold text-[#FFD700]">Entry: 2342.10</span>
+                  <span className="text-xs font-mono font-bold text-[#D4AF37]">Entry: 2342.10</span>
                 </div>
-                <p className="text-[10px] text-[#94A3B8] leading-relaxed">
+                <p className="text-[10px] text-[#94A3B8] leading-relaxed font-semibold italic">
                   "Targeting weekly liquidity boundary. Stop placed below H1 support level (2336.00). Target TP at 2360.00."
                 </p>
-                <div className="pt-1 flex gap-2">
-                  <button className="flex-1 py-1 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors rounded text-[9px] font-bold text-white uppercase tracking-wider">
-                    Copy Strategy levels
+                <div className="pt-1.5 flex gap-2">
+                  <button className="flex-1 py-1.5 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors rounded-full text-[8px] font-black text-white uppercase tracking-widest cursor-pointer">
+                    Copy Strategy Levels
                   </button>
-                  <button className="flex-1 py-1 bg-[#FFD700]/10 border border-[#FFD700]/20 hover:bg-[#FFD700]/20 transition-colors rounded text-[9px] font-bold text-[#FFD700] uppercase tracking-wider">
+                  <button className="flex-1 py-1.5 bg-[#D4AF37]/8 border border-[#D4AF37]/15 hover:bg-[#D4AF37]/20 transition-colors rounded-full text-[8px] font-black text-[#D4AF37] uppercase tracking-widest cursor-pointer">
                     View Chart Breakdown
                   </button>
                 </div>
               </div>
             </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Cinematic Call To Action */}
-      <section className="py-32 px-6 border-t border-white/5 text-center relative overflow-hidden bg-[#07070b]/60">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
-
-        <div className="max-w-4xl mx-auto space-y-8 relative z-10">
-          <h2 className="text-4xl md:text-7xl font-black tracking-tight uppercase leading-none text-white">
-            Remove Rule Fatigue.<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#FFE066] to-[#D4AF37] drop-shadow-[0_0_20px_rgba(255,215,0,0.15)]">
-              Acquire Precision Edge.
-            </span>
-          </h2>
-          <p className="text-[#94A3B8] text-base md:text-lg max-w-2xl mx-auto">
-            Join the cohort of institutional-minded retail traders tracking emotion, executing with discipline, and streaming verified telemetry.
-          </p>
-          <div className="flex justify-center pt-4">
-            <Link href="/auth">
-              <button className="group relative px-9 py-4.5 bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37] text-black font-extrabold uppercase tracking-widest text-xs rounded-lg transition-transform hover:scale-105 shadow-[0_0_30px_rgba(255,215,0,0.3)]">
-                <span className="relative z-10 flex items-center gap-2">
-                  Deploy GoldBook Console Now <ChevronRight className="w-4 h-4" />
-                </span>
-              </button>
-            </Link>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* SECTION 6: CTA Footer — "Join The Cohort" */}
+      <section className="relative py-36 px-6 overflow-hidden border-t border-[#D4AF37]/8 bg-[#050508]">
+        <ParticleBackground density={1400} />
+
+        <div className="max-w-4xl mx-auto text-center space-y-8 relative z-10">
+          <ScrollReveal direction="up" delay={0.1}>
+            <h2 className="text-4xl sm:text-6xl font-black tracking-tight uppercase leading-none text-white">
+              Remove Rule Fatigue.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#FFF] to-[#D4AF37] drop-shadow-[0_0_20px_rgba(212,175,55,0.2)]">
+                Acquire Precision Edge.
+              </span>
+            </h2>
+          </ScrollReveal>
+          
+          <ScrollReveal direction="up" delay={0.25}>
+            <p className="text-[#94A3B8] text-base max-w-xl mx-auto font-semibold">
+              Join the cohort of institutional-minded retail traders tracking emotion, executing with discipline, and streaming verified telemetry.
+            </p>
+          </ScrollReveal>
+
+          <ScrollReveal direction="up" delay={0.4} className="flex justify-center">
+            <Link href="/auth">
+              <MagneticButton className="group relative px-9 py-4 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:from-[#FFD700] hover:to-[#D4AF37] text-black font-black uppercase tracking-widest text-xs rounded-full transition-transform hover:scale-105 shadow-[0_0_30px_rgba(212,175,55,0.25)] cursor-pointer">
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                <span className="relative z-10 flex items-center gap-2">
+                  Enter The Terminal <ChevronRight className="w-4 h-4" />
+                </span>
+              </MagneticButton>
+            </Link>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      {/* Footer copyright */}
       <footer className="border-t border-white/5 bg-[#050508] px-6 py-12 relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-[#64748B] font-semibold">
-          <div className="flex items-center gap-2 font-black text-lg tracking-tight text-white">
-            <GoldBookLogo size={22} className="shadow-[0_0_10px_rgba(255,215,0,0.15)]" />
-            <span className="font-extrabold text-sm tracking-wider">
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37]">GOLD</span>
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-[10px] uppercase tracking-wider text-[#64748B] font-black">
+          <div className="flex items-center gap-2 text-white">
+            <GoldBookLogo size={22} className="shadow-[0_0_12px_rgba(212,175,55,0.15)]" />
+            <span className="font-extrabold text-xs tracking-wider">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#FFD700] to-[#FFE066]">GOLD</span>
               <span className="text-white/90 font-light">BOOK</span>
             </span>
           </div>
@@ -1030,6 +1003,5 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
-  </div>
   )
 }

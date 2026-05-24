@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
 import { 
@@ -33,6 +33,57 @@ export default function AIReportPage() {
 
   // Past reports history state
   const [pastReports, setPastReports] = useState<any[]>([])
+  
+  // Cinematic progressive loading state
+  const [loadingStage, setLoadingStage] = useState(0)
+
+  // Client-Side Telemetry Compilation for loading steps
+  const clientTelemetry = useMemo(() => {
+    if (!trades || trades.length === 0) {
+      return { journalCount: 0, selfAttacks: 0, regrets: 0, revengeTriggers: 0 }
+    }
+
+    const closed = trades.filter((t: any) => t.status === 'closed' && t.notes)
+    
+    const selfAttackRegex = /\b(?:idiot|stupid|loser|fail|mess|worthless|pathetic|fool|dumb|screw|screwup|horrible|terrible)\w*\b|what\s+was\s+i\s+thinking|why\s+do\s+i\s+always|how\s+could\s+i|what\s+am\s+i\s+doing/gi
+    const regretRegex = /\b(?:should|regret|could|if\s+only|wish|mistake|why\s+did\b)\w*\b/gi
+    
+    let selfAttackCount = 0
+    let regretCount = 0
+
+    closed.forEach((t: any) => {
+      const text = t.notes || ''
+      const saMatches = text.match(selfAttackRegex)
+      if (saMatches) selfAttackCount += saMatches.length
+      
+      const rMatches = text.match(regretRegex)
+      if (rMatches) regretCount += rMatches.length
+    })
+
+    let revengeCount = 0
+    const sorted = [...trades].filter((t: any) => t.open_time).sort(
+      (a: any, b: any) => new Date(a.open_time!).getTime() - new Date(b.open_time!).getTime()
+    )
+    const losses = trades.filter((t: any) => t.close_time && (t.net_profit ?? 0) < 0)
+
+    for (const loss of losses) {
+      const lossClose = new Date(loss.close_time!).getTime()
+      const next = sorted.find((t: any) => {
+        const o = new Date(t.open_time!).getTime()
+        if (o <= lossClose) return false
+        const delta = (o - lossClose) / (60 * 1000)
+        return delta > 0 && delta <= 45
+      })
+      if (next) revengeCount++
+    }
+
+    return {
+      journalCount: closed.length,
+      selfAttacks: selfAttackCount,
+      regrets: regretCount,
+      revengeTriggers: revengeCount
+    }
+  }, [trades])
 
   const messages = [
     'Running Deep Psychological Telemetry calculations...',
@@ -197,13 +248,14 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
     setError(null)
     setReport(null)
     setSkipAnimation(false)
+    setLoadingStage(1)
 
-    let i = 0
-    setLoadingMsg(messages[0])
-    const interval = setInterval(() => {
-      i = (i + 1) % messages.length
-      setLoadingMsg(messages[i])
-    }, 1800)
+    const startTime = Date.now()
+
+    // Cinematic loading timer timeouts
+    const stage2Timeout = setTimeout(() => setLoadingStage(2), 2500)
+    const stage3Timeout = setTimeout(() => setLoadingStage(3), 5000)
+    const stage4Timeout = setTimeout(() => setLoadingStage(4), 7500)
 
     try {
       const res = await fetch('/api/ai/generate-report', {
@@ -213,9 +265,16 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
+
+      // Ensure minimum 8.5s cinematic loader to build psychological trust
+      const elapsed = Date.now() - startTime
+      const remaining = Math.max(0, 8500 - elapsed)
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining))
+      }
       
       setReport({
-        id: data.reportId,
+        id: data.reportId || data.report?.id,
         grade: data.report.grade,
         grade_reason: data.report.grade_reason,
         strengths: data.report.strengths,
@@ -252,13 +311,16 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
             origin: { y: 0.5 },
             colors: ['#F59E0B', '#22C55E', '#FFFFFF']
           })
-        }, 1200)
+        }, 800)
       }
     } catch (e: any) {
       setError(e.message)
+      clearTimeout(stage2Timeout)
+      clearTimeout(stage3Timeout)
+      clearTimeout(stage4Timeout)
     } finally {
-      clearInterval(interval)
       setLoading(false)
+      setLoadingStage(0)
     }
   }
 
@@ -441,8 +503,20 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
             </p>
           </div>
           {error && (
-            <div className="p-3.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] text-xs max-w-sm mx-auto">
-              {error}
+            <div className="p-5 rounded-2xl bg-[#EF4444]/5 border border-[#EF4444]/20 text-[#EF4444] text-xs max-w-xl mx-auto space-y-3 shadow-xl">
+              <div className="flex items-center gap-2 justify-center">
+                <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
+                <strong className="text-white font-extrabold uppercase tracking-wide">Journal Quality Gate Insufficient</strong>
+              </div>
+              <p className="leading-relaxed text-[#94A3B8] font-medium text-center">
+                {error}
+              </p>
+              <div className="pt-2 text-left border-t border-[#EF4444]/15">
+                <span className="text-[10px] font-black text-primary block uppercase tracking-widest mb-1 text-center">PRO-TIP FOR TRADERS:</span>
+                <p className="text-[10px] text-[#64748B] leading-relaxed text-center">
+                  Go to your <strong className="text-white font-bold">Trading Journal</strong> page, edit your recent closed trades, and add details about how you felt (e.g. FOMO, anxious, satisfied), what rules you followed or broke, and a brief sentence reflecting on your focus.
+                </p>
+              </div>
             </div>
           )}
           <button
@@ -454,19 +528,102 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
         </div>
       )}
 
-      {/* Loading state */}
+      {/* Loading state: Cinematic progressive credibility loading sequence */}
       {loading && (
-        <div className="bg-[#0A0A10]/70 border border-white/5 rounded-2xl p-16 text-center space-y-6 backdrop-blur-md max-w-xl mx-auto shadow-2xl">
-          <div className="relative w-20 h-20 mx-auto">
-            <div className="absolute inset-0 rounded-full border-2 border-blue-500/20 animate-ping" />
-            <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-            <div className="absolute inset-2 rounded-full bg-blue-500/5 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.15)]">
-              <IntelligenceOrb size={38} />
+        <div className="bg-[#0A0A10]/95 border border-white/5 rounded-2xl p-8 max-w-xl mx-auto shadow-2xl relative overflow-hidden text-left space-y-6 backdrop-blur-md">
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.01] to-transparent pointer-events-none" />
+          
+          <div className="flex items-center gap-4 border-b border-white/5 pb-4">
+            <div className="relative w-12 h-12 shrink-0">
+              <div className="absolute inset-0 rounded-full border border-primary/20 animate-ping" />
+              <div className="absolute inset-0 rounded-full border border-primary border-t-transparent animate-spin" />
+              <div className="absolute inset-1 rounded-full bg-primary/10 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.15)]">
+                <IntelligenceOrb size={24} />
+              </div>
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white">Nirikshan Behavior Audit Engine</h3>
+              <p className="text-[10px] text-[#64748B] font-mono uppercase tracking-widest mt-0.5">Dual-LLM Cognitive Telemetry Pipeline</p>
             </div>
           </div>
-          <div className="max-w-xs mx-auto space-y-1.5">
-            <p className="text-base font-black text-blue-400 animate-pulse">{loadingMsg}</p>
-            <p className="text-[#64748B] text-[10px]">Compiling telemetry vectors & structuring diagnostic matrices. Please wait...</p>
+
+          <div className="space-y-6 py-2 font-mono text-xs text-[#94A3B8]">
+            {/* Stage 1: Narrative Telemetry */}
+            <div className={cn("transition-all duration-500", loadingStage >= 1 ? "opacity-100" : "opacity-35")}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🔍</span>
+                <span className={cn("font-bold text-white", loadingStage === 1 ? "text-primary animate-pulse" : "")}>
+                  Stage 1: Reading {clientTelemetry.journalCount} journal entries...
+                </span>
+                {loadingStage > 1 && <span className="text-emerald-400 font-extrabold text-[10px] ml-auto">SUCCESS</span>}
+                {loadingStage === 1 && <span className="text-primary text-[10px] ml-auto animate-pulse">ANALYZING</span>}
+              </div>
+              {loadingStage >= 1 && (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }} 
+                  animate={{ opacity: 1, x: 0 }} 
+                  className="pl-6 mt-1.5 text-[11px] text-[#64748B] leading-relaxed"
+                >
+                  └─ Detected <strong className="text-white">{clientTelemetry.selfAttacks}</strong> self-critical phrases, <strong className="text-white">{clientTelemetry.regrets}</strong> regret loops, <strong className="text-white">{clientTelemetry.revengeTriggers}</strong> revenge patterns.
+                </motion.div>
+              )}
+            </div>
+
+            {/* Stage 2: Narrative Psychology */}
+            <div className={cn("transition-all duration-500", loadingStage >= 2 ? "opacity-100" : "opacity-35")}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🧠</span>
+                <span className={cn("font-bold text-white", loadingStage === 2 ? "text-primary animate-pulse" : "")}>
+                  Stage 2: Running narrative psychology analysis...
+                </span>
+                {loadingStage > 2 && <span className="text-emerald-400 font-extrabold text-[10px] ml-auto">SUCCESS</span>}
+                {loadingStage === 2 && <span className="text-primary text-[10px] ml-auto animate-pulse">COMPUTING</span>}
+              </div>
+              {loadingStage >= 2 && (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }} 
+                  animate={{ opacity: 1, x: 0 }} 
+                  className="pl-6 mt-1.5 text-[11px] text-[#64748B] leading-relaxed"
+                >
+                  └─ Identifying: Locus of Control | Temporal Orientation | Cognitive Distortions
+                </motion.div>
+              )}
+            </div>
+
+            {/* Stage 3: Behavioral Compilation */}
+            <div className={cn("transition-all duration-500", loadingStage >= 3 ? "opacity-100" : "opacity-35")}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">📊</span>
+                <span className={cn("font-bold text-white", loadingStage === 3 ? "text-primary animate-pulse" : "")}>
+                  Stage 3: Compiling your behavioral profile...
+                </span>
+                {loadingStage > 3 && <span className="text-emerald-400 font-extrabold text-[10px] ml-auto">SUCCESS</span>}
+                {loadingStage === 3 && <span className="text-primary text-[10px] ml-auto animate-pulse">GENERATING</span>}
+              </div>
+              {loadingStage >= 3 && (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }} 
+                  animate={{ opacity: 1, x: 0 }} 
+                  className="pl-6 mt-1.5 text-[11px] text-[#64748B] leading-relaxed"
+                >
+                  └─ Generating: CBT exercises | Risk archetype | Coaching insights
+                </motion.div>
+              )}
+            </div>
+
+            {/* Nirikshan Ready */}
+            <AnimatePresence>
+              {loadingStage >= 4 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 pt-4 border-t border-white/5 text-emerald-400 font-bold"
+                >
+                  <span>✅</span>
+                  <span>Nirikshan diagnostic reports compiled. Loading dashboard...</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       )}
