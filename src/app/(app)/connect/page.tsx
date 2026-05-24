@@ -42,7 +42,7 @@ export default function ConnectPage() {
               }, 3000)
             } else if (acc.is_active === false) {
               // Worker marked it as inactive due to login failure
-              setError("Failed to connect. Please check MT5 login/password/server, and ensure your VPS MT5 has the API URL whitelisted (Tools > Options > Expert Advisors > WebRequest).")
+              setError("Failed to connect. Please check MT5 login/password/server, and ensure your MT5 terminal has the API URL whitelisted (Tools > Options > Expert Advisors > WebRequest).")
               setLoading(false)
               setAccountId(null) // Reset so they can try again
             }
@@ -68,7 +68,7 @@ export default function ConnectPage() {
             }, 3000)
           } else if (data.is_active === false) {
             clearInterval(intervalId)
-            setError("Failed to connect. Please check MT5 login/password/server, and ensure your VPS MT5 has the API URL whitelisted (Tools > Options > Expert Advisors > WebRequest).")
+            setError("Failed to connect. Please check MT5 login/password/server, and ensure your MT5 terminal has the API URL whitelisted (Tools > Options > Expert Advisors > WebRequest).")
             setLoading(false)
             setAccountId(null)
           }
@@ -287,7 +287,7 @@ export default function ConnectPage() {
                   </span>
                   <h4 className="text-sm font-bold text-white tracking-wide">Inside MT5 Desktop Terminal</h4>
                   <ol className="list-decimal pl-4 text-xs text-[#94A3B8] space-y-2.5 leading-relaxed">
-                    <li>Launch **MetaTrader 5** on your desktop/VPS.</li>
+                    <li>Launch **MetaTrader 5** on your computer.</li>
                     <li>Go to **Tools &gt; Options** in the top menu.</li>
                     <li>Select the **Server** tab, click **Change Password**.</li>
                     <li>Choose **"Change investor (read-only) password"**.</li>
