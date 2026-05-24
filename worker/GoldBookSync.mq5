@@ -131,69 +131,6 @@ string GetBalanceJson()
 }
 
 //+------------------------------------------------------------------+
-//| Struct and helpers for ultra-fast memory-based deal matching     |
-//+------------------------------------------------------------------+
-struct InDealInfo
-{
-   long   posId;
-   double price;
-   long   time;
-   int    type;
-};
-
-// Memory-only QuickSort to sort IN deals by position ID
-void QuickSortInDeals(InDealInfo &arr[], int left, int right)
-{
-   if(left >= right) return;
-   
-   int i = left, j = right;
-   long pivot = arr[(left + right) / 2].posId;
-   
-   while(i <= j)
-   {
-      while(arr[i].posId < pivot) i++;
-      while(arr[j].posId > pivot) j--;
-      
-      if(i <= j)
-      {
-         InDealInfo temp = arr[i];
-         arr[i] = arr[j];
-         arr[j] = temp;
-         i++;
-         j--;
-      }
-   }
-   
-   QuickSortInDeals(arr, left, j);
-   QuickSortInDeals(arr, i, right);
-}
-
-// Memory-only Binary Search to find matching IN deal by position ID
-int BinarySearchInDeals(InDealInfo &arr[], int size, long posId)
-{
-   int left = 0;
-   int right = size - 1;
-   
-   while(left <= right)
-   {
-      int mid = left + (right - left) / 2;
-      if(arr[mid].posId == posId)
-      {
-         return mid;
-      }
-      if(arr[mid].posId < posId)
-      {
-         left = mid + 1;
-      }
-      else
-      {
-         right = mid - 1;
-      }
-   }
-   return -1;
-}
-
-//+------------------------------------------------------------------+
 //| 2. Closed deals from last HistoryDays                           |
 //+------------------------------------------------------------------+
 string GetClosedDealsJson()
@@ -203,104 +140,46 @@ string GetClosedDealsJson()
  
    int total = HistoryDealsTotal();
    if(total == 0) return "";
- 
-   // ── Pass 1: Collect all IN deals and OUT tickets in a single scan ──
-   InDealInfo inDeals[];
-   ulong out_tickets[];
-   ArrayResize(inDeals, total);
-   ArrayResize(out_tickets, total);
    
-   int inCount = 0;
-   int outCount = 0;
+   string arr = "[";
+   bool first = true;
+   int count = 0;
    
    for(int i = 0; i < total; i++)
    {
       ulong t = HistoryDealGetTicket(i);
       if(!t) continue;
       
-      ENUM_DEAL_ENTRY entry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(t, DEAL_ENTRY);
-      if(entry == DEAL_ENTRY_IN)
-      {
-         inDeals[inCount].posId = HistoryDealGetInteger(t, DEAL_POSITION_ID);
-         inDeals[inCount].price = HistoryDealGetDouble(t, DEAL_PRICE);
-         inDeals[inCount].time  = HistoryDealGetInteger(t, DEAL_TIME);
-         inDeals[inCount].type  = (int)HistoryDealGetInteger(t, DEAL_TYPE);
-         inCount++;
-      }
-      else if(entry == DEAL_ENTRY_OUT || entry == DEAL_ENTRY_INOUT)
-      {
-         string sym = HistoryDealGetString(t, DEAL_SYMBOL);
-         if(sym != "") // skip deposits / balance ops
-         {
-            out_tickets[outCount] = t;
-            outCount++;
-         }
-      }
-   }
-   
-   if(outCount == 0) return "";
-   
-   // ── Sort the IN deals by posId for fast binary searching ──
-   if(inCount > 1)
-   {
-      QuickSortInDeals(inDeals, 0, inCount - 1);
-   }
-   
-   // ── Pass 2: Build JSON for OUT deals using binary search matching ──
-   string arr = "[";
-   bool   first = true;
-   int    count = 0;
- 
-   for(int i = 0; i < outCount; i++)
-   {
-      ulong t = out_tickets[i];
- 
-      // Retrieve properties for the OUT deal
-      if(!HistoryDealSelect(t)) continue;
- 
       string sym = HistoryDealGetString(t, DEAL_SYMBOL);
+      if(sym == "") continue; // skip balance ops
+      
       long   posId  = HistoryDealGetInteger(t, DEAL_POSITION_ID);
+      int    entry  = (int)HistoryDealGetInteger(t, DEAL_ENTRY);
+      int    type   = (int)HistoryDealGetInteger(t, DEAL_TYPE);
       double vol    = HistoryDealGetDouble(t,  DEAL_VOLUME);
-      double exitPx = HistoryDealGetDouble(t,  DEAL_PRICE);
+      double price  = HistoryDealGetDouble(t,  DEAL_PRICE);
       double profit = HistoryDealGetDouble(t,  DEAL_PROFIT);
       double swap   = HistoryDealGetDouble(t,  DEAL_SWAP);
       double comm   = HistoryDealGetDouble(t,  DEAL_COMMISSION);
-      long   ctime  = HistoryDealGetInteger(t, DEAL_TIME);
- 
-      // Match with IN deal to get true entry price & direction
-      double entryPx = exitPx;
-      long   otime   = ctime;
-      string dir     = "buy";
- 
-      int idx = BinarySearchInDeals(inDeals, inCount, posId);
-      if(idx != -1)
-      {
-         entryPx = inDeals[idx].price;
-         otime   = inDeals[idx].time;
-         dir     = (inDeals[idx].type == DEAL_TYPE_BUY) ? "buy" : "sell";
-      }
- 
+      long   time   = HistoryDealGetInteger(t, DEAL_TIME);
+      
       if(!first) arr += ",";
       arr += StringFormat(
-         "{\"mt5_ticket\":%d,\"position_id\":%d,\"symbol\":\"%s\","
-         "\"direction\":\"%s\",\"lot_size\":%.2f,"
-         "\"entry_price\":%.5f,\"exit_price\":%.5f,"
-         "\"open_time\":%d,\"close_time\":%d,"
-         "\"gross_profit\":%.2f,\"swap\":%.2f,\"commission\":%.2f,"
-         "\"net_profit\":%.2f,\"status\":\"closed\"}",
-         (long)t, posId, sym, dir, vol,
-         entryPx, exitPx, otime, ctime,
-         profit, swap, comm, profit + swap + comm
+         "{\"ticket\":%d,\"position_id\":%d,\"symbol\":\"%s\","
+         "\"entry\":%d,\"type\":%d,\"volume\":%.2f,"
+         "\"price\":%.5f,\"profit\":%.2f,\"swap\":%.2f,\"commission\":%.2f,"
+         "\"time\":%d}",
+         (long)t, posId, sym, entry, type, vol, price, profit, swap, comm, time
       );
       first = false;
       count++;
    }
    arr += "]";
-
+   
    if(count == 0) return "";
-
+   
    return StringFormat(
-      "{\"type\":\"trades\",\"sync_token\":\"%s\",\"trades\":%s}",
+      "{\"type\":\"raw_trades\",\"sync_token\":\"%s\",\"raw_trades\":%s}",
       g_sync_token, arr
    );
 }

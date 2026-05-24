@@ -407,6 +407,76 @@ def harvest_logs(data_dir: Path, login: str) -> str:
     return "\n".join(harvested)
 
 
+def match_raw_trades_in_python(payload: dict) -> dict | None:
+    raw_list = payload.get("raw_trades", [])
+    sync_token = payload.get("sync_token")
+    if not raw_list:
+        return None
+        
+    by_position = {}
+    for deal in raw_list:
+        pos_id = deal["position_id"]
+        if pos_id not in by_position:
+            by_position[pos_id] = []
+        by_position[pos_id].append(deal)
+        
+    matched_trades = []
+    
+    for pos_id, deals in by_position.items():
+        deals = sorted(deals, key=lambda d: d["time"])
+        
+        in_deals = [d for d in deals if d["entry"] == 0]
+        out_deals = [d for d in deals if d["entry"] in (1, 2)]
+        
+        if not out_deals:
+            continue
+            
+        for out_deal in out_deals:
+            matching_in = None
+            for in_deal in reversed(in_deals):
+                if in_deal["time"] <= out_deal["time"]:
+                    matching_in = in_deal
+                    break
+                    
+            entry_price = out_deal["price"]
+            open_time = out_deal["time"]
+            direction = "buy"
+            
+            if matching_in:
+                entry_price = matching_in["price"]
+                open_time = matching_in["time"]
+                direction = "buy" if matching_in["type"] == 0 else "sell"
+            else:
+                if deals:
+                    direction = "buy" if deals[0]["type"] == 0 else "sell"
+                    
+            matched_trades.append({
+                "mt5_ticket": out_deal["ticket"],
+                "position_id": pos_id,
+                "symbol": out_deal["symbol"],
+                "direction": direction,
+                "lot_size": out_deal["volume"],
+                "entry_price": entry_price,
+                "exit_price": out_deal["price"],
+                "open_time": open_time,
+                "close_time": out_deal["time"],
+                "gross_profit": out_deal["profit"],
+                "swap": out_deal["swap"],
+                "commission": out_deal["commission"],
+                "net_profit": out_deal["profit"] + out_deal["swap"] + out_deal["commission"],
+                "status": "closed"
+            })
+            
+    if not matched_trades:
+        return None
+        
+    return {
+        "type": "trades",
+        "sync_token": sync_token,
+        "trades": matched_trades
+    }
+
+
 # ── Single account sync (runs in its own thread) ──────────────────────────────
 def sync_account(acc: dict) -> dict:
     """
@@ -637,7 +707,16 @@ def sync_account(acc: dict) -> dict:
                     payloads = json.loads(data_str)
                     
                     # POST each event to the API, mimicking the old WebRequest behavior
+                    processed_payloads = []
                     for item in payloads:
+                        if item.get("type") == "raw_trades":
+                            matched_trades = match_raw_trades_in_python(item)
+                            if matched_trades:
+                                processed_payloads.append(matched_trades)
+                        else:
+                            processed_payloads.append(item)
+                            
+                    for item in processed_payloads:
                         requests.post(
                             GOLDBOOK_URL, 
                             json=item, 
