@@ -141,32 +141,10 @@ string GetClosedDealsJson()
    int total = HistoryDealsTotal();
    if(total == 0) return "";
 
-   // ── Pass 1: collect all ENTRY_IN deals ───────────────────────
-   ulong  inPosId[]; double inPrice[]; long inTime[]; int inType[];
-   int    inCount = 0;
-   ArrayResize(inPosId, total);
-   ArrayResize(inPrice, total);
-   ArrayResize(inTime,  total);
-   ArrayResize(inType,  total);
-
-   for(int i = 0; i < total; i++)
-   {
-      ulong t = HistoryDealGetTicket(i);
-      if(!t) continue;
-      if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(t, DEAL_ENTRY) == DEAL_ENTRY_IN)
-      {
-         inPosId[inCount] = HistoryDealGetInteger(t, DEAL_POSITION_ID);
-         inPrice[inCount] = HistoryDealGetDouble(t,  DEAL_PRICE);
-         inTime[inCount]  = HistoryDealGetInteger(t, DEAL_TIME);
-         inType[inCount]  = (int)HistoryDealGetInteger(t, DEAL_TYPE);
-         inCount++;
-      }
-   }
-
-   // ── Pass 2: build JSON for OUT deals ─────────────────────────
-   string arr = "[";
-   bool   first = true;
-   int    count = 0;
+   // ── Pass 1: Collect all OUT tickets to preserve list before switching history selection ──
+   ulong out_tickets[];
+   ArrayResize(out_tickets, total);
+   int out_count = 0;
 
    for(int i = 0; i < total; i++)
    {
@@ -179,6 +157,26 @@ string GetClosedDealsJson()
       string sym = HistoryDealGetString(t, DEAL_SYMBOL);
       if(sym == "") continue; // skip deposits / balance ops
 
+      out_tickets[out_count] = t;
+      out_count++;
+   }
+
+   if(out_count == 0) return "";
+
+   // ── Pass 2: Build JSON using fast indexed HistorySelectByPosition ──
+   string arr = "[";
+   bool   first = true;
+   int    count = 0;
+
+   for(int i = 0; i < out_count; i++)
+   {
+      ulong t = out_tickets[i];
+
+      // Retrieve properties for the OUT deal
+      // We must explicitly select the deal first to populate the HistoryDeal cache
+      if(!HistoryDealSelect(t)) continue;
+
+      string sym = HistoryDealGetString(t, DEAL_SYMBOL);
       long   posId  = HistoryDealGetInteger(t, DEAL_POSITION_ID);
       double vol    = HistoryDealGetDouble(t,  DEAL_VOLUME);
       double exitPx = HistoryDealGetDouble(t,  DEAL_PRICE);
@@ -187,19 +185,24 @@ string GetClosedDealsJson()
       double comm   = HistoryDealGetDouble(t,  DEAL_COMMISSION);
       long   ctime  = HistoryDealGetInteger(t, DEAL_TIME);
 
-      // Match with IN deal to get true entry price & direction
+      // Fast indexed query for the matching DEAL_ENTRY_IN deal
       double entryPx = exitPx;
       long   otime   = ctime;
       string dir     = "buy";
 
-      for(int j = 0; j < inCount; j++)
+      if(HistorySelectByPosition(posId))
       {
-         if(inPosId[j] == posId)
+         int p_total = HistoryDealsTotal();
+         for(int p_idx = 0; p_idx < p_total; p_idx++)
          {
-            entryPx = inPrice[j];
-            otime   = inTime[j];
-            dir     = (inType[j] == DEAL_TYPE_BUY) ? "buy" : "sell";
-            break;
+            ulong t_in = HistoryDealGetTicket(p_idx);
+            if(t_in && (ENUM_DEAL_ENTRY)HistoryDealGetInteger(t_in, DEAL_ENTRY) == DEAL_ENTRY_IN)
+            {
+               entryPx = HistoryDealGetDouble(t_in, DEAL_PRICE);
+               otime   = HistoryDealGetInteger(t_in, DEAL_TIME);
+               dir     = ((ENUM_DEAL_TYPE)HistoryDealGetInteger(t_in, DEAL_TYPE) == DEAL_TYPE_BUY) ? "buy" : "sell";
+               break;
+            }
          }
       }
 
