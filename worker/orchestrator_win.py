@@ -468,14 +468,15 @@ def match_raw_trades_in_python(payload: dict) -> dict | None:
                     
             pnl = out_deal["profit"] + out_deal["swap"] + out_deal["commission"]
             matched_trades.append({
-                "ticket": out_deal["ticket"],
+                "mt5_ticket": out_deal["ticket"],
                 "position_id": out_deal["position_id"],
                 "symbol": out_deal["symbol"],
                 "direction": direction,
                 "lot_size": out_deal["volume"],
                 "entry_price": entry_price,
-                "close_price": out_deal["price"],
-                "pnl": pnl,
+                "exit_price": out_deal["price"],
+                "gross_profit": out_deal["profit"],
+                "net_profit": pnl,
                 "close_time": out_deal["time"],
                 "open_time": open_time,
                 "swap": out_deal["swap"],
@@ -484,9 +485,9 @@ def match_raw_trades_in_python(payload: dict) -> dict | None:
             })
             
     return {
-        "type": "raw_trades",
+        "type": "trades",
         "sync_token": sync_token,
-        "raw_trades": matched_trades
+        "trades": matched_trades
     }
 
 
