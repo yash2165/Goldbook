@@ -290,7 +290,8 @@ function TradeJournalCard({
     }
 
     if (block.type === 'paragraph') {
-      const val = customValues[block.id] || ''
+      const dbVal = customValues[block.id]
+      const val = typeof dbVal === 'string' ? dbVal : ''
       return (
         <div key={block.id} className="space-y-1">
           <label className="text-[10px] text-[#94A3B8] font-bold block leading-tight">{block.label}</label>
@@ -306,7 +307,8 @@ function TradeJournalCard({
     }
 
     if (block.type === 'dropdown') {
-      const val = customValues[block.id] || ''
+      const dbVal = customValues[block.id]
+      const val = typeof dbVal === 'string' ? dbVal : ''
       return (
         <div key={block.id} className="space-y-1">
           <label className="text-[10px] text-[#94A3B8] font-bold block leading-tight">{block.label}</label>
@@ -335,7 +337,8 @@ function TradeJournalCard({
     }
 
     if (block.type === 'confirmations') {
-      const val = customValues[block.id] || []
+      const dbVal = customValues[block.id]
+      const val = Array.isArray(dbVal) ? dbVal : []
       return (
         <div key={block.id} className="space-y-1">
           <label className="text-[10px] text-[#94A3B8] font-bold block leading-tight">{block.label}</label>
@@ -370,7 +373,8 @@ function TradeJournalCard({
     }
 
     if (block.type === 'table') {
-      const val = customValues[block.id] || []
+      const dbVal = customValues[block.id]
+      const val = Array.isArray(dbVal) ? dbVal : []
       const cols = block.columns || []
       
       const addRow = () => {
