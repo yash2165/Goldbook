@@ -11,7 +11,7 @@ interface LiquidProgressProps {
 
 export function LiquidProgress({
   value,
-  color = '#D4AF37',
+  color = '#38BDF8',
   className,
 }: LiquidProgressProps) {
   const ref = useRef<HTMLDivElement>(null)
@@ -37,7 +37,7 @@ export function LiquidProgress({
   return (
     <div 
       ref={ref} 
-      className={`w-full bg-[#0d0d12] border border-white/5 h-2.5 rounded-full overflow-hidden relative ${className}`}
+      className={`w-full bg-[#060A12] border border-[#1E3A5F]/35 h-2.5 rounded-full overflow-hidden relative ${className}`}
     >
       <motion.div
         className="h-full rounded-full origin-left"

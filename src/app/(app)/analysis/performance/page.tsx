@@ -37,7 +37,7 @@ function filterTrades(trades: any[], period: Period, filter: Filter) {
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
   return (
-    <div className="bg-[#12121a] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
+    <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
       <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center mb-4', color)}>
         <div className="w-4 h-4 rounded-full bg-current opacity-60" />
       </div>
@@ -91,7 +91,7 @@ export default function PerformancePage() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Period */}
-          <div className="flex bg-[#12121a] border border-white/5 rounded-lg p-1 gap-1">
+          <div className="flex bg-[#0D1421] border border-white/5 rounded-lg p-1 gap-1">
             {PERIODS.map(p => (
               <button key={p} onClick={() => setPeriod(p)}
                 className={cn('px-3 py-1.5 rounded-md text-xs font-medium transition-all',
@@ -101,7 +101,7 @@ export default function PerformancePage() {
             ))}
           </div>
           {/* Trade filter */}
-          <div className="flex bg-[#12121a] border border-white/5 rounded-lg p-1 gap-1">
+          <div className="flex bg-[#0D1421] border border-white/5 rounded-lg p-1 gap-1">
             {FILTERS.map(f => (
               <button key={f} onClick={() => setTradeFilter(f)}
                 className={cn('px-3 py-1.5 rounded-md text-xs font-medium transition-all',
@@ -115,7 +115,7 @@ export default function PerformancePage() {
 
       {/* Top 4 stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#12121a] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
+        <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
           <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
             <TrendingUp className="w-5 h-5 text-primary" />
           </div>
@@ -126,7 +126,7 @@ export default function PerformancePage() {
           <p className="text-xs text-[#64748B] mt-1">From {stats.closedTrades} closed trades</p>
         </div>
 
-        <div className="bg-[#12121a] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
+        <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
           <div className="w-9 h-9 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center mb-4">
             <Target className="w-5 h-5 text-[#8B5CF6]" />
           </div>
@@ -135,7 +135,7 @@ export default function PerformancePage() {
           <p className="text-xs text-[#64748B] mt-1">{stats.winningTrades} wins • {stats.losingTrades} losses</p>
         </div>
 
-        <div className="bg-[#12121a] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
+        <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
           <div className="w-9 h-9 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center mb-4">
             <Zap className="w-5 h-5 text-[#F59E0B]" />
           </div>
@@ -144,7 +144,7 @@ export default function PerformancePage() {
           <p className="text-xs text-[#64748B] mt-1">Gross profit ÷ Gross loss (2.0 is good)</p>
         </div>
 
-        <div className="bg-[#12121a] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
+        <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors">
           <div className="w-9 h-9 rounded-lg bg-[#22C55E]/10 flex items-center justify-center mb-4">
             <div className="w-5 h-5 text-[#22C55E] font-bold text-xs flex items-center justify-center">$</div>
           </div>
@@ -159,7 +159,7 @@ export default function PerformancePage() {
       {/* Quick Stats + Equity Curve */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Quick stats */}
-        <div className="bg-[#12121a] border border-white/5 rounded-xl p-5">
+        <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5">
           <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
             <span className="w-4 h-4 rounded bg-primary/20 flex items-center justify-center text-[10px] text-primary">↗</span>
             Quick Stats
@@ -184,7 +184,7 @@ export default function PerformancePage() {
         </div>
 
         {/* Equity curve */}
-        <div className="lg:col-span-2 bg-[#12121a] border border-white/5 rounded-xl p-5">
+        <div className="lg:col-span-2 bg-[#0D1421] border border-white/5 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold flex items-center gap-2">
               <span className="w-4 h-4 rounded bg-primary/20 flex items-center justify-center text-[10px] text-primary">↗</span>
@@ -213,7 +213,7 @@ export default function PerformancePage() {
                   <XAxis dataKey="time" hide />
                   <YAxis hide domain={['auto', 'auto']} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#12121a', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '12px' }}
+                    contentStyle={{ backgroundColor: '#0D1421', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '12px' }}
                     formatter={(v: any) => [curveMode === 'equity' ? fmt(v) : `${v.toFixed(1)}%`, curveMode === 'equity' ? 'Equity' : 'Drawdown']}
                   />
                   <Area type="monotone" dataKey={curveMode} stroke={curveMode === 'equity' ? '#3B82F6' : '#EF4444'} strokeWidth={2} fill="url(#equityGrad)" dot={false} />
@@ -227,7 +227,7 @@ export default function PerformancePage() {
       {/* Long vs Short + Day Performance + Top Symbols */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Long vs Short */}
-        <div className="bg-[#12121a] border border-white/5 rounded-xl p-5">
+        <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5">
           <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-primary" /> Long vs Short
           </h2>
@@ -261,7 +261,7 @@ export default function PerformancePage() {
         </div>
 
         {/* Day Performance */}
-        <div className="bg-[#12121a] border border-white/5 rounded-xl p-5">
+        <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5">
           <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
             <span className="w-4 h-4 rounded bg-[#F59E0B]/20 flex items-center justify-center text-[10px] text-[#F59E0B]">7</span>
             Day Performance
@@ -275,7 +275,7 @@ export default function PerformancePage() {
                   <XAxis dataKey="day" stroke="#334155" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis hide />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#12121a', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '11px' }}
+                    contentStyle={{ backgroundColor: '#0D1421', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '11px' }}
                     formatter={(v: any) => [fmt(v), 'P&L']}
                   />
                   <ReferenceLine y={0} stroke="rgba(255,255,255,0.05)" />
@@ -291,7 +291,7 @@ export default function PerformancePage() {
         </div>
 
         {/* Top Symbols */}
-        <div className="bg-[#12121a] border border-white/5 rounded-xl p-5">
+        <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5">
           <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
             <span className="w-4 h-4 rounded bg-[#8B5CF6]/20 flex items-center justify-center text-[10px] text-[#8B5CF6]">★</span>
             Top Symbols
@@ -324,7 +324,7 @@ export default function PerformancePage() {
       </div>
 
       {/* Session Performance */}
-      <div className="bg-[#12121a] border border-white/5 rounded-xl p-5">
+      <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5">
         <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
           <span className="w-4 h-4 rounded bg-primary/20 flex items-center justify-center text-[10px] text-primary">◐</span>
           Session Performance
@@ -385,7 +385,7 @@ export default function PerformancePage() {
       </div>
 
       {/* AI Strategy-Session Edge Matrix */}
-      <div className="bg-[#12121a] border border-white/5 rounded-xl p-5">
+      <div className="bg-[#0D1421] border border-white/5 rounded-xl p-5">
         <h2 className="text-sm font-semibold mb-1 flex items-center gap-2">
           <span className="w-4 h-4 rounded bg-[#F59E0B]/20 flex items-center justify-center text-[10px] text-[#F59E0B]">⚡</span>
           AI Strategy-Session Edge Matrix

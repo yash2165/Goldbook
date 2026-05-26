@@ -472,7 +472,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
               </>
             ) : (
               <>
-                <Share2 className="w-4 h-4 text-[#FFD700]" /> Share Report
+                <Share2 className="w-4 h-4 text-[#38BDF8]" /> Share Report
               </>
             )}
           </button>
@@ -641,7 +641,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
               {/* Grade card */}
               <motion.div 
                 variants={flipCardVariants}
-                className="bg-[#12121A] border border-white/5 rounded-2xl p-6 text-center space-y-4 shadow-xl relative overflow-hidden group hover:border-white/10 transition-all"
+                className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 text-center space-y-4 shadow-xl relative overflow-hidden group hover:border-white/10 transition-all"
               >
                 <div className="absolute -top-12 -left-12 w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all pointer-events-none" />
                 <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-black">Performance Grade</p>
@@ -675,7 +675,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
               </motion.div>
 
               {/* Core Score Circular Meters */}
-              <motion.div variants={staggerItemVariants} className="md:col-span-2 bg-[#12121A] border border-white/5 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+              <motion.div variants={staggerItemVariants} className="md:col-span-2 bg-[#0D1421] border border-white/5 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-bold text-xs tracking-wide text-[#94A3B8] uppercase">Core Discipline Scores</h3>
@@ -738,7 +738,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
             </div>
 
             {/* Assessment Note */}
-            <motion.div variants={staggerItemVariants} className="bg-[#12121A] border border-white/5 rounded-2xl p-5 border-l-4 border-l-primary shadow-xl relative overflow-hidden">
+            <motion.div variants={staggerItemVariants} className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 border-l-4 border-l-primary shadow-xl relative overflow-hidden">
               <div className="absolute top-4 right-4 w-10 h-10 bg-primary/5 rounded-full flex items-center justify-center border border-primary/10 pointer-events-none">
                 <Brain className="w-4 h-4 text-primary" />
               </div>
@@ -777,7 +777,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
                       layout="position"
                       onClick={() => setExpandedBias(isExpanded ? null : bias.bias_name)}
                       className={cn(
-                        "bg-[#12121A] border rounded-2xl p-5 shadow-xl transition-all duration-300 relative cursor-pointer select-none overflow-hidden hover:scale-[1.01]",
+                        "bg-[#0D1421] border rounded-2xl p-5 shadow-xl transition-all duration-300 relative cursor-pointer select-none overflow-hidden hover:scale-[1.01]",
                         styles.border,
                         isExpanded ? "md:col-span-2 border-primary/30 ring-1 ring-primary/20" : ""
                       )}
@@ -892,7 +892,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
-                          className={cn("bg-[#12121A] border rounded-2xl p-5 shadow-2xl backdrop-blur-md border-l-4", colors.border)}
+                          className={cn("bg-[#0D1421] border rounded-2xl p-5 shadow-2xl backdrop-blur-md border-l-4", colors.border)}
                           style={{ borderLeftColor: colors.bar }}
                         >
                           <div className="flex items-center justify-between mb-4">
@@ -988,7 +988,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
 
             {/* Strengths & Weaknesses Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <motion.div variants={staggerItemVariants} className="bg-[#12121A] border border-white/5 rounded-2xl p-5 shadow-2xl backdrop-blur-md">
+              <motion.div variants={staggerItemVariants} className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 shadow-2xl backdrop-blur-md">
                 <h3 className="font-bold flex items-center gap-2 mb-4 text-xs uppercase tracking-wider text-emerald-400">
                   <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400" /> Behavioral Strengths
                 </h3>
@@ -1008,7 +1008,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
                 </div>
               </motion.div>
 
-              <motion.div variants={staggerItemVariants} className="bg-[#12121A] border border-white/5 rounded-2xl p-5 shadow-2xl backdrop-blur-md">
+              <motion.div variants={staggerItemVariants} className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 shadow-2xl backdrop-blur-md">
                 <h3 className="font-bold flex items-center gap-2 mb-4 text-xs uppercase tracking-wider text-red-400">
                   <XCircle className="w-4.5 h-4.5 text-red-400" /> Cognitive Vulnerabilities
                 </h3>
@@ -1030,7 +1030,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
             </div>
 
             {/* Action Plan */}
-            <motion.div variants={staggerItemVariants} className="bg-[#12121A] border border-white/5 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+            <motion.div variants={staggerItemVariants} className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 shadow-xl relative overflow-hidden">
               <h3 className="font-black mb-4 flex items-center gap-2 text-xs uppercase tracking-wider text-slate-200">
                 <span className="w-5 h-5 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-center justify-center text-[10px] font-extrabold shadow-[0_0_10px_rgba(245,158,11,0.1)]">✓</span>
                 Nirikshan prescribed Actions for Next Week
@@ -1055,7 +1055,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
           </div>
 
           {/* RIGHT 1/4 PANEL: Diagnostic archives past reports list sidebar */}
-          <div className="col-span-1 bg-[#12121A] border border-white/5 rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl relative">
+          <div className="col-span-1 bg-[#0D1421] border border-white/5 rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl relative">
             <div className="p-4 border-b border-white/5 flex items-center gap-2 bg-white/[0.01] shrink-0">
               <History className="w-4 h-4 text-primary" />
               <span className="text-xs font-black text-white/95 uppercase tracking-wider">Diagnostic Archives</span>

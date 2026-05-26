@@ -66,7 +66,7 @@ export default function ProfilePage() {
         {/* Left Column: Trader Card */}
         <div className="space-y-6 lg:col-span-1">
           {/* Card Wrapper */}
-          <div className="bg-gradient-to-b from-[#12121a] to-[#0d0d13] border border-white/5 rounded-2xl p-6 relative overflow-hidden shadow-2xl">
+          <div className="bg-gradient-to-b from-[#0D1421] to-[#0d0d13] border border-white/5 rounded-2xl p-6 relative overflow-hidden shadow-2xl">
             {/* Visual glow effect */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full -mr-10 -mt-10" />
 
@@ -115,7 +115,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Checklist custom card */}
-          <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6 shadow-xl">
+          <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 shadow-xl">
             <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-primary" /> Pre-Trade Checklist
             </h3>
@@ -143,7 +143,7 @@ export default function ProfilePage() {
         {/* Right Column: Live Statistics & Strategy Setups */}
         <div className="lg:col-span-2 space-y-6">
           {/* Live Performance Stats Section */}
-          <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6 shadow-xl relative">
+          <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 shadow-xl relative">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Target className="w-4 h-4 text-primary" /> Live Performance Statistics
@@ -188,7 +188,7 @@ export default function ProfilePage() {
               <div className="space-y-6">
                 {/* 4 Core metrics */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-[#0a0a0f] border border-white/5 p-4 rounded-xl">
+                  <div className="bg-[#060A12] border border-white/5 p-4 rounded-xl">
                     <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Total P&L</p>
                     <p className={cn(
                       'text-xl font-bold mt-1.5 tabular-nums',
@@ -198,21 +198,21 @@ export default function ProfilePage() {
                     </p>
                   </div>
 
-                  <div className="bg-[#0a0a0f] border border-white/5 p-4 rounded-xl">
+                  <div className="bg-[#060A12] border border-white/5 p-4 rounded-xl">
                     <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Win Rate</p>
                     <p className="text-xl font-bold mt-1.5 tabular-nums">
                       {stats.winRate.toFixed(1)}%
                     </p>
                   </div>
 
-                  <div className="bg-[#0a0a0f] border border-white/5 p-4 rounded-xl">
+                  <div className="bg-[#060A12] border border-white/5 p-4 rounded-xl">
                     <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Profit Factor</p>
                     <p className="text-xl font-bold mt-1.5 tabular-nums">
                       {pf}
                     </p>
                   </div>
 
-                  <div className="bg-[#0a0a0f] border border-white/5 p-4 rounded-xl">
+                  <div className="bg-[#060A12] border border-white/5 p-4 rounded-xl">
                     <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Expectancy</p>
                     <p className={cn(
                       'text-xl font-bold mt-1.5 tabular-nums',
@@ -256,7 +256,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Strategy Setups Section */}
-          <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6 shadow-xl">
+          <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 shadow-xl">
             <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" /> Active Trading Setups
             </h3>
@@ -264,7 +264,7 @@ export default function ProfilePage() {
             {profile?.trading_setups && profile.trading_setups.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {profile.trading_setups.map((setup: any, idx: number) => (
-                  <div key={idx} className="p-4 bg-[#0a0a0f]/40 border border-white/5 rounded-xl hover:border-white/10 transition-colors space-y-1">
+                  <div key={idx} className="p-4 bg-[#060A12]/40 border border-white/5 rounded-xl hover:border-white/10 transition-colors space-y-1">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-primary" />
                       <h4 className="text-sm font-bold text-white">{setup.name}</h4>

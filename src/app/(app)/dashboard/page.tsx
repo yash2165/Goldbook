@@ -189,7 +189,7 @@ function CalendarHeatmap({ dailyPnl, month }: { dailyPnl: Record<string, number>
                   ? pnl >= 0
                     ? 'bg-[#22C55E]/10 border-[#22C55E]/25'
                     : 'bg-[#EF4444]/10 border-[#EF4444]/25'
-                  : 'bg-[#0A0A0F] border-white/5'
+                  : 'bg-[#060A12] border-white/5'
               )}
             >
               <span className={cn('font-medium text-[11px]', hasTrades ? 'text-white' : 'text-[#64748B]')}>
@@ -214,7 +214,7 @@ function CalendarHeatmap({ dailyPnl, month }: { dailyPnl: Record<string, number>
 
 function SkeletonCard() {
   return (
-    <div className="bg-[#12121a] border border-white/5 rounded-2xl p-5 animate-pulse">
+    <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 animate-pulse">
       <div className="h-3 w-20 bg-white/5 rounded mb-3" />
       <div className="h-8 w-28 bg-white/5 rounded" />
     </div>
@@ -510,7 +510,7 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.2 }}
-        className="bg-[#12121a] border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl"
+        className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
           <h3 className="font-semibold text-xs tracking-wider text-[#94A3B8] uppercase flex items-center gap-1.5">
@@ -586,7 +586,7 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          className="xl:col-span-2 bg-[#12121a] border border-white/5 rounded-2xl p-5"
+          className="xl:col-span-2 bg-[#0D1421] border border-white/5 rounded-2xl p-5"
         >
           <div className="flex items-center justify-between mb-5">
             <div>
@@ -714,7 +714,7 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.42, ease: [0.22, 1, 0.36, 1] }}
-          className="lg:col-span-2 bg-[#12121a] border border-white/5 rounded-2xl p-5 flex flex-col justify-between"
+          className="lg:col-span-2 bg-[#0D1421] border border-white/5 rounded-2xl p-5 flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -824,7 +824,7 @@ export default function DashboardPage() {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="bg-[#12121A] border border-white/5 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[300px] shadow-xl group hover:border-[#F59E0B]/30 transition-all duration-300"
+            className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[300px] shadow-xl group hover:border-[#F59E0B]/30 transition-all duration-300"
           >
             {/* Subtle top decoration */}
             <div className="absolute right-0 top-0 w-24 h-24 bg-[#F59E0B]/5 rounded-full blur-xl pointer-events-none" />
@@ -979,7 +979,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.48 }}
-              className="bg-[#12121A] border border-amber-500/20 rounded-2xl p-4 space-y-3 shadow-xl"
+              className="bg-[#0D1421] border border-amber-500/20 rounded-2xl p-4 space-y-3 shadow-xl"
             >
               <div className="flex items-center gap-2 text-amber-500 font-bold text-xs">
                 <span className="text-sm">⚠</span>
@@ -1038,7 +1038,7 @@ export default function DashboardPage() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-6 right-6 z-50 max-w-sm bg-[#12121A] border border-amber-500/25 shadow-[0_10px_30px_rgba(245,159,11,0.15)] rounded-2xl p-4 flex gap-3 items-start"
+            className="fixed bottom-6 right-6 z-50 max-w-sm bg-[#0D1421] border border-amber-500/25 shadow-[0_10px_30px_rgba(245,159,11,0.15)] rounded-2xl p-4 flex gap-3 items-start"
           >
             <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 shrink-0 mt-0.5 animate-pulse">
               <span>⚠</span>

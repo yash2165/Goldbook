@@ -13,25 +13,25 @@ export default function GoldBookLogo({ size = 32, className = '' }: { size?: num
       className={`overflow-visible select-none shrink-0 ${className}`}
     >
       <defs>
-        {/* Modern metallic gold gradient */}
+        {/* Modern metallic frost platinum gradient */}
         <linearGradient id="goldPlate" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#784F06" />
-          <stop offset="25%" stopColor="#C59E37" />
-          <stop offset="50%" stopColor="#FFF2CC" />
-          <stop offset="75%" stopColor="#F59E0B" />
-          <stop offset="100%" stopColor="#8C5B05" />
+          <stop offset="0%" stopColor="#0F172A" />
+          <stop offset="25%" stopColor="#475569" />
+          <stop offset="50%" stopColor="#F8FAFC" />
+          <stop offset="75%" stopColor="#38BDF8" />
+          <stop offset="100%" stopColor="#1E3A5F" />
         </linearGradient>
 
-        {/* Dynamic bright neon gold gradient */}
+        {/* Dynamic bright neon ice gradient */}
         <linearGradient id="neonGold" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFF5D6" />
-          <stop offset="100%" stopColor="#FFD700" />
+          <stop offset="0%" stopColor="#E0F2FE" />
+          <stop offset="100%" stopColor="#38BDF8" />
         </linearGradient>
 
         {/* Ambient backing glow */}
         <radialGradient id="backingGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#FFD700" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#FFD700" stopOpacity="0" />
+          <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
         </radialGradient>
 
         {/* Premium high-glow drop shadow */}

@@ -81,10 +81,10 @@ export function UserProfileModal({ userId, currentUserId, onClose, onMessage }: 
   return (
     <Portal>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-        <div className="w-full max-w-md bg-[#12121a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+        <div className="w-full max-w-md bg-[#0D1421] border border-white/10 rounded-2xl shadow-2xl overflow-hidden relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
         
         {/* Cover Photo / Header area */}
-        <div className="h-32 bg-gradient-to-br from-primary/20 via-[#1a1a2e] to-[#0a0a0f] relative">
+        <div className="h-32 bg-gradient-to-br from-primary/20 via-[#1a1a2e] to-[#060A12] relative">
           <button 
             onClick={onClose}
             className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors text-white"
@@ -98,7 +98,7 @@ export function UserProfileModal({ userId, currentUserId, onClose, onMessage }: 
         ) : (
           <div className="px-6 pb-6 relative">
             {/* Avatar */}
-            <div className="absolute -top-12 left-6 w-24 h-24 rounded-2xl bg-[#12121a] p-1.5">
+            <div className="absolute -top-12 left-6 w-24 h-24 rounded-2xl bg-[#0D1421] p-1.5">
               <div className="w-full h-full rounded-xl overflow-hidden border border-primary/30 flex items-center justify-center text-3xl font-black text-primary bg-primary/20">
                 {profile?.avatar_url ? (
                   <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />

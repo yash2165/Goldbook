@@ -44,7 +44,7 @@ export default function ToolsPage() {
         </div>
 
         {/* Custom Tabs */}
-        <div className="flex bg-[#0A0A0F] border border-white/5 p-1 rounded-xl">
+        <div className="flex bg-[#060A12] border border-white/5 p-1 rounded-xl">
           {[
             { id: 'calc', label: 'Risk Calculator', icon: Calculator },
             { id: 'calendar', label: 'News Calendar', icon: Calendar },
@@ -115,7 +115,7 @@ function PositionSizeCalculatorWidget() {
   const rrRatio = slPips > 0 ? (tpPips / slPips).toFixed(2) : '0.00'
 
   return (
-    <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 shadow-2xl relative overflow-hidden">
+    <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 shadow-2xl relative overflow-hidden">
       
       {/* Glow Effect */}
       <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-primary/5 blur-[100px] rounded-full pointer-events-none -z-10" />
@@ -133,7 +133,7 @@ function PositionSizeCalculatorWidget() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Direction</label>
-            <div className="flex bg-[#0A0A0F] border border-white/5 p-1 rounded-xl">
+            <div className="flex bg-[#060A12] border border-white/5 p-1 rounded-xl">
               <button
                 onClick={() => setDirection('buy')}
                 className={cn(
@@ -163,7 +163,7 @@ function PositionSizeCalculatorWidget() {
                 setPair(e.target.value)
                 setEntryPrice(e.target.value === 'XAUUSD' ? 2400.0 : e.target.value === 'EURUSD' ? 1.0850 : 1.2720)
               }}
-              className="w-full bg-[#0A0A0F] border border-white/5 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark]"
+              className="w-full bg-[#060A12] border border-white/5 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark]"
             >
               <option value="XAUUSD">GOLD (XAUUSD)</option>
               <option value="EURUSD">EURUSD</option>
@@ -234,7 +234,7 @@ function PositionSizeCalculatorWidget() {
       </div>
 
       {/* Visual Calculations Sidebar Column */}
-      <div className="bg-[#0A0A0F] border border-white/5 rounded-2xl p-6 flex flex-col justify-between shadow-inner">
+      <div className="bg-[#060A12] border border-white/5 rounded-2xl p-6 flex flex-col justify-between shadow-inner">
         <div className="space-y-6">
           <p className="text-xs font-bold uppercase tracking-widest text-[#334155]">Calculated Outputs</p>
 
@@ -415,14 +415,14 @@ function EconomicCalendarWidget() {
   }, [nextEvent, events, isWeekend])
 
   return (
-    <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 shadow-2xl relative overflow-hidden">
+    <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 shadow-2xl relative overflow-hidden">
       
       {/* Ticking Countdown Banner Column */}
       <div className={cn(
         "border rounded-2xl p-6 flex flex-col items-center justify-center text-center relative shadow-inner transition-all duration-300",
         isWeekend 
           ? "bg-[#181109] border-amber-500/25 shadow-amber-950/20" 
-          : "bg-[#0A0A0F] border-white/5"
+          : "bg-[#060A12] border-white/5"
       )}>
         {isWeekend ? (
           <div className="absolute top-3 right-3 flex items-center gap-1.5 text-[9px] font-black bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 uppercase tracking-widest">
@@ -646,10 +646,10 @@ function PlanChecklistWidget() {
   const allChecked = checklist.length > 0 && checklist.every(item => item.id && checkedItems[item.id])
 
   return (
-    <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 shadow-2xl relative overflow-hidden">
+    <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 shadow-2xl relative overflow-hidden">
       
       {/* checklist status card */}
-      <div className="bg-[#0A0A0F] border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center text-center relative shadow-inner">
+      <div className="bg-[#060A12] border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center text-center relative shadow-inner">
         {allChecked ? (
           <div className="space-y-4">
             <div className="w-16 h-16 rounded-full bg-[#22C55E]/15 border border-[#22C55E]/30 flex items-center justify-center mx-auto text-[#22C55E] shadow-[0_0_20px_rgba(34,197,94,0.2)]">

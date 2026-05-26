@@ -78,7 +78,7 @@ export default function TradesPage() {
       </div>
 
       {/* Centralized Analysis Notification Banner */}
-      <div className="bg-[#12121A] border border-primary/20 p-4 rounded-xl flex items-center justify-between gap-4 shadow-lg shadow-primary/[0.02] animate-in fade-in slide-in-from-top-3 duration-300">
+      <div className="bg-[#0D1421] border border-primary/20 p-4 rounded-xl flex items-center justify-between gap-4 shadow-lg shadow-primary/[0.02] animate-in fade-in slide-in-from-top-3 duration-300">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
             <Info className="w-5 h-5 animate-pulse" />
@@ -98,7 +98,7 @@ export default function TradesPage() {
       </div>
 
       {/* Trade History */}
-      <div className="bg-[#12121a] border border-white/5 rounded-xl">
+      <div className="bg-[#0D1421] border border-white/5 rounded-xl">
         {/* Subheader */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
           <div className="flex items-center gap-3">

@@ -130,7 +130,7 @@ export default function MarketPage() {
           style: "1",
           locale: "en",
           enable_publishing: false,
-          backgroundColor: "#12121a",
+          backgroundColor: "#0D1421",
           gridColor: "rgba(255, 255, 255, 0.05)",
           hide_top_toolbar: false,
           hide_legend: false,
@@ -166,7 +166,7 @@ export default function MarketPage() {
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-0 overflow-hidden items-stretch">
         
         {/* LEFT COLUMN: Currency, Commodity, Calculator sidebar */}
-        <div className="col-span-1 bg-[#12121A] border border-white/5 rounded-2xl flex flex-col overflow-hidden shadow-2xl h-full">
+        <div className="col-span-1 bg-[#0D1421] border border-white/5 rounded-2xl flex flex-col overflow-hidden shadow-2xl h-full">
           {/* TAB SELECTION ROW */}
           <div className="flex border-b border-white/5 p-1 bg-white/[0.01] gap-1 text-[10px] uppercase font-black shrink-0">
             {[
@@ -365,7 +365,7 @@ export default function MarketPage() {
         </div>
 
         {/* RIGHT COLUMN: Re-injectable TradingView Advanced chart frame */}
-        <div className="col-span-1 lg:col-span-3 bg-[#12121a] border border-white/5 rounded-2xl overflow-hidden relative shadow-2xl h-full flex flex-col">
+        <div className="col-span-1 lg:col-span-3 bg-[#0D1421] border border-white/5 rounded-2xl overflow-hidden relative shadow-2xl h-full flex flex-col">
           <div className="p-3 border-b border-white/5 flex items-center justify-between shrink-0 bg-white/[0.01]">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Active Terminal:</span>

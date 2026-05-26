@@ -24,7 +24,7 @@ export default function HelpPage() {
           { icon: MessageCircle, title: 'Community', desc: 'Ask other traders', color: 'text-[#F59E0B] bg-[#F59E0B]/10', href: '/community' },
           { icon: Mail, title: 'Contact Us', desc: 'support@goldbook.app', color: 'text-[#22C55E] bg-[#22C55E]/10' },
         ].map(item => (
-          <div key={item.title} className="bg-[#12121a] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors cursor-pointer">
+          <div key={item.title} className="bg-[#0D1421] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors cursor-pointer">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${item.color}`}>
               <item.icon className="w-5 h-5" />
             </div>
@@ -38,7 +38,7 @@ export default function HelpPage() {
       <div className="space-y-4">
         <h2 className="font-bold text-lg">Frequently Asked Questions</h2>
         {FAQS.map((faq, i) => (
-          <div key={i} className="bg-[#12121a] border border-white/5 rounded-xl p-5">
+          <div key={i} className="bg-[#0D1421] border border-white/5 rounded-xl p-5">
             <p className="font-semibold text-sm mb-2 text-foreground">{faq.q}</p>
             <p className="text-sm text-[#64748B] leading-relaxed">{faq.a}</p>
           </div>

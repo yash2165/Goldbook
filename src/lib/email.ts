@@ -1,27 +1,61 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Create transporter using verified Gmail SMTP credentials
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_APP_PASS,
+  },
+})
+
+// Common styles for Frost Platinum & Ice Blue email templates
+const commonStyles = {
+  fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  bodyBg: '#060A12',
+  cardBg: '#0D1421',
+  borderColor: '#1E3A5F',
+  textMain: '#F1F5F9',
+  textMuted: '#94A3B8',
+  iceBlue: '#38BDF8',
+  frostGlow: '#7DD3FC',
+  mintGreen: '#34D399',
+  dangerRed: '#F87171',
+}
 
 // ── Email templates ──────────────────────────────────────────────────────────
 
 export async function sendWelcomeEmail(to: string, name: string) {
-  return resend.emails.send({
-    from: 'GoldBook <noreply@goldbook.app>',
+  const mailOptions = {
+    from: `"GoldBook" <${process.env.EMAIL_USER}>`,
     to,
     subject: 'Welcome to GoldBook — Your Trading Journal',
     html: `
-      <div style="font-family:Inter,sans-serif;background:#0A0A0F;color:#F1F5F9;padding:40px;max-width:600px;margin:0 auto;border-radius:16px;">
-        <h1 style="color:#3B82F6;font-size:28px;margin-bottom:8px;">GoldBook</h1>
-        <h2 style="font-size:20px;color:#F1F5F9;margin-bottom:16px;">Welcome, ${name}! 🎉</h2>
-        <p style="color:#94A3B8;line-height:1.6;">Your professional trading journal is ready. Connect your MT5 account, start logging trades, and let our AI coach help you become a consistently profitable trader.</p>
-        <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://goldbook.app'}/dashboard" 
-           style="display:inline-block;margin-top:24px;padding:12px 24px;background:#3B82F6;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;">
-          Go to Dashboard →
-        </a>
-        <p style="color:#334155;font-size:12px;margin-top:32px;">GoldBook — Built for serious traders.</p>
+      <div style="font-family: ${commonStyles.fontFamily}; background: ${commonStyles.bodyBg}; color: ${commonStyles.textMain}; padding: 40px; max-width: 600px; margin: 0 auto; border-radius: 16px; border: 1px solid ${commonStyles.borderColor};">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1.5px; color: ${commonStyles.textMain};">
+            <span style="color: ${commonStyles.iceBlue};">GOLD</span>BOOK
+          </h1>
+          <p style="margin: 4px 0 0; color: ${commonStyles.textMuted}; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">Your Professional Trading Console</p>
+        </div>
+        
+        <h2 style="font-size: 20px; color: ${commonStyles.textMain}; margin-bottom: 16px; font-weight: 700;">Welcome, ${name}! 🎉</h2>
+        <p style="color: ${commonStyles.textMuted}; line-height: 1.6; font-size: 14px;">Your professional trading journal is ready. Connect your MT5 account, start logging trades, and let our AI coach help you become a consistently profitable trader.</p>
+        
+        <div style="text-align: center; margin-top: 32px; margin-bottom: 32px;">
+          <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://goldbook.app'}/dashboard" 
+             style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, ${commonStyles.iceBlue}, ${commonStyles.frostGlow}); color: #020617; border-radius: 10px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 20px rgba(56, 189, 248, 0.25);">
+            Go to Dashboard →
+          </a>
+        </div>
+        
+        <hr style="border: 0; border-top: 1px solid ${commonStyles.borderColor}; margin: 24px 0;">
+        <p style="color: ${commonStyles.textMuted}; font-size: 12px; text-align: center; margin: 0;">GoldBook — Built for serious traders.</p>
       </div>
     `,
-  })
+  }
+
+  return transporter.sendMail(mailOptions)
 }
 
 export async function sendWeeklyReport(to: string, name: string, reportData: {
@@ -31,43 +65,63 @@ export async function sendWeeklyReport(to: string, name: string, reportData: {
   topAction: string
 }) {
   const isProfit = reportData.totalPnl >= 0
-  return resend.emails.send({
-    from: 'GoldBook AI Coach <coach@goldbook.app>',
+  const pnlColor = isProfit ? commonStyles.mintGreen : commonStyles.dangerRed
+
+  const mailOptions = {
+    from: `"GoldBook AI Coach" <${process.env.EMAIL_USER}>`,
     to,
     subject: `Your Weekly Trading Report — Grade: ${reportData.grade}`,
     html: `
-      <div style="font-family:Inter,sans-serif;background:#0A0A0F;color:#F1F5F9;padding:40px;max-width:600px;margin:0 auto;border-radius:16px;">
-        <h1 style="color:#3B82F6;font-size:24px;margin-bottom:4px;">GoldBook Weekly Report</h1>
-        <p style="color:#64748B;margin-bottom:24px;">Hi ${name}, here's your week in review.</p>
-        
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px;">
-          <div style="background:#12121A;border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:16px;text-align:center;">
-            <p style="color:#64748B;font-size:11px;text-transform:uppercase;margin:0 0 8px;">Grade</p>
-            <p style="font-size:28px;font-weight:900;color:#F59E0B;margin:0;">${reportData.grade}</p>
-          </div>
-          <div style="background:#12121A;border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:16px;text-align:center;">
-            <p style="color:#64748B;font-size:11px;text-transform:uppercase;margin:0 0 8px;">P&L</p>
-            <p style="font-size:20px;font-weight:900;color:${isProfit ? '#22C55E' : '#EF4444'};margin:0;">${isProfit ? '+' : ''}$${reportData.totalPnl.toFixed(2)}</p>
-          </div>
-          <div style="background:#12121A;border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:16px;text-align:center;">
-            <p style="color:#64748B;font-size:11px;text-transform:uppercase;margin:0 0 8px;">Win Rate</p>
-            <p style="font-size:20px;font-weight:900;color:#3B82F6;margin:0;">${reportData.winRate.toFixed(0)}%</p>
-          </div>
+      <div style="font-family: ${commonStyles.fontFamily}; background: ${commonStyles.bodyBg}; color: ${commonStyles.textMain}; padding: 40px; max-width: 600px; margin: 0 auto; border-radius: 16px; border: 1px solid ${commonStyles.borderColor};">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 1.5px; color: ${commonStyles.textMain};">
+            <span style="color: ${commonStyles.iceBlue};">GOLD</span>BOOK
+          </h1>
+          <p style="margin: 4px 0 0; color: ${commonStyles.textMuted}; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">Weekly Performance Analytics</p>
         </div>
 
-        <div style="background:#12121A;border-left:3px solid #3B82F6;border-radius:0 12px 12px 0;padding:16px;margin-bottom:24px;">
-          <p style="color:#64748B;font-size:11px;text-transform:uppercase;margin:0 0 8px;">Top Action for Next Week</p>
-          <p style="color:#F1F5F9;font-size:14px;margin:0;">${reportData.topAction}</p>
+        <p style="color: ${commonStyles.textMuted}; margin-bottom: 24px; font-size: 14px;">Hi ${name}, here's your trading week in review.</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+          <tr>
+            <td style="width: 33%; padding: 4px;">
+              <div style="background: ${commonStyles.cardBg}; border: 1px solid ${commonStyles.borderColor}; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: ${commonStyles.textMuted}; font-size: 10px; text-transform: uppercase; margin: 0 0 8px; font-weight: 700; letter-spacing: 1px;">Grade</p>
+                <p style="font-size: 28px; font-weight: 900; color: ${commonStyles.iceBlue}; margin: 0;">${reportData.grade}</p>
+              </div>
+            </td>
+            <td style="width: 33%; padding: 4px;">
+              <div style="background: ${commonStyles.cardBg}; border: 1px solid ${commonStyles.borderColor}; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: ${commonStyles.textMuted}; font-size: 10px; text-transform: uppercase; margin: 0 0 8px; font-weight: 700; letter-spacing: 1px;">P&L</p>
+                <p style="font-size: 20px; font-weight: 900; color: ${pnlColor}; margin: 0;">${isProfit ? '+' : ''}$${reportData.totalPnl.toFixed(2)}</p>
+              </div>
+            </td>
+            <td style="width: 33%; padding: 4px;">
+              <div style="background: ${commonStyles.cardBg}; border: 1px solid ${commonStyles.borderColor}; border-radius: 12px; padding: 16px; text-align: center;">
+                <p style="color: ${commonStyles.textMuted}; font-size: 10px; text-transform: uppercase; margin: 0 0 8px; font-weight: 700; letter-spacing: 1px;">Win Rate</p>
+                <p style="font-size: 20px; font-weight: 900; color: ${commonStyles.textMain}; margin: 0;">${reportData.winRate.toFixed(0)}%</p>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <div style="background: ${commonStyles.cardBg}; border-left: 4px solid ${commonStyles.iceBlue}; border-radius: 0 12px 12px 0; padding: 20px; margin-bottom: 24px; border-top: 1px solid ${commonStyles.borderColor}; border-right: 1px solid ${commonStyles.borderColor}; border-bottom: 1px solid ${commonStyles.borderColor};">
+          <p style="color: ${commonStyles.textMuted}; font-size: 10px; text-transform: uppercase; margin: 0 0 8px; font-weight: 700; letter-spacing: 1px;">Top Action for Next Week</p>
+          <p style="color: ${commonStyles.textMain}; font-size: 14px; margin: 0; line-height: 1.5; font-weight: 600;">${reportData.topAction}</p>
         </div>
         
-        <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://goldbook.app'}/ai-report" 
-           style="display:inline-block;padding:12px 24px;background:#3B82F6;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;">
-          View Full AI Report →
-        </a>
-        <p style="color:#334155;font-size:12px;margin-top:32px;">Unsubscribe from weekly emails in Settings → Notifications.</p>
+        <div style="text-align: center; margin-top: 28px;">
+          <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://goldbook.app'}/ai-report" 
+             style="display: inline-block; padding: 12px 24px; background: ${commonStyles.cardBg}; color: ${commonStyles.iceBlue}; border: 1px solid ${commonStyles.iceBlue}; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s;">
+            View Full AI Report →
+          </a>
+        </div>
+        <p style="color: ${commonStyles.textMuted}; font-size: 11px; text-align: center; margin-top: 32px;">Unsubscribe from weekly emails in Settings → Notifications.</p>
       </div>
     `,
-  })
+  }
+
+  return transporter.sendMail(mailOptions)
 }
 
 export async function sendHighImpactNewsAlert(to: string, name: string, events: {
@@ -77,59 +131,75 @@ export async function sendHighImpactNewsAlert(to: string, name: string, events: 
   time: string
 }[]) {
   const eventRows = events.map(e => `
-    <tr>
-      <td style="padding:8px 12px;color:#64748B;font-size:12px;">${e.country}</td>
-      <td style="padding:8px 12px;font-size:13px;color:#F1F5F9;">${e.title}</td>
-      <td style="padding:8px 12px;color:#EF4444;font-size:12px;font-weight:600;">${e.time}</td>
+    <tr style="border-bottom: 1px solid ${commonStyles.borderColor};">
+      <td style="padding: 12px; color: ${commonStyles.textMuted}; font-size: 12px; font-weight: 600;">${e.country}</td>
+      <td style="padding: 12px; font-size: 13px; color: ${commonStyles.textMain}; font-weight: 600;">${e.title}</td>
+      <td style="padding: 12px; color: ${commonStyles.dangerRed}; font-size: 12px; font-weight: 700; text-align: right;">${e.time}</td>
     </tr>
   `).join('')
 
-  return resend.emails.send({
-    from: 'GoldBook Alerts <alerts@goldbook.app>',
+  const mailOptions = {
+    from: `"GoldBook Alerts" <${process.env.EMAIL_USER}>`,
     to,
     subject: `⚠️ High Impact News Alert — ${events.length} event(s) in the next hour`,
     html: `
-      <div style="font-family:Inter,sans-serif;background:#0A0A0F;color:#F1F5F9;padding:40px;max-width:600px;margin:0 auto;border-radius:16px;">
-        <h1 style="color:#EF4444;font-size:20px;margin-bottom:4px;">⚠️ High Impact News Alert</h1>
-        <p style="color:#94A3B8;margin-bottom:24px;">Hi ${name}, these events could cause significant market volatility.</p>
+      <div style="font-family: ${commonStyles.fontFamily}; background: ${commonStyles.bodyBg}; color: ${commonStyles.textMain}; padding: 40px; max-width: 600px; margin: 0 auto; border-radius: 16px; border: 1px solid ${commonStyles.borderColor};">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: ${commonStyles.dangerRed}; letter-spacing: 1px;">
+            ⚠️ HIGH IMPACT NEWS ALERT
+          </h1>
+          <p style="margin: 4px 0 0; color: ${commonStyles.textMuted}; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">Market Volatility Warning</p>
+        </div>
+
+        <p style="color: ${commonStyles.textMuted}; margin-bottom: 24px; font-size: 14px;">Hi ${name}, the following macro events are scheduled within the next hour and could trigger massive market volatility. Protect your capital.</p>
         
-        <table style="width:100%;background:#12121A;border-radius:12px;border-collapse:collapse;overflow:hidden;">
+        <table style="width: 100%; background: ${commonStyles.cardBg}; border: 1px solid ${commonStyles.borderColor}; border-radius: 12px; border-collapse: collapse; overflow: hidden;">
           <thead>
-            <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-              <th style="padding:10px 12px;color:#64748B;font-size:10px;text-transform:uppercase;text-align:left;">Country</th>
-              <th style="padding:10px 12px;color:#64748B;font-size:10px;text-transform:uppercase;text-align:left;">Event</th>
-              <th style="padding:10px 12px;color:#64748B;font-size:10px;text-transform:uppercase;text-align:left;">Time</th>
+            <tr style="border-bottom: 1px solid ${commonStyles.borderColor}; background: rgba(255, 255, 255, 0.02);">
+              <th style="padding: 12px; color: ${commonStyles.textMuted}; font-size: 10px; text-transform: uppercase; text-align: left; font-weight: 800; letter-spacing: 1px;">Country</th>
+              <th style="padding: 12px; color: ${commonStyles.textMuted}; font-size: 10px; text-transform: uppercase; text-align: left; font-weight: 800; letter-spacing: 1px;">Event</th>
+              <th style="padding: 12px; color: ${commonStyles.textMuted}; font-size: 10px; text-transform: uppercase; text-align: right; font-weight: 800; letter-spacing: 1px;">Time</th>
             </tr>
           </thead>
           <tbody>${eventRows}</tbody>
         </table>
         
-        <p style="color:#64748B;font-size:12px;margin-top:24px;">Consider managing your open positions before these events.</p>
+        <p style="color: ${commonStyles.textMuted}; font-size: 12px; margin-top: 24px; text-align: center; line-height: 1.5;">Consider managing your open positions or tightening stop-losses before these events trigger.</p>
       </div>
     `,
-  })
+  }
+
+  return transporter.sendMail(mailOptions)
 }
 
 export async function sendOtpEmail(to: string, name: string, otpCode: string) {
-  return resend.emails.send({
-    from: 'GoldBook <noreply@goldbook.app>',
+  const mailOptions = {
+    from: `"GoldBook" <${process.env.EMAIL_USER}>`,
     to,
     subject: 'Verify your GoldBook trading account',
     html: `
-      <div style="font-family: sans-serif; font-size: 16px; color: #1e293b; max-width: 500px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background: #0A0A0F; color: #F1F5F9;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h2 style="color: #FFD700; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 1px;">GOLDBOOK</h2>
-          <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; font-weight: bold;">Secure Trading Console</p>
+      <div style="font-family: ${commonStyles.fontFamily}; background: ${commonStyles.bodyBg}; color: ${commonStyles.textMain}; padding: 40px; max-width: 500px; margin: 0 auto; border-radius: 16px; border: 1px solid ${commonStyles.borderColor};">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 1.5px; color: ${commonStyles.textMain};">
+            <span style="color: ${commonStyles.iceBlue};">GOLD</span>BOOK
+          </h1>
+          <p style="margin: 4px 0 0; color: ${commonStyles.textMuted}; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">Secure Trading Console</p>
         </div>
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Please use the following 6-digit verification code to activate your trading terminal and start syncing your MT5 accounts:</p>
-        <div style="background-color: #12121A; border: 1px dashed rgba(255,255,255,0.1); border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
-          <span style="font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #FFD700; font-family: monospace;">${otpCode}</span>
+        
+        <p style="font-size: 14px; color: ${commonStyles.textMain};">Hi <strong>${name}</strong>,</p>
+        <p style="font-size: 14px; color: ${commonStyles.textMuted}; line-height: 1.6;">Please use the following 6-digit verification code to activate your trading terminal and start syncing your MT5 accounts:</p>
+        
+        <div style="background: ${commonStyles.cardBg}; border: 1px dashed ${commonStyles.borderColor}; border-radius: 12px; padding: 24px; text-align: center; margin: 28px 0;">
+          <span style="font-size: 36px; font-weight: 900; letter-spacing: 8px; color: ${commonStyles.iceBlue}; font-family: monospace;">${otpCode}</span>
         </div>
-        <p style="font-size: 13px; color: #64748B;">This code is valid for <strong>15 minutes</strong>. If you did not request this code, please ignore this email.</p>
-        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 24px 0;">
-        <p style="font-size: 12px; color: #94a3b8; text-align: center;">Thanks,<br><strong>GoldBook Team</strong></p>
+        
+        <p style="font-size: 13px; color: ${commonStyles.textMuted}; line-height: 1.5; text-align: center;">This code is valid for <strong style="color: ${commonStyles.textMain};">15 minutes</strong>. If you did not request this code, please ignore this email.</p>
+        
+        <hr style="border: 0; border-top: 1px solid ${commonStyles.borderColor}; margin: 24px 0;">
+        <p style="font-size: 12px; color: ${commonStyles.textMuted}; text-align: center; margin: 0;">Thanks,<br><strong style="color: ${commonStyles.textMain};">GoldBook Team</strong></p>
       </div>
     `,
-  })
+  }
+
+  return transporter.sendMail(mailOptions)
 }

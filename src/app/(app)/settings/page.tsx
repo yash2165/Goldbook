@@ -453,8 +453,8 @@ export default function SettingsPage() {
             className={cn(
               'flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border cursor-pointer',
               tab === t.id 
-                ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.1)]' 
-                : 'border-transparent text-[#64748B] hover:text-white hover:bg-white/5'
+                ? 'bg-[#38BDF8]/10 border-[#38BDF8] text-[#38BDF8] shadow-[0_0_15px_rgba(56,189,248,0.1)]' 
+                : 'border-transparent text-[#94A3B8] hover:text-white hover:bg-white/5'
             )}
           >
             <t.icon className="w-4 h-4" /> {t.label}
@@ -469,15 +469,15 @@ export default function SettingsPage() {
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
             {/* Visual Rules Overview card */}
-            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+            <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37]">
+                  <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center text-[#38BDF8]">
                     <Shield className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-black text-white text-xs uppercase tracking-wider">Active Observance Rules</h3>
-                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Automated constraints tracked by psychology coach</p>
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Automated constraints tracked by psychology coach</p>
                   </div>
                 </div>
                 <Link href="/rules">
@@ -500,9 +500,9 @@ export default function SettingsPage() {
                     if (r.rule_type === 'max_risk_per_trade' && r.value) val = `${r.value}%`
                     
                     return (
-                      <div key={r.id} className="bg-[#050508]/40 border border-white/5 rounded-2xl p-4 shadow-sm hover:border-white/10 transition-all">
-                        <p className="text-[9px] text-[#64748B] font-black uppercase tracking-widest flex items-center gap-1 truncate" title={r.label}>
-                          <span className="text-[#D4AF37]">•</span> {r.label}
+                      <div key={r.id} className="bg-[#060A12]/40 border border-white/5 rounded-2xl p-4 shadow-sm hover:border-white/10 transition-all">
+                        <p className="text-[9px] text-[#94A3B8] font-black uppercase tracking-widest flex items-center gap-1 truncate" title={r.label}>
+                          <span className="text-[#38BDF8]">•</span> {r.label}
                         </p>
                         <p className="text-xl font-black mt-2 font-mono text-white/90 truncate">{val}</p>
                       </div>
@@ -515,24 +515,24 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               
               {/* Preferences */}
-              <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center text-[#38BDF8]">
                     <Globe className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-black text-white text-xs uppercase tracking-wider">Observatory Preferences</h3>
-                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Localisation settings and time frames</p>
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Localisation settings and time frames</p>
                   </div>
                 </div>
                 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Local Country</Label>
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Local Country</Label>
                     <select
                       value={profile.country}
                       onChange={e => setProfile(p => ({ ...p, country: e.target.value }))}
-                      className="w-full bg-[#050508] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer"
+                      className="w-full bg-[#060A12] border border-[#1E3A5F]/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer"
                     >
                       <option value="">Select Country</option>
                       {Array.from(new Set([...COUNTRIES, profile.country])).filter(Boolean).map(c => (
@@ -542,11 +542,11 @@ export default function SettingsPage() {
                   </div>
                   
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Workspace Timezone</Label>
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Workspace Timezone</Label>
                     <select
                       value={profile.timezone}
                       onChange={e => setProfile(p => ({ ...p, timezone: e.target.value }))}
-                      className="w-full bg-[#050508] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer"
+                      className="w-full bg-[#060A12] border border-[#1E3A5F]/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer"
                     >
                       {Array.from(new Set([...TIMEZONES, profile.timezone])).filter(Boolean).map(t => (
                         <option key={t} value={t}>{t}</option>
@@ -557,37 +557,37 @@ export default function SettingsPage() {
               </div>
 
               {/* Personal Details */}
-              <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center text-[#38BDF8]">
                     <User className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-black text-white text-xs uppercase tracking-wider">Profile Elements</h3>
-                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Customize how you appear in chat and podiums</p>
+                    <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Customize how you appear in chat and podiums</p>
                   </div>
                 </div>
                 
                 <div className="space-y-4">
                   {/* Avatar Upload */}
-                  <div className="flex items-center gap-4 p-4 bg-[#050508]/60 border border-white/5 rounded-2xl relative overflow-hidden">
+                  <div className="flex items-center gap-4 p-4 bg-[#060A12]/60 border border-white/5 rounded-2xl relative overflow-hidden">
                     <div className="relative group">
-                      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[#D4AF37]/30 group-hover:border-[#D4AF37] transition-all flex items-center justify-center bg-[#12121a] relative">
+                      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[#38BDF8]/30 group-hover:border-[#38BDF8] transition-all flex items-center justify-center bg-[#0D1421] relative">
                         {profile.avatar_url ? (
                           <img src={profile.avatar_url} alt="Profile picture" className="w-full h-full object-cover" />
                         ) : (
-                          <User className="w-7 h-7 text-[#64748B]" />
+                          <User className="w-7 h-7 text-[#94A3B8]" />
                         )}
                         {uploadingAvatar && (
                           <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
-                            <Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" />
+                            <Loader2 className="w-5 h-5 text-[#38BDF8] animate-spin" />
                           </div>
                         )}
                       </div>
                     </div>
                     <div>
                       <Label className="text-xs text-white font-black uppercase tracking-wider block mb-0.5">Avatar Image</Label>
-                      <p className="text-[9px] text-[#64748B] mb-2 font-semibold">JPG, PNG, WEBP. Max size 2MB</p>
+                      <p className="text-[9px] text-[#94A3B8] mb-2 font-semibold">JPG, PNG, WEBP. Max size 2MB</p>
                       <input 
                         type="file" 
                         id="settings-avatar-input" 
@@ -600,7 +600,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={() => document.getElementById('settings-avatar-input')?.click()} 
                         disabled={uploadingAvatar}
-                        className="px-3 py-1.5 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/25 hover:border-[#D4AF37]/50 text-[#D4AF37] rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                        className="px-3 py-1.5 bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 border border-[#38BDF8]/25 hover:border-[#38BDF8]/50 text-[#38BDF8] rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
                       >
                         {profile.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
                       </button>
@@ -608,22 +608,22 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Observation Nickname</Label>
-                    <Input value={profile.display_name} onChange={e => setProfile(p => ({ ...p, display_name: e.target.value }))} className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white" />
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Observation Nickname</Label>
+                    <Input value={profile.display_name} onChange={e => setProfile(p => ({ ...p, display_name: e.target.value }))} className="bg-[#060A12] border-[#1E3A5F]/50 h-11 focus-visible:ring-[#38BDF8]/35 text-white" />
                   </div>
                   
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Observatory Username</Label>
-                    <Input value={profile.username} onChange={e => setProfile(p => ({ ...p, username: e.target.value }))} className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white" />
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Observatory Username</Label>
+                    <Input value={profile.username} onChange={e => setProfile(p => ({ ...p, username: e.target.value }))} className="bg-[#060A12] border-[#1E3A5F]/50 h-11 focus-visible:ring-[#38BDF8]/35 text-white" />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Trading Style</Label>
+                      <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Trading Style</Label>
                       <select
                         value={profile.trading_style}
                         onChange={e => setProfile(p => ({ ...p, trading_style: e.target.value }))}
-                        className="w-full bg-[#050508] border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer h-11"
+                        className="w-full bg-[#060A12] border border-[#1E3A5F]/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer h-11"
                       >
                         <option value="">None / System</option>
                         <option value="scalper">Scalper</option>
@@ -635,12 +635,12 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Trader Bio</Label>
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Trader Bio</Label>
                     <textarea 
                       value={profile.bio} 
                       onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} 
                       placeholder="Identify your setups..." 
-                      className="w-full bg-[#050508] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors text-white h-24 resize-none placeholder:text-[#334155]"
+                      className="w-full bg-[#060A12] border border-[#1E3A5F]/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors text-white h-24 resize-none placeholder:text-[#334155]"
                     />
                   </div>
                 </div>
@@ -648,23 +648,23 @@ export default function SettingsPage() {
             </div>
 
             {/* Custom Pre-trade checklist manager */}
-            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+            <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center text-[#38BDF8]">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-white text-xs uppercase tracking-wider">Custom Pre-Trade Checklist</h3>
-                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Parameters you confirm before opening any MT5 trade</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Parameters you confirm before opening any MT5 trade</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 {profile.pre_trade_checklist.length === 0 ? (
-                  <div className="text-xs text-[#64748B] font-semibold py-4 uppercase text-center bg-white/[0.01] border border-[#64748B]/10 rounded-xl">No checklist items configured.</div>
+                  <div className="text-xs text-[#94A3B8] font-semibold py-4 uppercase text-center bg-white/[0.01] border border-[#94A3B8]/10 rounded-xl">No checklist items configured.</div>
                 ) : (
                   profile.pre_trade_checklist.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3.5 bg-[#050508]/40 border border-white/5 rounded-xl hover:border-white/10 transition-all">
+                    <div key={idx} className="flex items-center justify-between p-3.5 bg-[#060A12]/40 border border-[#1E3A5F]/20 rounded-xl hover:border-white/10 transition-all">
                       <span className="text-sm font-semibold text-white/95">{item}</span>
                       <button onClick={() => removeChecklistItem(idx)} className="text-[#EF4444] text-xs font-black uppercase tracking-wider hover:underline cursor-pointer">Remove</button>
                     </div>
@@ -677,7 +677,7 @@ export default function SettingsPage() {
                     onChange={e => setNewChecklist(e.target.value)} 
                     onKeyDown={e => e.key === 'Enter' && addChecklistItem()}
                     placeholder="E.g. Confirm 4H trend direction..." 
-                    className="bg-[#050508] border-white/10 flex-1 focus-visible:ring-[#D4AF37]/35 text-white h-11"
+                    className="bg-[#060A12] border-[#1E3A5F]/50 flex-1 focus-visible:ring-[#38BDF8]/35 text-white h-11"
                   />
                   <button onClick={addChecklistItem} className="px-5 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/5 transition-all cursor-pointer">
                     Add Step
@@ -687,26 +687,26 @@ export default function SettingsPage() {
             </div>
 
             {/* Custom trading setups tag manager */}
-            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+            <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center text-[#38BDF8]">
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-white text-xs uppercase tracking-wider">Trading Setup Catalog</h3>
-                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Formulate unique entry tags to map closed win rates</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Formulate unique entry tags to map closed win rates</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 {profile.trading_setups?.length === 0 ? (
-                  <div className="text-xs text-[#64748B] font-semibold py-4 uppercase text-center bg-white/[0.01] border border-[#64748B]/10 rounded-xl">No custom setups cataloged yet.</div>
+                  <div className="text-xs text-[#94A3B8] font-semibold py-4 uppercase text-center bg-white/[0.01] border border-[#94A3B8]/10 rounded-xl">No custom setups cataloged yet.</div>
                 ) : (
                   profile.trading_setups?.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-[#050508]/40 border border-white/5 rounded-xl hover:border-white/10 transition-all">
+                    <div key={idx} className="flex items-center justify-between p-4 bg-[#060A12]/40 border border-[#1E3A5F]/20 rounded-xl hover:border-white/10 transition-all">
                       <div>
                         <p className="text-sm font-black uppercase text-white tracking-wide">{item.name}</p>
-                        {item.description && <p className="text-xs text-[#64748B] mt-1 font-medium">{item.description}</p>}
+                        {item.description && <p className="text-xs text-[#94A3B8] mt-1 font-medium">{item.description}</p>}
                       </div>
                       <button onClick={() => removeSetupItem(idx)} className="text-[#EF4444] text-xs font-black uppercase tracking-wider hover:underline cursor-pointer">Remove</button>
                     </div>
@@ -719,7 +719,7 @@ export default function SettingsPage() {
                       value={newSetupName} 
                       onChange={e => setNewSetupName(e.target.value)} 
                       placeholder="Setup Title (e.g. Liquidity Grab)" 
-                      className="bg-[#050508] border-white/10 flex-1 focus-visible:ring-[#D4AF37]/35 text-white h-11"
+                      className="bg-[#060A12] border-[#1E3A5F]/50 flex-1 focus-visible:ring-[#38BDF8]/35 text-white h-11"
                     />
                     <div className="flex flex-1 gap-3">
                       <Input 
@@ -727,7 +727,7 @@ export default function SettingsPage() {
                         onChange={e => setNewSetupDesc(e.target.value)} 
                         onKeyDown={e => e.key === 'Enter' && addSetupItem()}
                         placeholder="Setup Description (Optional)" 
-                        className="bg-[#050508] border-white/10 flex-1 focus-visible:ring-[#D4AF37]/35 text-white h-11"
+                        className="bg-[#060A12] border-[#1E3A5F]/50 flex-1 focus-visible:ring-[#38BDF8]/35 text-white h-11"
                       />
                       <button onClick={addSetupItem} className="px-5 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/5 transition-all cursor-pointer shrink-0">
                         Add Setup
@@ -747,7 +747,7 @@ export default function SettingsPage() {
                   'flex items-center gap-2 px-8 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all cursor-pointer',
                   saved 
                     ? 'bg-[#22C55E]/10 border-[#22C55E] text-[#22C55E] shadow-[0_0_15px_rgba(34,197,94,0.15)]' 
-                    : 'bg-gradient-to-b from-[#D4AF37] to-[#B8860B] border-[#D4AF37]/30 text-black shadow-lg shadow-[#D4AF37]/10'
+                    : 'bg-gradient-to-r from-[#38BDF8] to-[#7DD3FC] border-[#38BDF8]/30 text-[#020617] shadow-lg shadow-[#38BDF8]/10'
                 )}
               >
                 {saved ? (
@@ -767,14 +767,14 @@ export default function SettingsPage() {
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             
             {/* Supabase 2FA TOTP Wizard */}
-            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+            <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center text-[#38BDF8]">
                   <Shield className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-white text-xs uppercase tracking-wider">Two-Factor Authentication (2FA)</h3>
-                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Encrypt authentication requests using hardware devices</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Encrypt authentication requests using hardware devices</p>
                 </div>
               </div>
 
@@ -801,7 +801,7 @@ export default function SettingsPage() {
                   </div>
                   
                   <div className="p-4 bg-black/45 rounded-xl border border-white/5">
-                    <h5 className="text-[10px] text-[#64748B] font-black uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <h5 className="text-[10px] text-[#94A3B8] font-black uppercase tracking-wider mb-1 flex items-center gap-1.5">
                       <Info className="w-3.5 h-3.5 text-amber-500" /> Active Security Checklist
                     </h5>
                     <p className="text-[11px] text-slate-400 leading-normal font-semibold">
@@ -811,9 +811,9 @@ export default function SettingsPage() {
                 </div>
               ) : enrollingMfa ? (
                 /* 2FA Enrollment Wizard Step */
-                <div className="p-5 rounded-2xl border border-[#D4AF37]/20 bg-[#D4AF37]/[0.01] space-y-6 animate-in zoom-in-95 duration-300">
+                <div className="p-5 rounded-2xl border border-[#38BDF8]/20 bg-[#38BDF8]/[0.01] space-y-6 animate-in zoom-in-95 duration-300">
                   <div className="text-center space-y-2">
-                    <span className="px-3.5 py-1.5 bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                    <span className="px-3.5 py-1.5 bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/20 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
                       Verification Setup
                     </span>
                     <h4 className="text-base font-black text-white uppercase tracking-wider mt-2">Scan Authenticator Key</h4>
@@ -829,27 +829,27 @@ export default function SettingsPage() {
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={mfaSecret.totp.qr_code} alt="2FA QR Code" className="w-40 h-40 object-contain select-none pointer-events-none" />
                       ) : (
-                        <div className="w-40 h-40 flex items-center justify-center text-black font-bold text-xs uppercase tracking-wider">QR Code Loading...</div>
+                  <div className="w-40 h-40 flex items-center justify-center text-black font-bold text-xs uppercase tracking-wider">QR Code Loading...</div>
                       )}
                     </div>
 
                     <div className="space-y-4 max-w-sm">
                       <div className="space-y-1">
-                        <Label className="text-[10px] text-[#64748B] uppercase tracking-wider font-black">Secret Account Key</Label>
-                        <div className="flex items-center gap-2 bg-[#050508] border border-white/10 px-3 py-2 rounded-xl">
+                        <Label className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-black">Secret Account Key</Label>
+                        <div className="flex items-center gap-2 bg-[#060A12] border border-[#1E3A5F]/50 px-3 py-2 rounded-xl">
                           <code className="text-xs font-mono font-bold text-slate-300 truncate max-w-[200px]">{mfaSecret?.totp?.secret || 'Generating key...'}</code>
                           <button 
                             type="button"
                             onClick={copySecretToClipboard}
-                            className="p-1.5 hover:bg-white/5 rounded text-[#94A3B8] hover:text-[#D4AF37] transition-all cursor-pointer"
+                            className="p-1.5 hover:bg-white/5 rounded text-[#94A3B8] hover:text-[#38BDF8] transition-all cursor-pointer"
                           >
-                            {copiedKey ? <Check className="w-4 h-4 text-[#22C55E]" /> : <Copy className="w-4 h-4" />}
+                            {copiedKey ? <Check className="w-4 h-4 text-[#34D399]" /> : <Copy className="w-4 h-4" />}
                           </button>
                         </div>
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] text-[#64748B] uppercase tracking-wider font-black">Enter 6-Digit Code</Label>
+                        <Label className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-black">Enter 6-Digit Code</Label>
                         <div className="flex gap-2">
                           <input
                             type="text"
@@ -857,7 +857,7 @@ export default function SettingsPage() {
                             value={mfaVerificationCode}
                             onChange={e => setMfaVerificationCode(e.target.value.replace(/\D/g, ''))}
                             placeholder="e.g. 847291"
-                            className="bg-[#050508] border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono font-bold tracking-[0.3em] text-center w-full focus:outline-none focus:border-[#D4AF37]/50 text-white"
+                            className="bg-[#060A12] border border-[#1E3A5F]/50 rounded-xl px-4 py-2.5 text-sm font-mono font-bold tracking-[0.3em] text-center w-full focus:outline-none focus:border-[#38BDF8]/50 text-white"
                           />
                         </div>
                       </div>
@@ -889,7 +889,7 @@ export default function SettingsPage() {
                   <button 
                     onClick={startMfaEnrollment}
                     disabled={mfaLoading}
-                    className="px-6 py-3 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:opacity-95 text-black rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-[#D4AF37]/10 hover:scale-[1.01]"
+                    className="px-6 py-3 bg-gradient-to-r from-[#38BDF8] to-[#7DD3FC] hover:opacity-95 text-[#020617] rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-[#38BDF8]/10 hover:scale-[1.01]"
                   >
                     {mfaLoading ? 'Loading Wizard...' : 'Activate 2FA Device'}
                   </button>
@@ -898,28 +898,28 @@ export default function SettingsPage() {
             </div>
 
             {/* Active Sessions */}
-            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+            <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center text-[#38BDF8]">
                   <MonitorSmartphone className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-white text-xs uppercase tracking-wider">Active Device Sessions</h3>
-                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Device nodes currently authorized on your profile</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Device nodes currently authorized on your profile</p>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <div className="bg-[#050508]/40 border border-white/5 rounded-2xl p-4 flex items-center gap-4 hover:border-white/10 transition-all">
-                  <div className="w-12 h-12 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center shrink-0 text-[#D4AF37]">
+                <div className="bg-[#060A12]/40 border border-[#1E3A5F]/20 rounded-2xl p-4 flex items-center gap-4 hover:border-white/10 transition-all">
+                  <div className="w-12 h-12 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center shrink-0 text-[#38BDF8]">
                     <MonitorSmartphone className="w-5 h-5" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-black uppercase tracking-wider text-white">{userAgentInfo.browser}</p>
-                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#D4AF37]/15 border border-[#D4AF37]/35 text-[#D4AF37]">Active Node</span>
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-[#38BDF8]">Active Node</span>
                     </div>
-                    <p className="text-[10px] text-[#64748B] mt-0.5 font-bold uppercase tracking-wider">{userAgentInfo.os} • {userAgentInfo.ip}</p>
+                    <p className="text-[10px] text-[#94A3B8] mt-0.5 font-bold uppercase tracking-wider">{userAgentInfo.os} • {userAgentInfo.ip}</p>
                   </div>
                 </div>
 
@@ -936,14 +936,14 @@ export default function SettingsPage() {
             </div>
 
             {/* Account Credentials */}
-            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+            <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                <div className="w-9 h-9 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/20 flex items-center justify-center text-[#38BDF8]">
                   <Key className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-white text-xs uppercase tracking-wider">Profile Credentials</h3>
-                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Manage login email and password locks</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Manage login email and password locks</p>
                 </div>
               </div>
 
@@ -963,14 +963,14 @@ export default function SettingsPage() {
                 {/* Change Email */}
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Observatory Email Address</Label>
-                    <p className="text-[10px] text-[#64748B] mb-2 font-semibold">Current login email: <strong className="text-white">{user?.email}</strong></p>
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Observatory Email Address</Label>
+                    <p className="text-[10px] text-[#94A3B8] mb-2 font-semibold">Current login email: <strong className="text-white">{user?.email}</strong></p>
                     <Input 
                       type="email" 
                       placeholder="Enter new email address" 
                       value={emailUpdate}
                       onChange={e => setEmailUpdate(e.target.value)}
-                      className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white"
+                      className="bg-[#060A12] border-[#1E3A5F]/50 h-11 focus-visible:ring-[#38BDF8]/35 text-white"
                     />
                   </div>
                   <button 
@@ -986,31 +986,31 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Configure New Password</Label>
+                      <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Configure New Password</Label>
                       <Input 
                         type="password" 
                         placeholder="Type new secure password" 
                         value={passwordUpdate}
                         onChange={e => setPasswordUpdate(e.target.value)}
-                        className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white"
+                        className="bg-[#060A12] border-[#1E3A5F]/50 h-11 focus-visible:ring-[#38BDF8]/35 text-white"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Verify New Password</Label>
+                      <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Verify New Password</Label>
                       <Input 
                         type="password" 
                         placeholder="Re-type new password to confirm" 
                         value={confirmPasswordUpdate}
                         onChange={e => setConfirmPasswordUpdate(e.target.value)}
-                        className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white"
+                        className="bg-[#060A12] border-[#1E3A5F]/50 h-11 focus-visible:ring-[#38BDF8]/35 text-white"
                       />
                     </div>
                   </div>
 
                   {passwordUpdate && (
-                    <div className="p-3 bg-[#050508]/60 border border-white/5 rounded-xl flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                    <div className="p-3 bg-[#060A12]/60 border border-white/5 rounded-xl flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
                       <span>Password Strength:</span>
-                      <span className={cn('font-black', isPasswordStrong ? 'text-emerald-400' : 'text-red-400')}>
+                      <span className={cn('font-black', isPasswordStrong ? 'text-emerald-400' : 'text-[#F87171]')}>
                         {isPasswordStrong ? 'STRENGTH COMPLIANT ✓' : 'TOO WEAK ❌ (MIN 8 CHARS)'}
                       </span>
                     </div>
@@ -1035,7 +1035,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <h3 className="font-black text-red-400 text-xs uppercase tracking-wider">Observatory Scrub Protocol (Danger Zone)</h3>
-                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Permanent account deletion and data scrubbing</p>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Permanent account deletion and data scrubbing</p>
                 </div>
               </div>
 
@@ -1052,12 +1052,12 @@ export default function SettingsPage() {
 
                 <div className="space-y-4 max-w-md">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Type your username (<span className="text-white font-mono">{profile.username}</span>) to verify:</Label>
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Type your username (<span className="text-white font-mono">{profile.username}</span>) to verify:</Label>
                     <Input 
                       value={deleteConfirmation}
                       onChange={e => setDeleteConfirmation(e.target.value)}
                       placeholder="Enter username to verify delete"
-                      className="bg-[#050508] border-red-500/10 h-11 focus-visible:ring-red-500/25 text-white"
+                      className="bg-[#060A12] border-red-500/10 h-11 focus-visible:ring-red-500/25 text-white"
                     />
                   </div>
                   <button 

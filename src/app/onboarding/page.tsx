@@ -133,7 +133,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] flex items-center justify-center p-6 text-[#F1F5F9] relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-[#060A12] flex items-center justify-center p-6 text-[#F1F5F9] relative overflow-hidden font-sans">
       {/* 1px Fine Scanlines Texture Overlay */}
       <div 
         className="fixed inset-0 pointer-events-none z-10 opacity-[0.03]" 
@@ -153,26 +153,26 @@ export default function OnboardingPage() {
       />
 
       {/* Harmonious Ambient Glows */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60vw] h-[60vw] bg-[radial-gradient(circle,rgba(212,175,55,0.04)_0%,transparent_70%)] pointer-events-none -z-10 blur-3xl" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60vw] h-[60vw] bg-[radial-gradient(circle,rgba(0,212,170,0.035)_0%,transparent_70%)] pointer-events-none -z-10 blur-3xl" />
+      <div className="absolute top-[-20%] left-[-20%] w-[60vw] h-[60vw] bg-[radial-gradient(circle,rgba(56,189,248,0.04)_0%,transparent_70%)] pointer-events-none -z-10 blur-3xl" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[60vw] h-[60vw] bg-[radial-gradient(circle,rgba(125,211,252,0.035)_0%,transparent_70%)] pointer-events-none -z-10 blur-3xl" />
 
-      <div className="w-full max-w-xl bg-[#0c0c14]/80 backdrop-blur-xl border border-white/5 rounded-3xl p-8 shadow-[0_30px_80px_rgba(0,0,0,0.85)] relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+      <div className="w-full max-w-xl bg-[#0D1421]/80 backdrop-blur-xl border border-[#1E3A5F]/50 rounded-3xl p-8 shadow-[0_30px_80px_rgba(0,0,0,0.85)] relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
         
         {/* Glow effect at card top */}
-        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#D4AF37]/20 to-transparent" />
+        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#38BDF8]/20 to-transparent" />
 
         <div className="flex justify-center mb-6">
           <div className="flex items-center gap-3">
-            <GoldBookLogo size={36} className="shadow-[0_0_20px_rgba(212,175,55,0.2)]" />
+            <GoldBookLogo size={36} className="shadow-[0_0_20px_rgba(56,189,248,0.2)]" />
             <span className="font-extrabold text-sm tracking-wider uppercase">
-              <span className="bg-gradient-to-r from-[#D4AF37] via-[#FFD700] to-[#FFE066] text-transparent bg-clip-text font-black">GOLD</span>
+              <span className="bg-gradient-to-r from-[#38BDF8] via-[#7DD3FC] to-[#BAE6FD] text-transparent bg-clip-text font-black">GOLD</span>
               <span className="text-white font-light ml-0.5">BOOK</span>
             </span>
           </div>
         </div>
 
         <h1 className="text-2xl font-black text-center uppercase tracking-wider text-white">Create Trader Identity</h1>
-        <p className="text-[#64748B] text-center text-xs uppercase tracking-wider font-bold mt-1.5 mb-8">Personalize your observatory workspace</p>
+        <p className="text-[#94A3B8] text-center text-xs uppercase tracking-wider font-bold mt-1.5 mb-8">Personalize your observatory workspace</p>
 
         {/* Stepper Progress bar */}
         <div className="flex items-center justify-center gap-2 mb-8 max-w-xs mx-auto">
@@ -180,12 +180,12 @@ export default function OnboardingPage() {
             <div key={i} className="flex-1 flex items-center gap-2">
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border transition-all ${
                 step >= i 
-                  ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#D4AF37] shadow-[0_0_10px_rgba(212,175,55,0.2)]' 
-                  : 'border-white/10 bg-white/[0.02] text-[#64748B]'
+                  ? 'border-[#38BDF8] bg-[#38BDF8]/15 text-[#38BDF8] shadow-[0_0_10px_rgba(56,189,248,0.2)]' 
+                  : 'border-white/10 bg-white/[0.02] text-[#94A3B8]'
               }`}>
                 {i}
               </div>
-              {i === 1 && <div className={`flex-1 h-[2px] rounded ${step > 1 ? 'bg-[#D4AF37]' : 'bg-white/10'}`} />}
+              {i === 1 && <div className={`flex-1 h-[2px] rounded ${step > 1 ? 'bg-[#38BDF8]' : 'bg-white/10'}`} />}
             </div>
           ))}
         </div>
@@ -196,24 +196,24 @@ export default function OnboardingPage() {
             {/* Premium Onboarding Avatar Upload */}
             <div className="flex items-center gap-5 p-4 bg-white/[0.02] border border-white/5 rounded-2xl relative overflow-hidden">
               <div className="relative group">
-                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[#D4AF37]/30 group-hover:border-[#D4AF37] transition-all flex items-center justify-center bg-[#050508] relative shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[#38BDF8]/30 group-hover:border-[#38BDF8] transition-all flex items-center justify-center bg-[#060A12] relative shadow-[0_0_15px_rgba(56,189,248,0.05)]">
                   {profile.avatar_url ? (
                     <img src={profile.avatar_url} alt="Profile picture" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-lg font-black text-[#D4AF37]">
+                    <span className="text-lg font-black text-[#38BDF8]">
                       {profile.display_name?.charAt(0).toUpperCase() || profile.username?.charAt(0).toUpperCase() || '?'}
                     </span>
                   )}
                   {uploadingAvatar && (
                     <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" />
+                      <Loader2 className="w-5 h-5 text-[#38BDF8] animate-spin" />
                     </div>
                   )}
                 </div>
               </div>
               <div className="flex-1">
                 <label className="text-xs text-white font-black uppercase tracking-wider block mb-1">Profile Photo</label>
-                <p className="text-[10px] text-[#64748B] mb-2 font-medium">Upload custom avatar image (JPG, PNG, WEBP)</p>
+                <p className="text-[10px] text-[#94A3B8] mb-2 font-medium">Upload custom avatar image (JPG, PNG, WEBP)</p>
                 <input 
                   type="file" 
                   id="onboarding-avatar-input" 
@@ -226,7 +226,7 @@ export default function OnboardingPage() {
                   type="button"
                   onClick={() => document.getElementById('onboarding-avatar-input')?.click()} 
                   disabled={uploadingAvatar}
-                  className="px-3.5 py-1.5 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/25 hover:border-[#D4AF37]/50 text-[#D4AF37] rounded-lg text-xs font-black uppercase tracking-widest transition-all cursor-pointer"
+                  className="px-3.5 py-1.5 bg-[#38BDF8]/10 hover:bg-[#38BDF8]/20 border border-[#38BDF8]/25 hover:border-[#38BDF8]/50 text-[#38BDF8] rounded-lg text-xs font-black uppercase tracking-widest transition-all cursor-pointer"
                 >
                   {profile.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
                 </button>
@@ -234,33 +234,33 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs text-[#64748B] uppercase tracking-wider font-black">What should we call you?</label>
+              <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">What should we call you?</label>
               <input
                 value={profile.display_name}
                 onChange={e => setProfile({...profile, display_name: e.target.value})}
                 placeholder="Display Name (e.g., Alexander)"
-                className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors text-white placeholder:text-[#334155]"
+                className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors text-white placeholder:text-[#334155]"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Choose a unique username</label>
+              <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Choose a unique username</label>
               <input
                 value={profile.username}
                 onChange={e => setProfile({...profile, username: e.target.value})}
                 placeholder="e.g. scalper_king"
-                className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors text-white placeholder:text-[#334155]"
+                className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors text-white placeholder:text-[#334155]"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Timezone</label>
+                <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Timezone</label>
                 <div className="relative">
                   <select
                     value={profile.timezone}
                     onChange={e => setProfile({...profile, timezone: e.target.value})}
-                    className="w-full bg-[#0c0c14] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors text-white [color-scheme:dark] appearance-none cursor-pointer"
+                    className="w-full bg-[#0D1421] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors text-white [color-scheme:dark] appearance-none cursor-pointer"
                   >
                     <option value="UTC">UTC</option>
                     <option value="America/New_York">EST (New York)</option>
@@ -275,12 +275,12 @@ export default function OnboardingPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Country</label>
+                <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Country</label>
                 <div className="relative">
                   <select
                     value={profile.country}
                     onChange={e => setProfile({...profile, country: e.target.value})}
-                    className="w-full bg-[#0c0c14] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors text-white [color-scheme:dark] appearance-none cursor-pointer"
+                    className="w-full bg-[#0D1421] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors text-white [color-scheme:dark] appearance-none cursor-pointer"
                   >
                     <option value="">Select Country</option>
                     <option value="United States">United States</option>
@@ -301,7 +301,7 @@ export default function OnboardingPage() {
             <button
               disabled={!profile.display_name.trim() || !profile.username.trim() || !profile.country || uploadingAvatar}
               onClick={() => setStep(2)}
-              className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] hover:opacity-95 text-black rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30 mt-6 cursor-pointer shadow-lg shadow-[#D4AF37]/10 flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-gradient-to-r from-[#38BDF8] to-[#7DD3FC] hover:opacity-95 text-[#020617] rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30 mt-6 cursor-pointer shadow-lg shadow-[#38BDF8]/10 flex items-center justify-center gap-2"
             >
               Continue Setup <ChevronRight className="w-4 h-4" />
             </button>
@@ -311,8 +311,8 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-300">
             <div>
-              <label className="text-xs text-[#64748B] uppercase tracking-wider font-black mb-3 block flex items-center gap-1.5">
-                <Trophy className="w-4 h-4 text-[#D4AF37]" /> What is your primary trading style?
+              <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black mb-3 block flex items-center gap-1.5">
+                <Trophy className="w-4 h-4 text-[#38BDF8]" /> What is your primary trading style?
               </label>
               <div className="grid grid-cols-3 gap-3">
                 {['Scalper', 'Intraday', 'Swing'].map(level => (
@@ -321,8 +321,8 @@ export default function OnboardingPage() {
                     onClick={() => setProfile({...profile, experience_level: level.toLowerCase()})}
                     className={`py-3 rounded-xl border text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                       profile.experience_level === level.toLowerCase() 
-                        ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.15)]' 
-                        : 'bg-white/[0.02] border-white/5 text-[#64748B] hover:text-white hover:border-white/20'
+                        ? 'bg-[#38BDF8]/10 border-[#38BDF8] text-[#38BDF8] shadow-[0_0_15px_rgba(56,189,248,0.15)]' 
+                        : 'bg-white/[0.02] border-white/5 text-[#94A3B8] hover:text-white hover:border-white/20'
                     }`}
                   >
                     {level}
@@ -332,8 +332,8 @@ export default function OnboardingPage() {
             </div>
 
             <div>
-              <label className="text-xs text-[#64748B] uppercase tracking-wider font-black mb-3 block flex items-center gap-1.5">
-                <Globe className="w-4 h-4 text-[#00D4AA]" /> Which instruments do you trade?
+              <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black mb-3 block flex items-center gap-1.5">
+                <Globe className="w-4 h-4 text-[#34D399]" /> Which instruments do you trade?
               </label>
               <div className="flex flex-wrap gap-2.5">
                 {['XAUUSD', 'EURUSD', 'GBPUSD', 'US30', 'NAS100', 'BTCUSD'].map(pair => (
@@ -342,8 +342,8 @@ export default function OnboardingPage() {
                     onClick={() => togglePair(pair)}
                     className={`px-4 py-2 rounded-full border text-xs font-black transition-all cursor-pointer ${
                       profile.forex_pairs.includes(pair) 
-                        ? 'bg-[#00D4AA]/10 border-[#00D4AA]/30 text-[#00D4AA] shadow-[0_0_10px_rgba(0,212,170,0.1)]' 
-                        : 'bg-white/[0.02] border-white/5 text-[#64748B] hover:text-white'
+                        ? 'bg-[#34D399]/10 border-[#34D399]/30 text-[#34D399] shadow-[0_0_10px_rgba(52,211,153,0.1)]' 
+                        : 'bg-white/[0.02] border-white/5 text-[#94A3B8] hover:text-white'
                     }`}
                   >
                     {pair}
@@ -362,7 +362,7 @@ export default function OnboardingPage() {
               <button
                 disabled={!profile.experience_level || loading}
                 onClick={handleComplete}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-[#22C55E] hover:bg-[#22C55E]/90 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 shadow-lg shadow-[#22C55E]/20 cursor-pointer border border-emerald-500/30"
+                className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-[#34D399] hover:bg-[#34D399]/90 text-[#020617] rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 shadow-lg shadow-[#34D399]/20 cursor-pointer border border-emerald-500/30"
               >
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Finalizing...</>

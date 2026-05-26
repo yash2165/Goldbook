@@ -89,21 +89,21 @@ export async function POST(req: Request) {
       to: email,
       subject: 'Your GoldBook Verification Code',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; background: #0f0f12; color: #e2e8f0; border-radius: 12px; overflow: hidden;">
-          <div style="background: linear-gradient(135deg, #7c3aed, #4f46e5); padding: 32px; text-align: center;">
-            <h1 style="margin: 0; font-size: 28px; color: #fff; letter-spacing: 2px;">GOLDBOOK</h1>
-            <p style="margin: 8px 0 0; color: rgba(255,255,255,0.8); font-size: 14px;">Trade Journal Platform</p>
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 480px; margin: 0 auto; background: #060A12; color: #F1F5F9; border-radius: 16px; overflow: hidden; border: 1px solid #1E3A5F;">
+          <div style="background: linear-gradient(135deg, #1E3A5F, #38BDF8); padding: 32px; text-align: center;">
+            <h1 style="margin: 0; font-size: 28px; color: #fff; letter-spacing: 2px; font-weight: 800;">GOLDBOOK</h1>
+            <p style="margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">Trade Journal Platform</p>
           </div>
-          <div style="padding: 40px 32px;">
-            <p style="margin: 0 0 8px; color: #a78bfa; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">Verification Code</p>
-            <p style="margin: 0 0 24px; color: #e2e8f0; font-size: 15px;">Hi <strong>${name}</strong>, use the code below to verify your account:</p>
-            <div style="background: #1a1a2e; border: 2px solid #7c3aed; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
-              <span style="font-size: 42px; font-weight: 900; letter-spacing: 10px; color: #a78bfa;">${otpCode}</span>
+          <div style="padding: 40px 32px; background: #0D1421;">
+            <p style="margin: 0 0 8px; color: #38BDF8; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700;">Verification Code</p>
+            <p style="margin: 0 0 24px; color: #F1F5F9; font-size: 15px;">Hi <strong>${name}</strong>, use the code below to verify your account:</p>
+            <div style="background: #060A12; border: 1px dashed #1E3A5F; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+              <span style="font-size: 42px; font-weight: 900; letter-spacing: 10px; color: #38BDF8; font-family: monospace;">${otpCode}</span>
             </div>
-            <p style="color: #64748b; font-size: 13px; margin: 0;">This code expires in <strong style="color:#e2e8f0">15 minutes</strong>. Do not share it with anyone.</p>
+            <p style="color: #94A3B8; font-size: 13px; margin: 0; text-align: center;">This code expires in <strong style="color:#F1F5F9">15 minutes</strong>. Do not share it with anyone.</p>
           </div>
-          <div style="padding: 20px 32px; border-top: 1px solid #1e293b; text-align: center;">
-            <p style="color: #475569; font-size: 12px; margin: 0;">© 2025 GoldBook. All rights reserved.</p>
+          <div style="padding: 20px 32px; border-top: 1px solid #1E3A5F; text-align: center; background: #060A12;">
+            <p style="color: #94A3B8; font-size: 12px; margin: 0;">© 2026 GoldBook. All rights reserved.</p>
           </div>
         </div>
       `,

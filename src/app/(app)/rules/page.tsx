@@ -175,7 +175,7 @@ export default function RulesPage() {
             const percentage = ((currentVal - ruleDef.min) / (ruleDef.max - ruleDef.min)) * 100
 
             return (
-              <div key={ruleDef.type} className="bg-[#12121a] border border-white/5 rounded-2xl p-6 md:p-8">
+              <div key={ruleDef.type} className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 md:p-8">
                 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                   <div className="flex gap-4">
@@ -243,7 +243,7 @@ export default function RulesPage() {
         </div>
 
         {/* Discipline History & Violations Log */}
-        <div className="mt-12 bg-[#12121a] border border-white/5 rounded-2xl p-6 md:p-8">
+        <div className="mt-12 bg-[#0D1421] border border-white/5 rounded-2xl p-6 md:p-8">
           <div className="flex items-center gap-3 mb-6">
             <Shield className="w-5 h-5 text-primary" />
             <div>
@@ -304,7 +304,7 @@ export default function RulesPage() {
         </div>
       </div>
 
-      <div className="pt-6 border-t border-white/5 flex justify-end shrink-0 bg-[#0a0a0f] sticky bottom-0 z-10">
+      <div className="pt-6 border-t border-white/5 flex justify-end shrink-0 bg-[#060A12] sticky bottom-0 z-10">
         <button
           onClick={saveRules}
           disabled={saving}

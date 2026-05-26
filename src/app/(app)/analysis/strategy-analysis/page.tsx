@@ -217,7 +217,7 @@ function StrategyAnalysisContent() {
           <span className="text-xs text-[#64748B] font-medium font-mono">Compiling strategy performance matrix...</span>
         </div>
       ) : closed.length === 0 ? (
-        <div className="bg-[#12121a] border border-white/5 rounded-2xl py-24 text-center max-w-xl mx-auto space-y-4 shadow-xl">
+        <div className="bg-[#0D1421] border border-white/5 rounded-2xl py-24 text-center max-w-xl mx-auto space-y-4 shadow-xl">
           <Activity className="w-12 h-12 mx-auto text-[#1E293B] mb-2" />
           <div className="space-y-1">
             <p className="text-base font-bold text-white">No Strategy Data Available</p>
@@ -232,7 +232,7 @@ function StrategyAnalysisContent() {
           </div>
         </div>
       ) : strategies.length === 0 ? (
-        <div className="bg-[#12121a] border border-white/5 rounded-2xl py-24 text-center max-w-xl mx-auto space-y-4 shadow-xl">
+        <div className="bg-[#0D1421] border border-white/5 rounded-2xl py-24 text-center max-w-xl mx-auto space-y-4 shadow-xl">
           <ShieldAlert className="w-12 h-12 mx-auto text-amber-500/20 mb-2" />
           <div className="space-y-1">
             <p className="text-base font-bold text-white">Strategy Setups Untagged</p>
@@ -253,7 +253,7 @@ function StrategyAnalysisContent() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             
             {/* Stat 1: Strategy Count */}
-            <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
+            <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 flex items-center gap-4 shadow-xl">
               <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
                 <Target className="w-5 h-5 text-primary" />
               </div>
@@ -265,7 +265,7 @@ function StrategyAnalysisContent() {
 
             {/* Stat 2: Best strategy */}
             {bestStrategy && (
-              <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 flex items-center gap-4 shadow-xl col-span-1 sm:col-span-2">
+              <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 flex items-center gap-4 shadow-xl col-span-1 sm:col-span-2">
                 <div className="w-10 h-10 rounded-xl bg-[#22C55E]/10 border border-[#22C55E]/20 flex items-center justify-center text-[#22C55E] shrink-0">
                   <Award className="w-5 h-5 text-[#22C55E]" />
                 </div>
@@ -327,7 +327,7 @@ function StrategyAnalysisContent() {
               })
 
               return (
-                <div key={idx} className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-2xl space-y-5 flex flex-col justify-between relative group hover:border-[#F59E0B]/30 transition-all duration-300">
+                <div key={idx} className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-2xl space-y-5 flex flex-col justify-between relative group hover:border-[#F59E0B]/30 transition-all duration-300">
                   
                   {/* Subtle top decoration */}
                   {isProfit && (
@@ -506,7 +506,7 @@ function StrategyAnalysisContent() {
           </div>
 
           {/* Comparative Strategy Leaderboard Table */}
-          <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-2xl space-y-4">
+          <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <h3 className="text-sm font-black text-white/90 uppercase tracking-wider flex items-center gap-2">
                 <Compass className="w-5 h-5 text-primary" /> Setup Performance Leaderboard

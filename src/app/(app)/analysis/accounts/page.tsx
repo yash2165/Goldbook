@@ -73,7 +73,7 @@ export default function AccountAnalysisPage() {
 
   if (accountsLoading) {
     return (
-      <div className="p-6 h-[calc(100vh-64px)] flex items-center justify-center bg-[#0a0a0f] text-white">
+      <div className="p-6 h-[calc(100vh-64px)] flex items-center justify-center bg-[#060A12] text-white">
         <div className="flex flex-col items-center gap-3">
           <RefreshCw className="w-8 h-8 text-primary animate-spin" />
           <p className="text-sm text-[#64748B] font-medium tracking-wide">Loading accounts center...</p>
@@ -155,7 +155,7 @@ export default function AccountAnalysisPage() {
     : 0
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0f] text-foreground overflow-x-hidden p-6 md:p-8">
+    <div className="relative min-h-screen bg-[#060A12] text-foreground overflow-x-hidden p-6 md:p-8">
       {/* Premium Futuristic Background */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[130px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/5 blur-[130px] pointer-events-none" />
@@ -189,7 +189,7 @@ export default function AccountAnalysisPage() {
           <motion.div 
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center p-12 bg-[#12121a]/40 backdrop-blur-xl border border-white/5 rounded-3xl text-center space-y-6"
+            className="flex flex-col items-center justify-center p-12 bg-[#0D1421]/40 backdrop-blur-xl border border-white/5 rounded-3xl text-center space-y-6"
           >
             <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/25 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
               <Server className="w-8 h-8" />
@@ -231,10 +231,10 @@ export default function AccountAnalysisPage() {
                       transition={{ delay: index * 0.05 }}
                       onClick={() => setSelectedAccId(acc.id)}
                       className={cn(
-                        "relative bg-[#12121a]/40 backdrop-blur-xl border rounded-2xl p-5 cursor-pointer shadow-xl transition-all duration-300 group overflow-hidden",
+                        "relative bg-[#0D1421]/40 backdrop-blur-xl border rounded-2xl p-5 cursor-pointer shadow-xl transition-all duration-300 group overflow-hidden",
                         isSelected 
-                          ? "border-primary/45 bg-[#12121a]/85 shadow-primary/5 ring-1 ring-primary/25" 
-                          : "border-white/5 hover:border-white/10 hover:bg-[#12121a]/60"
+                          ? "border-primary/45 bg-[#0D1421]/85 shadow-primary/5 ring-1 ring-primary/25" 
+                          : "border-white/5 hover:border-white/10 hover:bg-[#0D1421]/60"
                       )}
                     >
                       {/* Active glowing card effect */}
@@ -332,7 +332,7 @@ export default function AccountAnalysisPage() {
               {activeAccount ? (
                 <>
                   {/* Account overview card */}
-                  <div className="bg-[#12121a]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl space-y-6 relative overflow-hidden">
+                  <div className="bg-[#0D1421]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl space-y-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-blue-500/5 to-transparent rounded-bl-full pointer-events-none" />
                     
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-white/[0.04]">
@@ -445,7 +445,7 @@ export default function AccountAnalysisPage() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
-                          className="bg-[#12121a]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl"
+                          className="bg-[#0D1421]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl"
                         >
                           <div className="flex items-center justify-between mb-6">
                             <h3 className="font-bold text-white text-sm flex items-center gap-2">
@@ -477,7 +477,7 @@ export default function AccountAnalysisPage() {
                                   <YAxis hide domain={['auto', 'auto']} />
                                   <Tooltip
                                     contentStyle={{ 
-                                      backgroundColor: '#12121a', 
+                                      backgroundColor: '#0D1421', 
                                       border: '1px solid rgba(255,255,255,0.05)', 
                                       borderRadius: '12px', 
                                       fontSize: '12px',
@@ -500,7 +500,7 @@ export default function AccountAnalysisPage() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
-                          className="bg-[#12121a]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl"
+                          className="bg-[#0D1421]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl"
                         >
                           <h3 className="font-bold text-white text-sm mb-6 flex items-center gap-2">
                             <Target className="w-4 h-4 text-primary" /> Core Analytical Performance
@@ -531,7 +531,7 @@ export default function AccountAnalysisPage() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
-                          className="bg-[#12121a]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl space-y-6"
+                          className="bg-[#0D1421]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl space-y-6"
                         >
                           <h3 className="font-bold text-white text-sm flex items-center gap-2">
                             <Activity className="w-4 h-4 text-primary" /> Orchestrator Diagnostic Parameters
@@ -602,7 +602,7 @@ export default function AccountAnalysisPage() {
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              className="w-full max-w-md bg-[#12121a]/95 backdrop-blur-2xl border border-[#EF4444]/25 rounded-3xl p-6 shadow-2xl space-y-6 relative overflow-hidden"
+              className="w-full max-w-md bg-[#0D1421]/95 backdrop-blur-2xl border border-[#EF4444]/25 rounded-3xl p-6 shadow-2xl space-y-6 relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#EF4444]/5 to-transparent rounded-bl-full pointer-events-none" />
               

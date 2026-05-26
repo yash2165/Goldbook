@@ -11,8 +11,8 @@ interface ParticleBackgroundProps {
 
 export function ParticleBackground({
   density = 1500,
-  goldColor = '#D4AF37',
-  cyanColor = '#00D4AA',
+  goldColor = '#7DD3FC',
+  cyanColor = '#38BDF8',
 }: ParticleBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 

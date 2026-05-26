@@ -55,7 +55,7 @@ function Tooltip({ children, text }: { children: React.ReactNode, text: string }
           initial={{ opacity: 0, x: -5 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-[#1A1A2E] text-white text-xs font-bold px-3 py-1.5 rounded-md border border-white/10 whitespace-nowrap shadow-xl"
+          className="bg-[#0D1421] text-white text-xs font-bold px-3 py-1.5 rounded-md border border-[#1E3A5F]/50 whitespace-nowrap shadow-xl"
         >
           {text}
         </motion.div>
@@ -75,7 +75,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
       {isActive && (
         <motion.div
           layoutId="activeNavIndicator"
-          className="absolute left-0 top-0 bottom-0 w-[2px] bg-primary rounded-r-full shadow-[0_0_8px_rgba(245,159,11,0.5)] z-10"
+          className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#38BDF8] rounded-r-full shadow-[0_0_8px_rgba(56,189,248,0.5)] z-10"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -90,18 +90,18 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
         }}
         className={cn(
           'w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative overflow-hidden',
-          isActive ? 'text-white bg-white/[0.03]' : 'text-[#64748B] hover:text-white hover:bg-white/[0.02]',
+          isActive ? 'text-white bg-white/[0.03]' : 'text-[#94A3B8] hover:text-white hover:bg-white/[0.02]',
           collapsed ? 'justify-center' : 'gap-3'
         )}
       >
         <motion.div
           animate={{
             scale: isActive ? 1.1 : 1,
-            color: isActive ? '#F59E0B' : '#64748B',
+            color: isActive ? '#38BDF8' : '#94A3B8',
           }}
           whileHover={{
             scale: isActive ? 1.1 : 1.05,
-            color: isActive ? '#F59E0B' : '#94A3B8',
+            color: isActive ? '#38BDF8' : '#E2E8F0',
           }}
           transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         >
@@ -121,7 +121,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
               {item.badge && (
                 <span className={cn(
                   'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ml-2',
-                  item.badge === 'NEW' ? 'bg-primary/20 text-primary' : 'bg-[#1a1a2e] text-[#64748B]'
+                  item.badge === 'NEW' ? 'bg-[#38BDF8]/20 text-[#38BDF8]' : 'bg-[#0D1421] text-[#94A3B8]'
                 )}>
                   {item.badge}
                 </span>
@@ -150,7 +150,7 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
                   href={child.href}
                   className={cn(
                     'block px-3 py-2 rounded-md text-sm transition-all',
-                    pathname === child.href ? 'text-primary font-bold' : 'text-[#64748B] hover:text-white hover:bg-white/5'
+                    pathname === child.href ? 'text-[#38BDF8] font-bold' : 'text-[#94A3B8] hover:text-white hover:bg-white/5'
                   )}
                 >
                   {child.name}
@@ -203,7 +203,7 @@ export function Sidebar() {
     <>
       {/* Mobile Toggle */}
       <button
-        className="md:hidden fixed top-3 left-4 z-60 p-2 bg-[#12121a] border border-white/10 rounded-lg text-white"
+        className="md:hidden fixed top-3 left-4 z-60 p-2 bg-[#0D1421] border border-white/10 rounded-lg text-white"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
         {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -228,14 +228,14 @@ export function Sidebar() {
         }}
         transition={{ type: 'spring', stiffness: 350, damping: 30 }}
         className={cn(
-          'fixed md:static inset-y-0 left-0 z-50 bg-[#0A0A0F] border-r border-[#1A1A2E] flex flex-col transition-transform duration-300',
+          'fixed md:static inset-y-0 left-0 z-50 bg-[#060A12] border-r border-[#1E3A5F]/50 flex flex-col transition-transform duration-300',
           mobileOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'
         )}
       >
         {/* Header */}
-        <div className="h-16 flex items-center px-4 border-b border-white/5 shrink-0 overflow-hidden relative bg-[#0A0A0F]/50">
+        <div className="h-16 flex items-center px-4 border-b border-white/5 shrink-0 overflow-hidden relative bg-[#060A12]/50">
           <div className="flex items-center gap-3">
-            <GoldBookLogo size={32} className="shadow-[0_0_15px_rgba(255,215,0,0.2)]" />
+            <GoldBookLogo size={32} className="shadow-[0_0_15px_rgba(56,189,248,0.2)]" />
             <AnimatePresence>
               {!collapsed && (
                 <motion.span
@@ -244,7 +244,7 @@ export function Sidebar() {
                   exit={{ opacity: 0, x: -10 }}
                   className="font-extrabold text-sm tracking-wider whitespace-nowrap uppercase flex items-center"
                 >
-                  <span className="bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37] text-transparent bg-clip-text font-black">GOLD</span>
+                  <span className="bg-gradient-to-r from-[#38BDF8] via-[#7DD3FC] to-[#BAE6FD] text-transparent bg-clip-text font-black">GOLD</span>
                   <span className="text-white font-light tracking-wide ml-0.5">BOOK</span>
                 </motion.span>
               )}
@@ -290,7 +290,7 @@ export function Sidebar() {
         </div>
 
         {/* Footer Area */}
-        <div className="p-2 border-t border-white/5 bg-[#0A0A0F]">
+        <div className="p-2 border-t border-white/5 bg-[#060A12]">
           <button
             onClick={handleSignOut}
             className={cn(
@@ -318,7 +318,7 @@ export function Sidebar() {
         {/* Desktop Collapse Toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden md:flex absolute -right-3 top-20 w-6 h-6 bg-[#1A1A2E] border border-white/10 rounded-full items-center justify-center text-[#64748B] hover:text-white hover:border-white/30 transition-all shadow-lg z-50"
+          className="hidden md:flex absolute -right-3 top-20 w-6 h-6 bg-[#0D1421] border border-white/10 rounded-full items-center justify-center text-[#94A3B8] hover:text-white hover:border-white/30 transition-all shadow-lg z-50"
         >
           <motion.div animate={{ rotate: collapsed ? 180 : 0 }} transition={{ type: 'spring' }}>
             <ChevronRight className="w-3.5 h-3.5" />

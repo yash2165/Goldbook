@@ -547,7 +547,7 @@ export default function FloatingLines({
           mixBlendMode: mixBlendMode
         }}
       >
-        <div className="absolute inset-0 bg-[#0A0A0F]/90" />
+        <div className="absolute inset-0 bg-[#060A12]/90" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:48px_48px] opacity-[0.08]" />
         
         {/* CSS Animated fallback lines & ambient glows */}

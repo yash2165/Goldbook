@@ -291,7 +291,7 @@ function TradeJournalCard({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.4, type: "spring", bounce: 0.1 }}
-            className="overflow-hidden border-t border-white/5 bg-[#0A0A0F]/50"
+            className="overflow-hidden border-t border-white/5 bg-[#060A12]/50"
           >
             <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8" onClick={(e) => e.stopPropagation()}>
               
@@ -318,7 +318,7 @@ function TradeJournalCard({
                     value={setupTag}
                     onChange={e => setSetupTag(e.target.value)}
                     placeholder="Or type a custom setup..."
-                    className="w-full bg-[#12121A] border border-[#1A1A2E] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
+                    className="w-full bg-[#0D1421] border border-[#1A1A2E] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#F59E0B]/50 transition-colors"
                   />
                 </div>
 
@@ -337,7 +337,7 @@ function TradeJournalCard({
                               'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300',
                               isSelected
                                 ? em.activeClass
-                                : 'bg-[#12121A]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
+                                : 'bg-[#0D1421]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
                             )}
                           >
                             <span className="text-base">{em.icon}</span>
@@ -361,7 +361,7 @@ function TradeJournalCard({
                               'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300',
                               isSelected
                                 ? em.activeClass
-                                : 'bg-[#12121A]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
+                                : 'bg-[#0D1421]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
                             )}
                           >
                             <span className="text-base">{em.icon}</span>
@@ -384,7 +384,7 @@ function TradeJournalCard({
                         onClick={() => setRating(star)}
                         className={cn(
                           'w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold transition-all',
-                          rating >= star ? 'bg-[#F59E0B] text-black shadow-[0_0_15px_rgba(245,159,11,0.4)]' : 'bg-[#12121A] border border-[#1A1A2E] text-[#64748B]'
+                          rating >= star ? 'bg-[#F59E0B] text-black shadow-[0_0_15px_rgba(245,159,11,0.4)]' : 'bg-[#0D1421] border border-[#1A1A2E] text-[#64748B]'
                         )}
                       >
                         ★
@@ -499,7 +499,7 @@ function TradeJournalCard({
                             onChange={e => setVal(e.target.value)}
                             placeholder={p.placeholder}
                             rows={3}
-                            className="w-full bg-[#12121A] border border-[#1A1A2E] focus:border-primary/45 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-[#64748B] focus:outline-none transition-colors resize-none leading-relaxed"
+                            className="w-full bg-[#0D1421] border border-[#1A1A2E] focus:border-primary/45 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-[#64748B] focus:outline-none transition-colors resize-none leading-relaxed"
                           />
                         </div>
                       )
@@ -509,7 +509,7 @@ function TradeJournalCard({
 
                 <div>
                   <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Pre-Trade Checklist</label>
-                  <div className="space-y-2 bg-[#12121A] p-4 rounded-xl border border-[#1A1A2E]">
+                  <div className="space-y-2 bg-[#0D1421] p-4 rounded-xl border border-[#1A1A2E]">
                     {profileChecklist.length === 0 ? (
                       <p className="text-xs text-[#64748B]">No checklist items configured in Settings.</p>
                     ) : (
@@ -524,7 +524,7 @@ function TradeJournalCard({
                               'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm transition-all',
                               isChecked
                                 ? 'border-[#22C55E]/30 bg-[#22C55E]/10 text-[#F1F5F9]'
-                                : 'border-[#1A1A2E] bg-[#0A0A0F] text-[#64748B] hover:bg-white/5'
+                                : 'border-[#1A1A2E] bg-[#060A12] text-[#64748B] hover:bg-white/5'
                             )}
                           >
                             <div className={cn('w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors', isChecked ? 'bg-[#22C55E]' : 'bg-white/5')}>
@@ -541,7 +541,7 @@ function TradeJournalCard({
 
             </div>
 
-            <div className="p-4 border-t border-[#1A1A2E] bg-[#12121A] flex justify-end">
+            <div className="p-4 border-t border-[#1A1A2E] bg-[#0D1421] flex justify-end">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.95 }}
@@ -653,7 +653,7 @@ function JournalPageContent() {
             <p className="text-sm text-[#64748B]">Document and analyze your psychological edge.</p>
           </div>
         </div>
-        <div className="bg-[#12121A] border border-[#1A1A2E] px-4 py-2 rounded-lg text-sm">
+        <div className="bg-[#0D1421] border border-[#1A1A2E] px-4 py-2 rounded-lg text-sm">
           <span className="text-[#64748B]">Total Entries: </span>
           <span className="font-bold text-[#F1F5F9]">{closed.length}</span>
         </div>

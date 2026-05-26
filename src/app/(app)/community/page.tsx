@@ -482,7 +482,7 @@ export default function CommunityPage() {
               onClick={() => { setChannel(ch.id); setTab('chat') }}
               className={cn(
                 'w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold tracking-wide uppercase transition-all text-left',
-                channel === ch.id && tab === 'chat' ? 'bg-[#FFD700]/10 text-[#FFD700]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
+                channel === ch.id && tab === 'chat' ? 'bg-[#38BDF8]/10 text-[#38BDF8]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
               )}
             >
               <ch.icon className="w-4 h-4 shrink-0" />
@@ -504,7 +504,7 @@ export default function CommunityPage() {
                     onClick={() => { setChannel(dmChannelId); setTab('chat') }}
                     className={cn(
                       'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left',
-                      channel === dmChannelId && tab === 'chat' ? 'bg-[#FFD700]/10 text-[#FFD700]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
+                      channel === dmChannelId && tab === 'chat' ? 'bg-[#38BDF8]/10 text-[#38BDF8]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
                     )}
                   >
                     <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-[10px] font-bold text-primary">
@@ -591,7 +591,7 @@ export default function CommunityPage() {
                 <div key={msg.id} className={cn('flex gap-3', msg.user_id === user?.id && 'flex-row-reverse')}>
                   <button 
                     onClick={() => setSelectedUser(msg.user_id)}
-                    className="w-8 h-8 rounded-lg overflow-hidden border border-[#FFD700]/20 flex items-center justify-center shrink-0 text-xs font-bold text-[#FFD700] hover:scale-105 transition-transform animate-in fade-in zoom-in-75 duration-300 bg-[#FFD700]/10"
+                    className="w-8 h-8 rounded-lg overflow-hidden border border-[#38BDF8]/20 flex items-center justify-center shrink-0 text-xs font-bold text-[#38BDF8] hover:scale-105 transition-transform animate-in fade-in zoom-in-75 duration-300 bg-[#38BDF8]/10"
                   >
                     {msg.profiles?.avatar_url ? (
                       <img src={msg.profiles.avatar_url} alt={msg.profiles.username} className="w-full h-full object-cover" />
@@ -602,7 +602,7 @@ export default function CommunityPage() {
                   
                   <div className={cn('max-w-md space-y-1', msg.user_id === user?.id && 'items-end flex flex-col')}>
                     <div className="flex items-center gap-2 text-[9px] text-[#64748B] px-1 font-semibold uppercase tracking-wider">
-                      <button onClick={() => setSelectedUser(msg.user_id)} className="font-bold text-[#94A3B8] hover:text-[#FFD700] hover:underline">
+                      <button onClick={() => setSelectedUser(msg.user_id)} className="font-bold text-[#94A3B8] hover:text-[#38BDF8] hover:underline">
                         {msg.profiles?.username ?? 'Anonymous'}
                       </button>
                       <span>{format(new Date(msg.created_at), 'HH:mm')}</span>
@@ -613,7 +613,7 @@ export default function CommunityPage() {
                       {/* Floating reaction picker panel */}
                       {user && (
                         <div className={cn(
-                          "absolute bg-[#12121a]/95 border border-white/10 rounded-full px-2.5 py-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md flex gap-2 opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto transition-all duration-200 z-20 -top-6 origin-bottom",
+                          "absolute bg-[#0D1421]/95 border border-white/10 rounded-full px-2.5 py-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md flex gap-2 opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto transition-all duration-200 z-20 -top-6 origin-bottom",
                           msg.user_id === user?.id ? "right-2" : "left-2"
                         )}>
                           {['🔥', '🚀', '👏', '🎯', '💎', '⚠️'].map(emoji => (
@@ -631,9 +631,9 @@ export default function CommunityPage() {
                       <div className={cn(
                         'overflow-hidden rounded-xl border flex flex-col shadow-md transition-all duration-200',
                         msg.trades && msg.trades.source !== 'manual'
-                          ? 'bg-gradient-to-br from-[#1c1c2b]/95 via-[#10101a]/95 to-[#08080d]/95 border-[#FFD700]/30 shadow-[0_10px_35px_rgba(255,215,0,0.06)] rounded-xl hover:border-[#FFD700]/50'
+                          ? 'bg-gradient-to-br from-[#1c1c2b]/95 via-[#10101a]/95 to-[#08080d]/95 border-[#38BDF8]/30 shadow-[0_10px_35px_rgba(56,189,248,0.06)] rounded-xl hover:border-[#38BDF8]/50'
                           : msg.user_id === user?.id
-                            ? 'bg-[#FFD700]/5 border-[#FFD700]/20 rounded-tr-none'
+                            ? 'bg-[#38BDF8]/5 border-[#38BDF8]/20 rounded-tr-none'
                             : 'bg-[#10101a]/90 border-white/5 rounded-tl-none hover:border-white/10'
                       )}>
                         {msg.content && msg.content !== 'Shared a trade' && (
@@ -649,13 +649,13 @@ export default function CommunityPage() {
                             <div className={cn(
                               "px-3 py-2 flex items-center justify-between text-[9px] font-extrabold tracking-wider uppercase border-b border-white/[0.04]",
                               msg.trades.source !== 'manual' 
-                                ? "bg-gradient-to-r from-[#FFD700]/15 via-[#F59E0B]/5 to-transparent text-[#FFD700]" 
+                                ? "bg-gradient-to-r from-[#38BDF8]/15 via-[#F59E0B]/5 to-transparent text-[#38BDF8]" 
                                 : "bg-white/5 text-[#94A3B8]"
                             )}>
                               <span className="flex items-center gap-1.5">
                                 {msg.trades.source !== 'manual' ? (
                                   <>
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#FFD700] animate-ping" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#38BDF8] animate-ping" />
                                     🛡️ Verified MT5 Trade
                                   </>
                                 ) : (
@@ -677,7 +677,7 @@ export default function CommunityPage() {
                                   <h4 className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
                                     {msg.trades.symbol}
                                     {msg.trades.source !== 'manual' && (
-                                      <span className="text-[#FFD700] text-[10px]" title="Verified Sync">⚡</span>
+                                      <span className="text-[#38BDF8] text-[10px]" title="Verified Sync">⚡</span>
                                     )}
                                   </h4>
                                   <span className={cn(
@@ -732,7 +732,7 @@ export default function CommunityPage() {
                                 </div>
                                 <div>
                                   <span className="block text-[8px] uppercase tracking-wider font-semibold">Setup</span>
-                                  <span className="font-bold text-[#FFD700] uppercase tracking-wide truncate max-w-[70px] block">{msg.trades.setup_tag || 'Unset'}</span>
+                                  <span className="font-bold text-[#38BDF8] uppercase tracking-wide truncate max-w-[70px] block">{msg.trades.setup_tag || 'Unset'}</span>
                                 </div>
                               </div>
                             </div>
@@ -760,7 +760,7 @@ export default function CommunityPage() {
                                   className={cn(
                                     "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors font-bold cursor-pointer",
                                     hasReacted 
-                                      ? "bg-[#FFD700]/20 border-[#FFD700]/30 text-[#FFD700]" 
+                                      ? "bg-[#38BDF8]/20 border-[#38BDF8]/30 text-[#38BDF8]" 
                                       : "bg-white/5 border-white/5 text-[#64748B] hover:text-white"
                                   )}
                                 >
@@ -781,8 +781,8 @@ export default function CommunityPage() {
 
             {/* Typing indicator alerts bar */}
             {typingUsers.length > 0 && (
-              <div className="px-5 py-1 text-[10px] text-[#FFD700] italic font-semibold font-sans bg-black/10 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#FFD700] animate-pulse" />
+              <div className="px-5 py-1 text-[10px] text-[#38BDF8] italic font-semibold font-sans bg-black/10 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#38BDF8] animate-pulse" />
                 {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
               </div>
             )}
@@ -836,7 +836,7 @@ export default function CommunityPage() {
                 <button
                   type="submit"
                   disabled={(!newMsg.trim() && !selectedTrade && !imageUrl && !imageFile) || !user || sending}
-                  className="w-8 h-8 rounded-lg bg-[#FFD700] hover:bg-[#FFD700]/95 flex items-center justify-center transition-colors disabled:opacity-40 text-black font-bold"
+                  className="w-8 h-8 rounded-lg bg-[#38BDF8] hover:bg-[#38BDF8]/95 flex items-center justify-center transition-colors disabled:opacity-40 text-black font-bold"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -860,7 +860,7 @@ export default function CommunityPage() {
       {/* Share Modal */}
       {showShareModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowShareModal(false)}>
-          <div className="bg-[#12121a] border border-white/10 rounded-2xl p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+          <div className="bg-[#0D1421] border border-white/10 rounded-2xl p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold">Share Trade & Chart</h2>
               <button onClick={() => setShowShareModal(false)} className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-white/5 transition-all">
@@ -875,7 +875,7 @@ export default function CommunityPage() {
                 <select 
                   value={selectedTrade?.id || ''}
                   onChange={e => setSelectedTrade(myTrades.find(t => t.id === e.target.value) || null)}
-                  className="w-full bg-[#12121a] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] appearance-none"
+                  className="w-full bg-[#0D1421] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] appearance-none"
                 >
                   <option value="">-- No trade selected --</option>
                   {myTrades.map(t => (
@@ -934,7 +934,7 @@ export default function CommunityPage() {
               <button
                 onClick={() => send()}
                 disabled={(!newMsg.trim() && !selectedTrade && !imageUrl && !imageFile) || sending}
-                className="w-full py-2.5 bg-[#FFD700] hover:bg-[#FFD700]/95 disabled:opacity-40 rounded-xl text-sm font-bold transition-all shadow-lg shadow-[#FFD700]/25 flex items-center justify-center gap-2 text-black"
+                className="w-full py-2.5 bg-[#38BDF8] hover:bg-[#38BDF8]/95 disabled:opacity-40 rounded-xl text-sm font-bold transition-all shadow-lg shadow-[#38BDF8]/25 flex items-center justify-center gap-2 text-black"
               >
                 {sending ? 'Sending...' : <><Send className="w-4 h-4" /> Share to #{channel}</>}
               </button>
@@ -952,7 +952,7 @@ export default function CommunityPage() {
             </span>
             <div className="text-left">
               <p className="text-[10px] font-black text-[#F1F5F9] uppercase tracking-wider flex items-center gap-1.5">
-                <Volume2 className="w-3.5 h-3.5 text-[#FFD700]" /> Trading Floor
+                <Volume2 className="w-3.5 h-3.5 text-[#38BDF8]" /> Trading Floor
               </p>
               <p className="text-[8px] text-[#8B5CF6] uppercase tracking-widest font-extrabold mt-0.5">Voice Room Active</p>
             </div>
@@ -1054,12 +1054,12 @@ function LeaderboardTab() {
     <div className="flex-1 overflow-y-auto p-6 bg-[#07070b]">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-2 mb-6">
-          <Trophy className="w-6 h-6 text-[#FFD700] drop-shadow-[0_0_10px_rgba(255,215,0,0.3)]" />
+          <Trophy className="w-6 h-6 text-[#38BDF8] drop-shadow-[0_0_10px_rgba(56,189,248,0.3)]" />
           <h2 className="text-lg font-black uppercase tracking-wider text-white">Community Leaderboard</h2>
         </div>
 
         {leaderboard.length === 0 ? (
-          <div className="bg-[#12121a] border border-white/5 rounded-xl py-16 text-center text-[#64748B] text-xs font-bold uppercase tracking-wider">
+          <div className="bg-[#0D1421] border border-white/5 rounded-xl py-16 text-center text-[#64748B] text-xs font-bold uppercase tracking-wider">
             No traders on the leaderboard yet
           </div>
         ) : (
@@ -1099,7 +1099,7 @@ function LeaderboardTab() {
               {top3[0] ? (
                 <div className="flex flex-col items-center">
                   <div className="relative group mb-2 scale-110">
-                    <div className="w-20 h-20 rounded-full bg-yellow-950/40 border-2 border-[#FFD700] flex items-center justify-center font-bold text-[#FFD700] text-xl shadow-[0_0_25px_rgba(255,215,0,0.3)] animate-[pulse_2s_infinite] select-none overflow-hidden">
+                    <div className="w-20 h-20 rounded-full bg-sky-950/40 border-2 border-[#38BDF8] flex items-center justify-center font-bold text-[#38BDF8] text-xl shadow-[0_0_25px_rgba(56,189,248,0.3)] animate-[pulse_2s_infinite] select-none overflow-hidden">
                       {top3[0].avatar_url ? (
                         <img src={top3[0].avatar_url} alt={top3[0].username} className="w-full h-full object-cover" />
                       ) : (
@@ -1114,7 +1114,7 @@ function LeaderboardTab() {
                   </div>
                   <div className="w-full bg-[#1c1c2e]/90 border border-primary/20 rounded-t-2xl h-32 flex flex-col items-center justify-center p-3 shadow-2xl shadow-primary/5 relative overflow-hidden text-center">
                     <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-yellow-300 via-primary to-amber-500" />
-                    <span className="text-[#FFD700] text-xs font-black tracking-widest uppercase animate-pulse">CHAMPION</span>
+                    <span className="text-[#38BDF8] text-xs font-black tracking-widest uppercase animate-pulse">CHAMPION</span>
                     <span className="text-[9px] text-[#64748B] mt-1">{top3[0].trades} Trades</span>
                     <span className="text-[8px] text-primary/80 font-mono mt-0.5 font-bold">WR: {top3[0].winRate}% • {top3[0].mostTraded}</span>
                   </div>
@@ -1154,7 +1154,7 @@ function LeaderboardTab() {
 
             {/* Ranks 4+ */}
             {remaining.length > 0 && (
-              <div className="bg-[#12121a]/60 border border-white/5 rounded-2xl overflow-hidden backdrop-blur-md">
+              <div className="bg-[#0D1421]/60 border border-white/5 rounded-2xl overflow-hidden backdrop-blur-md">
                 {remaining.map((entry, idx) => {
                   const rank = idx + 4
                   return (
@@ -1231,7 +1231,7 @@ function FriendsTab({
           <Users className="w-5 h-5 text-[#22C55E]" /> Friends & Following
         </h2>
 
-        <div className="bg-[#12121a]/60 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
+        <div className="bg-[#0D1421]/60 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/90 mb-4">Add a Friend</h3>
           <div className="flex gap-2">
             <input 
@@ -1240,19 +1240,19 @@ function FriendsTab({
               onKeyDown={e => e.key === 'Enter' && handleAddClick()}
               disabled={adding}
               placeholder="Search by exact username..." 
-              className="flex-1 bg-[#0a0a0f] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50 text-white disabled:opacity-50" 
+              className="flex-1 bg-[#060A12] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50 text-white disabled:opacity-50" 
             />
             <button 
               onClick={handleAddClick}
               disabled={adding || !searchTerm.trim()}
-              className="px-4 py-2 bg-[#FFD700] hover:bg-[#FFD700]/95 text-black rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+              className="px-4 py-2 bg-[#38BDF8] hover:bg-[#38BDF8]/95 text-black rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
             >
               <UserPlus className="w-4 h-4" /> {adding ? 'Adding...' : 'Add'}
             </button>
           </div>
         </div>
 
-        <div className="bg-[#12121a]/60 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
+        <div className="bg-[#0D1421]/60 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/90 mb-4">Your Friends</h3>
           {friends.length === 0 ? (
             <p className="text-[#64748B] text-xs font-semibold uppercase tracking-wider">You have no friends added yet.</p>
@@ -1339,8 +1339,8 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
           <h2 className="text-sm font-black flex items-center gap-3 tracking-widest uppercase">
             <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-ping" />
             <span className="text-[#F1F5F9] flex items-center gap-2">
-              <Volume2 className="w-4 h-4 text-[#FFD700]" />
-              Trading Floor <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#F59E0B]">Live Broadcast</span>
+              <Volume2 className="w-4 h-4 text-[#38BDF8]" />
+              Trading Floor <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#38BDF8] to-[#F59E0B]">Live Broadcast</span>
             </span>
           </h2>
           <button 
@@ -1356,9 +1356,9 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
           {hasScreenShare ? (
             <>
               {/* Main Screenshare container (Large) */}
-              <div className="flex-[3] relative rounded-xl border border-[#FFD700]/20 bg-black/60 overflow-hidden shadow-[0_15px_40px_rgba(0,0,0,0.6)] group">
+              <div className="flex-[3] relative rounded-xl border border-[#38BDF8]/20 bg-black/60 overflow-hidden shadow-[0_15px_40px_rgba(0,0,0,0.6)] group">
                 <ParticipantTile trackRef={screenShareTracks[0]} className="w-full h-full object-contain" />
-                <div className="absolute top-4 left-4 bg-black/60 border border-white/10 px-3 py-1.5 rounded-lg text-[9px] uppercase font-extrabold tracking-widest text-[#FFD700] backdrop-blur-md">
+                <div className="absolute top-4 left-4 bg-black/60 border border-white/10 px-3 py-1.5 rounded-lg text-[9px] uppercase font-extrabold tracking-widest text-[#38BDF8] backdrop-blur-md">
                   🖥️ Live Presentation
                 </div>
               </div>

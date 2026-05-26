@@ -129,14 +129,14 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-transparent text-[#F1F5F9] p-4 relative overflow-hidden font-sans isolate">
-      {/* Landing Page Background (Obsidian + Three.js Interactive Particles) */}
-      <div className="fixed inset-0 pointer-events-none z-0 bg-[#050508]">
-        <ParticleBackground density={1200} />
+      {/* Landing Page Background (Frost Platinum + Three.js Interactive Particles) */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[#060A12]">
+        <ParticleBackground density={1200} goldColor="#7DD3FC" cyanColor="#38BDF8" />
       </div>
 
       {/* Floating Lights */}
-      <div className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/6 blur-[180px] rounded-full pointer-events-none mix-blend-screen z-0" />
-      <div className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/4 blur-[200px] rounded-full pointer-events-none mix-blend-screen z-0" />
+      <div className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#38BDF8]/6 blur-[180px] rounded-full pointer-events-none mix-blend-screen z-0" />
+      <div className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#7DD3FC]/4 blur-[200px] rounded-full pointer-events-none mix-blend-screen z-0" />
 
       {/* Back to Home CTA */}
       <div className="absolute top-6 left-6 z-20">
@@ -148,16 +148,16 @@ export default function AuthPage() {
       </div>
 
       <div className="relative z-10 w-full flex justify-center py-12">
-        <div className="w-full max-w-md space-y-8 bg-[#0c0c14]/95 backdrop-blur-2xl p-8 rounded-2xl border border-white/10 shadow-[0_30px_70px_rgba(0,0,0,0.8)] relative">
+        <div className="w-full max-w-md space-y-8 bg-[#0D1421]/95 backdrop-blur-2xl p-8 rounded-2xl border border-[#1E3A5F]/50 shadow-[0_30px_70px_rgba(0,0,0,0.9)] relative">
           
-          {/* Gold Badge Logo Header */}
+          {/* Frost Badge Logo Header */}
           <div className="text-center space-y-3">
-            <GoldBookLogo size={42} className="shadow-[0_0_20px_rgba(255,215,0,0.2)] mx-auto" />
+            <GoldBookLogo size={42} className="shadow-[0_0_20px_rgba(56,189,248,0.2)] mx-auto" />
             <h1 className="font-extrabold text-2xl tracking-wider uppercase">
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37]">GOLD</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#38BDF8] via-[#7DD3FC] to-[#BAE6FD]">GOLD</span>
               <span className="text-white/90 font-light">BOOK</span>
             </h1>
-            <p className="text-xs font-bold text-[#64748B] uppercase tracking-widest mt-1">
+            <p className="text-xs font-bold text-[#94A3B8] uppercase tracking-widest mt-1">
               {otpSent ? 'Activate your account' : isLogin ? 'Sign in to your console' : 'Establish a new account'}
             </p>
           </div>
@@ -170,8 +170,8 @@ export default function AuthPage() {
                 className={cn(
                   "flex-1 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-all border cursor-pointer",
                   isLogin 
-                    ? "bg-[#FFD700]/15 border-[#FFD700]/20 text-[#FFD700] shadow-[0_0_15px_rgba(255,215,0,0.1)]" 
-                    : "text-[#64748B] border-transparent hover:text-white/90"
+                    ? "bg-[#38BDF8]/15 border-[#38BDF8]/20 text-[#38BDF8] shadow-[0_0_15px_rgba(56,189,248,0.1)]" 
+                    : "text-[#94A3B8] border-transparent hover:text-white/90"
                 )}
               >
                 Sign In
@@ -181,8 +181,8 @@ export default function AuthPage() {
                 className={cn(
                   "flex-1 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-all border cursor-pointer",
                   !isLogin 
-                    ? "bg-[#FFD700]/15 border-[#FFD700]/20 text-[#FFD700] shadow-[0_0_15px_rgba(255,215,0,0.1)]" 
-                    : "text-[#64748B] border-transparent hover:text-white/90"
+                    ? "bg-[#38BDF8]/15 border-[#38BDF8]/20 text-[#38BDF8] shadow-[0_0_15px_rgba(56,189,248,0.1)]" 
+                    : "text-[#94A3B8] border-transparent hover:text-white/90"
                 )}
               >
                 Sign Up
@@ -196,9 +196,9 @@ export default function AuthPage() {
               <div className="space-y-4">
                 <div className="text-center">
                   <p className="text-xs text-slate-300">
-                    We sent a 6-digit activation code to <strong className="text-primary">{email}</strong>.
+                    We sent a 6-digit activation code to <strong className="text-[#38BDF8]">{email}</strong>.
                   </p>
-                  <p className="text-[10px] text-[#64748B] mt-1 font-semibold uppercase tracking-wider">
+                  <p className="text-[10px] text-[#94A3B8] mt-1 font-semibold uppercase tracking-wider">
                     Please check your Gmail inbox and spam folders.
                   </p>
                 </div>
@@ -212,7 +212,7 @@ export default function AuthPage() {
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
                     required
-                    className="bg-[#09090F] border-white/10 h-14 text-center text-2xl tracking-[8px] font-black text-white focus:border-[#FFD700]/50 focus:ring-1 focus:ring-[#FFD700]/30 font-mono"
+                    className="bg-[#060A12] border-[#1E3A5F]/50 h-14 text-center text-2xl tracking-[8px] font-black text-white focus:border-[#38BDF8]/50 focus:ring-1 focus:ring-[#38BDF8]/30 font-mono"
                   />
                 </div>
               </div>
@@ -228,7 +228,7 @@ export default function AuthPage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required
-                      className="bg-[#09090F] border-white/10 h-12 text-white focus:border-[#FFD700]/50 focus:ring-1 focus:ring-[#FFD700]/30 font-medium"
+                      className="bg-[#060A12] border-[#1E3A5F]/50 h-12 text-white focus:border-[#38BDF8]/50 focus:ring-1 focus:ring-[#38BDF8]/30 font-medium"
                     />
                   </div>
                 )}
@@ -242,7 +242,7 @@ export default function AuthPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-[#09090F] border-white/10 h-12 text-white focus:border-[#FFD700]/50 focus:ring-1 focus:ring-[#FFD700]/30 font-medium"
+                    className="bg-[#060A12] border-[#1E3A5F]/50 h-12 text-white focus:border-[#38BDF8]/50 focus:ring-1 focus:ring-[#38BDF8]/30 font-medium"
                   />
                 </div>
 
@@ -255,7 +255,7 @@ export default function AuthPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-[#09090F] border-white/10 h-12 text-white focus:border-[#FFD700]/50 focus:ring-1 focus:ring-[#FFD700]/30 font-medium"
+                    className="bg-[#060A12] border-[#1E3A5F]/50 h-12 text-white focus:border-[#38BDF8]/50 focus:ring-1 focus:ring-[#38BDF8]/30 font-medium"
                   />
                 </div>
               </>
@@ -266,7 +266,7 @@ export default function AuthPage() {
                 "p-4 rounded-xl text-xs leading-relaxed text-center border animate-in fade-in",
                 error.includes('Verification code sent') || error.includes('Verification succeeded')
                   ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                  : "bg-[#EF4444]/10 border-[#EF4444]/20 text-[#EF4444]"
+                  : "bg-[#F87171]/10 border-[#F87171]/20 text-[#F87171]"
               )}>
                 {error}
               </div>
@@ -274,7 +274,7 @@ export default function AuthPage() {
 
             <button 
               type="submit" 
-              className="w-full py-3.5 bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37] hover:opacity-95 text-black font-extrabold text-xs uppercase tracking-widest rounded-lg transition-all hover:scale-[1.02] shadow-[0_0_20px_rgba(255,215,0,0.25)] flex items-center justify-center cursor-pointer"
+              className="w-full py-3.5 bg-gradient-to-r from-[#38BDF8] via-[#7DD3FC] to-[#BAE6FD] hover:opacity-95 text-slate-950 font-extrabold text-xs uppercase tracking-widest rounded-lg transition-all hover:scale-[1.02] shadow-[0_0_20px_rgba(56,189,248,0.25)] flex items-center justify-center cursor-pointer"
               disabled={loading}
             >
               {loading ? (
@@ -292,7 +292,7 @@ export default function AuthPage() {
               <button
                 type="button"
                 onClick={() => { setOtpSent(false); setError(null); setOtpCode('') }}
-                className="w-full py-2 bg-transparent text-[#64748B] hover:text-white/80 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer text-center"
+                className="w-full py-2 bg-transparent text-[#94A3B8] hover:text-white/80 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer text-center"
               >
                 ← Cancel & Re-register
               </button>
@@ -305,7 +305,7 @@ export default function AuthPage() {
                     <span className="w-full border-t border-white/5" />
                   </div>
                   <div className="relative flex justify-center text-[10px] font-bold uppercase pt-2">
-                    <span className="bg-[#0c0c14] px-3 text-[#64748B] tracking-wider">Or secure credentials with</span>
+                    <span className="bg-[#0D1421] px-3 text-[#94A3B8] tracking-wider">Or secure credentials with</span>
                   </div>
                 </div>
 

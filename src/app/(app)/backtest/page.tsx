@@ -9,7 +9,7 @@ export default function BacktestPage() {
       {/* Animated icon */}
       <div className="relative">
         <div className="absolute inset-0 bg-[#F59E0B]/20 blur-[60px] rounded-full animate-pulse" />
-        <div className="relative w-28 h-28 rounded-3xl bg-[#12121a] border border-[#F59E0B]/20 flex items-center justify-center shadow-2xl">
+        <div className="relative w-28 h-28 rounded-3xl bg-[#0D1421] border border-[#F59E0B]/20 flex items-center justify-center shadow-2xl">
           <FlaskConical className="w-14 h-14 text-[#F59E0B]" />
         </div>
         <div className="absolute -top-2 -right-2 w-8 h-8 bg-[#F59E0B] rounded-full flex items-center justify-center shadow-lg animate-bounce">
@@ -33,7 +33,7 @@ export default function BacktestPage() {
           { icon: '⚡', title: 'Fast Execution', desc: 'Place virtual Buy/Sell orders instantly' },
           { icon: '📈', title: 'Full Stats', desc: 'Win rate, drawdown, RR analysis' },
         ].map(f => (
-          <div key={f.title} className="bg-[#12121a] border border-white/5 rounded-xl p-4 text-left hover:border-[#F59E0B]/20 transition-colors">
+          <div key={f.title} className="bg-[#0D1421] border border-white/5 rounded-xl p-4 text-left hover:border-[#F59E0B]/20 transition-colors">
             <div className="text-2xl mb-2">{f.icon}</div>
             <p className="font-semibold text-sm">{f.title}</p>
             <p className="text-xs text-[#64748B] mt-1">{f.desc}</p>
@@ -42,7 +42,7 @@ export default function BacktestPage() {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-sm text-[#64748B] bg-[#12121a] px-4 py-2 rounded-full border border-white/5">
+        <div className="flex items-center gap-2 text-sm text-[#64748B] bg-[#0D1421] px-4 py-2 rounded-full border border-white/5">
           <Clock className="w-4 h-4" />
           Estimated: To be announced soon
         </div>

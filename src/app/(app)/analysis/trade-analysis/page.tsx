@@ -259,7 +259,7 @@ function TradeAnalysisContent() {
           </h1>
           <p className="text-xs md:text-sm text-[#64748B] mt-0.5">Evaluate execution discipline, review journal dossiers, and compare trade qualities.</p>
         </div>
-        <div className="bg-[#12121A] border border-[#1A1A2E] px-3.5 py-1.5 rounded-xl text-xs font-bold hidden sm:block">
+        <div className="bg-[#0D1421] border border-[#1A1A2E] px-3.5 py-1.5 rounded-xl text-xs font-bold hidden sm:block">
           <span className="text-[#64748B]">Total Closed: </span>
           <span className="font-extrabold text-white text-sm">{closed.length}</span>
         </div>
@@ -271,7 +271,7 @@ function TradeAnalysisContent() {
           <span className="text-xs text-[#64748B] font-medium font-mono">Syncing database analysis console...</span>
         </div>
       ) : closed.length === 0 ? (
-        <div className="bg-[#12121a] border border-white/5 rounded-2xl py-24 text-center max-w-xl mx-auto space-y-4 shadow-xl">
+        <div className="bg-[#0D1421] border border-white/5 rounded-2xl py-24 text-center max-w-xl mx-auto space-y-4 shadow-xl">
           <BarChart3 className="w-12 h-12 mx-auto text-[#1E293B] mb-2" />
           <div className="space-y-1">
             <p className="text-base font-bold text-white">No Closed Trades Available</p>
@@ -290,7 +290,7 @@ function TradeAnalysisContent() {
           
           {/* LEFT SIDEBAR: Trades list panel */}
           <div className={cn(
-            "col-span-1 bg-[#12121A] border border-white/5 rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl transition-all duration-300",
+            "col-span-1 bg-[#0D1421] border border-white/5 rounded-2xl flex flex-col h-full overflow-hidden shadow-2xl transition-all duration-300",
             selectedTrade && "hidden lg:flex"
           )}>
             {/* Sidebar Top Filter Box */}
@@ -398,7 +398,7 @@ function TradeAnalysisContent() {
 
           {/* RIGHT PANEL: Notion dossier and analytics detail panel */}
           <div className={cn(
-            "col-span-1 lg:col-span-2 flex flex-col h-full overflow-y-auto pr-1 bg-[#12121A]/30 lg:bg-transparent rounded-2xl lg:p-0 p-4 border border-white/5 lg:border-none",
+            "col-span-1 lg:col-span-2 flex flex-col h-full overflow-y-auto pr-1 bg-[#0D1421]/30 lg:bg-transparent rounded-2xl lg:p-0 p-4 border border-white/5 lg:border-none",
             !selectedTrade && "hidden lg:flex"
           )}>
             {selectedTrade ? (
@@ -413,7 +413,7 @@ function TradeAnalysisContent() {
                 </button>
 
                 {/* Trade Executive Summary Banner */}
-                <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden">
+                <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden">
                   
                   {/* Subtle background glow */}
                   <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
@@ -512,7 +512,7 @@ function TradeAnalysisContent() {
                       })()
                     }
                   ].map((metric, idx) => (
-                    <div key={idx} className="bg-[#12121A] border border-white/5 rounded-2xl p-4 space-y-1.5 shadow-md">
+                    <div key={idx} className="bg-[#0D1421] border border-white/5 rounded-2xl p-4 space-y-1.5 shadow-md">
                       <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">{metric.label}</span>
                       <span className={cn("text-base font-extrabold text-white font-mono tracking-tight", metric.colorClass)}>
                         {metric.value}
@@ -522,7 +522,7 @@ function TradeAnalysisContent() {
                 </div>
 
                 {/* ── HIGH FIDELITY VISUAL SCREENSHOT DOSSIER CANVAS ───────────────── */}
-                <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4 animate-in fade-in duration-300">
+                <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4 animate-in fade-in duration-300">
                   <div className="flex items-center justify-between border-b border-white/5 pb-3">
                     <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
                       <FileText className="w-4 h-4 text-primary" /> Visual Trade Analysis
@@ -611,7 +611,7 @@ function TradeAnalysisContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                   
                   {/* CARD 1: Journal Entries Dossier */}
-                  <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-5 flex flex-col justify-between h-full min-h-[380px]">
+                  <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-5 flex flex-col justify-between h-full min-h-[380px]">
                     
                     {/* Header */}
                     <div className="flex items-center justify-between border-b border-white/5 pb-3">
@@ -771,7 +771,7 @@ function TradeAnalysisContent() {
                     }
 
                     return (
-                      <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-5 flex flex-col justify-between h-full min-h-[380px]">
+                      <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-5 flex flex-col justify-between h-full min-h-[380px]">
                         
                         {/* Header */}
                         <div className="flex items-center justify-between border-b border-white/5 pb-3 shrink-0">
@@ -846,7 +846,7 @@ function TradeAnalysisContent() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   
                   {/* AI Insights */}
-                  <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
+                  <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl relative overflow-hidden flex flex-col justify-between">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between border-b border-white/5 pb-3">
                         <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
@@ -868,7 +868,7 @@ function TradeAnalysisContent() {
                   </div>
 
                   {/* VS Average comparison */}
-                  <div className="bg-[#12121A] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
+                  <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4">
                     <div className="flex items-center justify-between border-b border-white/5 pb-3">
                       <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
                         <BarChart3 className="w-4 h-4 text-primary" /> Session Comparative Metrics
@@ -916,7 +916,7 @@ function TradeAnalysisContent() {
 
               </div>
             ) : (
-              <div className="bg-[#12121A] border border-white/5 rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-3 h-full">
+              <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-3 h-full">
                 <BookOpen className="w-12 h-12 text-[#1E293B]" />
                 <h4 className="text-sm font-extrabold text-white">No Session Highlighted</h4>
                 <p className="text-xs text-[#64748B] max-w-xs mx-auto">Click any closed trade in the left column list to review structured Notion logs, performance stars, and checklists.</p>

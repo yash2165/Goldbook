@@ -32,7 +32,7 @@ export function DotGrid() {
       ref={gridRef}
       className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden"
       style={{
-        backgroundColor: '#0A0A0F',
+        backgroundColor: '#060A12',
         backgroundImage: `radial-gradient(circle at center, rgba(245, 158, 11, 0.04) 1px, transparent 1px)`,
         backgroundSize: '24px 24px',
       }}

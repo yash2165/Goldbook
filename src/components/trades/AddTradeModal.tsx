@@ -128,7 +128,7 @@ export function AddTradeModal({ onClose, onSaved, accountId }: AddTradeModalProp
   return (
     <Portal>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div className="w-full max-w-lg bg-[#12121a] border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="w-full max-w-lg bg-[#0D1421] border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
           <h2 className="font-bold text-lg flex items-center gap-2">
