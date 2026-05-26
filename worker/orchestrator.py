@@ -389,19 +389,9 @@ def provision_terminal(acc: dict) -> subprocess.Popen | None:
         return None
 
     global_install_dir = global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
-    acc_wineprefix = Path(os.environ.get("HOME", str(Path.home()))) / ".mt5_sandboxes" / account_id
-
-    # 1. Initialize Prefix
-    if not acc_wineprefix.exists():
-        log.info(f"[{login}] Creating fresh isolated WINEPREFIX...")
-        try:
-            acc_wineprefix.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(global_wineprefix, acc_wineprefix, symlinks=True)
-            shutil.rmtree(acc_wineprefix / "drive_c" / "mt5data", ignore_errors=True)
-        except Exception as e:
-            log.error(f"[{login}] Failed to replicate master WINEPREFIX: {e}")
-            report_error(account_id, f"Failed to initialize isolated WINEPREFIX: {e}")
-            return None
+    
+    # Run all instances inside the working global WINEPREFIX
+    acc_wineprefix = global_wineprefix
 
     # 2. Compile GoldBookSync.mq5 inside global folder if needed, then copy compiled EX5
     with global_sync_lock:
@@ -550,7 +540,7 @@ def provision_terminal(acc: dict) -> subprocess.Popen | None:
 def shutdown_terminal(account_id: str, item: dict):
     login = item.get("login", "?")
     proc = item.get("process")
-    acc_wineprefix = item.get("sandbox_dir").parent
+    acc_wineprefix = global_wineprefix
 
     log.info(f"⏹ [{login}] Terminating persistent terminal process...")
 
@@ -728,8 +718,7 @@ def main():
 
                 # Proceed with boot
                 log.info(f"⚙️ Booting missing persistent terminal for {login}...")
-                acc_wineprefix = Path(os.environ.get("HOME", str(Path.home()))) / ".mt5_sandboxes" / acc_id
-                data_dir = acc_wineprefix / "drive_c" / "mt5data" / acc_id
+                data_dir = global_wineprefix / "drive_c" / "mt5data" / acc_id
                 
                 # Setup structure
                 active_processes[acc_id] = {
