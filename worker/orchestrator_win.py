@@ -365,7 +365,7 @@ def provision_terminal(acc: dict, global_install_dir: Path) -> subprocess.Popen 
             "Symbol=EURUSD\r\n"
             "Period=M1\r\n"
         )
-        startup_ini.write_bytes(b"\xff\xfe" + startup_content.encode("utf-16le"))
+        startup_ini.write_text(startup_content, encoding="utf-8")
     except Exception as e:
         log.warning(f"[{login}] Failed writing startup.ini: {e}")
 

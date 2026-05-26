@@ -365,7 +365,7 @@ def prepare_data_dir(acc: dict, acc_wineprefix: Path) -> Path:
         c_dir.mkdir(parents=True, exist_ok=True)
         
         if global_config_path and global_config_path.exists():
-            for file_name in ["terminal.ini", "settings.ini", "common.ini", "experts.ini"]:
+            for file_name in ["terminal.ini", "settings.ini", "common.ini", "experts.ini", "servers.dat"]:
                 src_file = global_config_path / file_name
                 if src_file.exists():
                     shutil.copy2(src_file, c_dir / file_name)
@@ -491,7 +491,7 @@ def provision_terminal(acc: dict) -> subprocess.Popen | None:
             "Symbol=EURUSD\r\n"
             "Period=M1\r\n"
         )
-        startup_ini.write_bytes(b"\xff\xfe" + startup_content.encode("utf-16le"))
+        startup_ini.write_text(startup_content, encoding="utf-8")
     except Exception as e:
         log.warning(f"[{login}] Failed writing startup.ini: {e}")
 

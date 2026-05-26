@@ -10,7 +10,7 @@
 //|   5. Atomically moves/renames to sync_result.json                |
 //+------------------------------------------------------------------+
 input string SyncToken   = "";
-input int    HistoryDays = 90;
+input int    HistoryDays = 3650;
 
 string g_sync_token = "";
 datetime g_last_sync_time = 0;
