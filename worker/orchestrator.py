@@ -507,9 +507,13 @@ def provision_terminal(acc: dict) -> subprocess.Popen | None:
         log.error(f"[{login}] Global MT5 terminal executable not found: {global_install_dir}")
         return None
 
+    # Use the relative filename of the binary since we are setting cwd=global_install_dir.
+    # This prevents absolute Wine-path resolution hangs in Hangover/FEX emulator.
+    binary_name = terminal_path.name
+
     cmd = [
         "/usr/bin/wine",
-        str(terminal_path),
+        binary_name,
         "/portable",
         f"/config:C:\\mt5data\\{account_id}\\startup.ini",
         "/skipupdate",
