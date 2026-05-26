@@ -1,9 +1,14 @@
 """
-GoldBook MT5 Windows Parallel Orchestrator
-===========================================
-Runs natively on your Windows PC.
-Launches the native Windows MT5 terminal as a subprocess
-for EACH account in PARALLEL — all accounts sync simultaneously.
+GoldBook MT5 Windows 24/7 Persistent Farm Watchdog Orchestrator
+==============================================================
+Runs natively on Windows PC inside isolated sandboxes.
+Launches the native Windows MT5 terminal as a persistent background process
+for EACH active account in PARALLEL. Keeps them running 24/7.
+
+- Near-real-time updates: the EA triggers a sync on OnTrade() and OnTimer().
+- Staggered launch: starts one terminal every 20 seconds to protect IP/CPU.
+- Self-healing watchdog: auto-spawns dead terminals and restarts hung ones (no sync > 5m).
+- Automatic lifecycle provisioning: shuts down deactivated users automatically.
 
 SETUP:
   pip install requests python-dotenv
@@ -16,8 +21,8 @@ ENV (.env or .env.local file):
   GOLDBOOK_API_URL            default: https://goldbook-roan.vercel.app/api/ea-sync
   WORKER_SECRET
   MT5_PATH                   (Optional: Full path to terminal64.exe)
-  POLL_INTERVAL              (Optional: interval in seconds, default: 30)
-  MT5_TIMEOUT_SECONDS        (Optional: MT5 run timeout, default: 90)
+  STAGGER_INTERVAL_SECONDS   default: 20
+  HEALTH_TIMEOUT_SECONDS     default: 300
 """
 
 import os
@@ -27,12 +32,12 @@ import shutil
 import logging
 import subprocess
 import threading
+import signal
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 import requests
 
-# Load environment configuration (support fallback to .env.local)
+# Load environment configuration
 if os.path.exists(".env.local"):
     load_dotenv(".env.local")
 else:
@@ -44,14 +49,13 @@ SUPABASE_KEY   = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 API_BASE       = os.environ.get("API_BASE", "https://goldbook-roan.vercel.app/api")
 WORKER_SECRET  = os.environ.get("WORKER_SECRET", "xauusd_on_top")
 GOLDBOOK_URL   = os.environ.get("GOLDBOOK_API_URL", f"{API_BASE}/ea-sync")
-SYNC_INTERVAL  = int(os.environ.get("POLL_INTERVAL", os.environ.get("SYNC_INTERVAL_SECONDS", "30")))
-MT5_TIMEOUT    = int(os.environ.get("MT5_TIMEOUT_SECONDS", "90"))
-MAX_PARALLEL   = int(os.environ.get("MAX_PARALLEL", "10"))
+STAGGER_INTERVAL = int(os.environ.get("STAGGER_INTERVAL_SECONDS", "20"))
+HEALTH_TIMEOUT = int(os.environ.get("HEALTH_TIMEOUT_SECONDS", "300"))
 
-# Path to the GoldBookSync.mq5 script (same folder as this file)
+# Path to the GoldBookSync.mq5 EA (same folder as this file)
 SCRIPT_SRC = Path(__file__).parent / "GoldBookSync.mq5"
 
-# Sequential execution lock to prevent compiler collision in global directory
+# Compiler sync lock to prevent multiple threads from colliding on MetaEditor
 global_sync_lock = threading.Lock()
 
 # ── Logging ────────────────────────────────────────────────────────────────────
@@ -72,7 +76,23 @@ SUPA_HEADERS = {
     "Content-Type": "application/json",
 }
 
-# Helper to read text files with BOM
+# ── Active Processes State ─────────────────────────────────────────────────────
+# Schema:
+# {
+#     account_id: {
+#         "process": subprocess.Popen object,
+#         "last_sync": float (timestamp of last successful sync),
+#         "login": str,
+#         "server": str,
+#         "sandbox_dir": Path,
+#         "sync_token": str,
+#         "is_booting": bool
+#     }
+# }
+active_processes = {}
+last_launch_time = 0.0
+
+# ── Safe file helpers ──────────────────────────────────────────────────────────
 def _read_text_with_bom(path: Path) -> tuple[str, str, bytes]:
     data = path.read_bytes()
     if data.startswith(b"\xff\xfe"):
@@ -88,7 +108,6 @@ def _read_text_with_bom(path: Path) -> tuple[str, str, bytes]:
 
 
 def delete_examples_dirs(root_dir: Path):
-    """Recursively deletes all directories named 'examples' (case-insensitive) under root_dir."""
     if not root_dir.exists():
         return
     try:
@@ -106,8 +125,6 @@ def delete_examples_dirs(root_dir: Path):
 
 
 def detect_global_mt5() -> Path:
-    """Detect MT5 installation directory on Windows."""
-    # 1. Check user defined path in env
     if os.environ.get("MT5_PATH"):
         p = Path(os.environ["MT5_PATH"])
         if p.is_file():
@@ -115,13 +132,10 @@ def detect_global_mt5() -> Path:
         if p.is_dir():
             return p
 
-    # 2. Check standard paths
     candidates = [
         Path("C:/Program Files/MetaTrader 5"),
         Path("C:/Program Files (x86)/MetaTrader 5"),
     ]
-    
-    # 3. Check AppData local installations if any
     local_appdata = os.environ.get("LOCALAPPDATA")
     if local_appdata:
         candidates.append(Path(local_appdata) / "MetaTrader 5")
@@ -130,13 +144,11 @@ def detect_global_mt5() -> Path:
         if (c / "terminal64.exe").exists() or (c / "terminal.exe").exists():
             return c
             
-    # Hard fallback - ask user or fail
     log.error("❌ Could not auto-detect MetaTrader 5 installation directory!")
-    log.error("Please set 'MT5_PATH' in your environment (.env / .env.local) to point to terminal64.exe")
     sys.exit(1)
 
 
-# ── Supabase helpers ───────────────────────────────────────────────────────────
+# ── Supabase Helpers ───────────────────────────────────────────────────────────
 def fetch_active_accounts() -> list[dict]:
     try:
         res = requests.get(
@@ -154,7 +166,6 @@ def fetch_active_accounts() -> list[dict]:
 
 
 def report_error(account_id: str, error_message: str):
-    """Tell the API this account's sync failed so the UI shows an error."""
     try:
         requests.post(
             f"{API_BASE}/trade-data",
@@ -170,87 +181,11 @@ def report_error(account_id: str, error_message: str):
         pass
 
 
-# ── Per-account MT5 isolated directory prep ────────────────────────────────────
-def prepare_data_dir(acc: dict, global_install_dir: Path) -> Path:
-    """
-    Create a clean portable sandbox folder inside the worker subdirectory.
-    """
-    # Create isolated sandbox folder under worker/sandboxes/{account_id}
-    sandboxes_root = Path(__file__).parent / "sandboxes"
-    sandboxes_root.mkdir(exist_ok=True)
-    
-    data_dir = sandboxes_root / str(acc["id"])
-
-    # Replicate the full MT5 install into the isolated sandbox if terminal64.exe doesn't exist
-    terminal_path = data_dir / "terminal64.exe"
-    if not terminal_path.exists():
-        terminal_path = data_dir / "terminal.exe"
-
-    if not terminal_path.exists():
-        log.info(f"[{acc['mt5_login']}] Replicating MT5 installation to isolated sandbox: {data_dir}")
-        shutil.copytree(global_install_dir, data_dir, dirs_exist_ok=True)
-
-    # Clean default examples to prevent background compiling
-    delete_examples_dirs(data_dir)
-
-    # Delete Sounds directory to keep the terminal completely silent
-    sounds_dir = data_dir / "Sounds"
-    if sounds_dir.exists():
-        shutil.rmtree(sounds_dir, ignore_errors=True)
-
-    # Create MQL5 Scripts directory
-    scripts_dir = data_dir / "MQL5" / "Scripts"
-    scripts_dir.mkdir(parents=True, exist_ok=True)
-
-    # Place sync script source
-    dst_script = scripts_dir / "GoldBookSync.mq5"
-    if SCRIPT_SRC.exists():
-        shutil.copy2(SCRIPT_SRC, dst_script)
-
-    # Copy master Config folder to isolated directory
-    global_config = global_install_dir / "Config"
-    if not global_config.exists():
-        global_config = global_install_dir / "config"
-
-    # Try to find the latest servers.dat from AppData Roaming (which has updated broker info)
-    appdata_servers_dat = None
-    try:
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            metaquotes_root = Path(appdata) / "MetaQuotes" / "Terminal"
-            if metaquotes_root.exists():
-                candidates = []
-                for instance_dir in metaquotes_root.iterdir():
-                    if instance_dir.is_dir():
-                        s_dat = instance_dir / "config" / "servers.dat"
-                        if s_dat.exists():
-                            candidates.append(s_dat)
-                if candidates:
-                    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                    appdata_servers_dat = candidates[0]
-                    log.info(f"Auto-detected active AppData servers.dat: {appdata_servers_dat}")
-    except Exception as e:
-        log.warning(f"Failed scanning AppData for servers.dat: {e}")
-
-    for folder in ["config", "Config"]:
-        c_dir = data_dir / folder
-        c_dir.mkdir(exist_ok=True)
-        if global_config.exists():
-            for f in ["terminal.ini", "settings.ini", "common.ini", "experts.ini", "servers.dat"]:
-                src_file = global_config / f
-                if f == "servers.dat" and appdata_servers_dat:
-                    src_file = appdata_servers_dat
-                
-                if src_file.exists():
-                    shutil.copy2(src_file, c_dir / f)
-
-    return data_dir
-
-
+# ── Log Harvester ──────────────────────────────────────────────────────────────
 def harvest_logs(data_dir: Path, login: str) -> str:
     harvested = []
     
-    # 1. MQL5 Script Logs
+    # 1. MQL5 Script/EA Logs
     mql_logs_dir = data_dir / "MQL5" / "Logs"
     if not mql_logs_dir.exists():
         mql_logs_dir = data_dir / "MQL5" / "logs"
@@ -262,7 +197,7 @@ def harvest_logs(data_dir: Path, login: str) -> str:
             try:
                 text, _, _ = _read_text_with_bom(latest_file)
                 lines = text.splitlines()[-40:]
-                harvested.append(f"--- MQL5 Script Logs ({latest_file.name}) ---")
+                harvested.append(f"--- MQL5 EA Logs ({latest_file.name}) ---")
                 harvested.extend(lines)
             except Exception as e:
                 harvested.append(f"Failed to read MQL5 log {latest_file.name}: {e}")
@@ -290,10 +225,73 @@ def harvest_logs(data_dir: Path, login: str) -> str:
     return "\n".join(harvested)
 
 
-# ── Single account sync (runs in thread) ───────────────────────────────────────
-def sync_account(acc: dict, global_install_dir: Path) -> dict:
-    import json
-    
+# ── Sandbox Directory Prep ─────────────────────────────────────────────────────
+def prepare_data_dir(acc: dict, global_install_dir: Path) -> Path:
+    sandboxes_root = Path(__file__).parent / "sandboxes"
+    sandboxes_root.mkdir(exist_ok=True)
+    data_dir = sandboxes_root / str(acc["id"])
+
+    terminal_path = data_dir / "terminal64.exe"
+    if not terminal_path.exists():
+        terminal_path = data_dir / "terminal.exe"
+
+    if not terminal_path.exists():
+        log.info(f"[{acc['mt5_login']}] Replicating MT5 installation to isolated sandbox: {data_dir}")
+        shutil.copytree(global_install_dir, data_dir, dirs_exist_ok=True)
+
+    delete_examples_dirs(data_dir)
+
+    sounds_dir = data_dir / "Sounds"
+    if sounds_dir.exists():
+        shutil.rmtree(sounds_dir, ignore_errors=True)
+
+    # EA Experts Directory
+    experts_dir = data_dir / "MQL5" / "Experts"
+    experts_dir.mkdir(parents=True, exist_ok=True)
+
+    dst_script = experts_dir / "GoldBookSync.mq5"
+    if SCRIPT_SRC.exists():
+        shutil.copy2(SCRIPT_SRC, dst_script)
+
+    global_config = global_install_dir / "Config"
+    if not global_config.exists():
+        global_config = global_install_dir / "config"
+
+    appdata_servers_dat = None
+    try:
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            metaquotes_root = Path(appdata) / "MetaQuotes" / "Terminal"
+            if metaquotes_root.exists():
+                candidates = []
+                for instance_dir in metaquotes_root.iterdir():
+                    if instance_dir.is_dir():
+                        s_dat = instance_dir / "config" / "servers.dat"
+                        if s_dat.exists():
+                            candidates.append(s_dat)
+                if candidates:
+                    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    appdata_servers_dat = candidates[0]
+    except Exception:
+        pass
+
+    for folder in ["config", "Config"]:
+        c_dir = data_dir / folder
+        c_dir.mkdir(exist_ok=True)
+        if global_config.exists():
+            for f in ["terminal.ini", "settings.ini", "common.ini", "experts.ini", "servers.dat"]:
+                src_file = global_config / f
+                if f == "servers.dat" and appdata_servers_dat:
+                    src_file = appdata_servers_dat
+                
+                if src_file.exists():
+                    shutil.copy2(src_file, c_dir / f)
+
+    return data_dir
+
+
+# ── Launch Terminal Process ────────────────────────────────────────────────────
+def provision_terminal(acc: dict, global_install_dir: Path) -> subprocess.Popen | None:
     login      = acc.get("mt5_login", "?")
     password   = acc.get("investor_password", "")
     server     = acc.get("broker_server", "?")
@@ -301,9 +299,9 @@ def sync_account(acc: dict, global_install_dir: Path) -> dict:
     sync_token = acc.get("sync_token")
 
     if not sync_token:
-        log.warning(f"Account {login} missing sync_token — skipping")
+        log.warning(f"Account {login} missing sync_token — skipping startup")
         report_error(account_id, "Missing sync token configuration on backend.")
-        return {"login": login, "status": "skipped", "reason": "no sync_token"}
+        return None
 
     # Prepare sandbox data directory
     try:
@@ -311,36 +309,36 @@ def sync_account(acc: dict, global_install_dir: Path) -> dict:
     except Exception as e:
         log.error(f"[{login}] Sandbox preparation failed: {e}")
         report_error(account_id, f"Sandbox prep failed: {e}")
-        return {"login": login, "status": "error", "reason": str(e)}
+        return None
 
-    # Compile the script natively inside the sandbox to avoid global permission errors
-    isolated_scripts = data_dir / "MQL5" / "Scripts"
-    dst_script = isolated_scripts / "GoldBookSync.mq5"
-    dst_ex5 = isolated_scripts / "GoldBookSync.ex5"
+    isolated_experts = data_dir / "MQL5" / "Experts"
+    dst_script = isolated_experts / "GoldBookSync.mq5"
+    dst_ex5 = isolated_experts / "GoldBookSync.ex5"
 
     metaeditor_path = global_install_dir / "metaeditor64.exe"
     if not metaeditor_path.exists():
         metaeditor_path = global_install_dir / "metaeditor.exe"
 
+    # Compile EA
     with global_sync_lock:
         if not dst_ex5.exists():
-            log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 natively in sandbox...")
+            log.info(f"[{login}] Compiling GoldBookSync.mq5 natively in sandbox...")
             comp_cmd = [
                 str(metaeditor_path),
                 "/portable",
-                "/compile:MQL5\\Scripts\\GoldBookSync.mq5",
+                "/compile:MQL5\\Experts\\GoldBookSync.mq5",
                 "/log"
             ]
             try:
                 subprocess.run(comp_cmd, timeout=30, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=str(data_dir))
             except Exception as e:
-                log.warning(f"[{login}] Native compilation execution failed: {e}")
+                log.warning(f"[{login}] Compilation execution failed: {e}")
 
     if not dst_ex5.exists():
-        err_msg = "Failed to compile GoldBookSync.mq5 natively in sandbox directory."
+        err_msg = "Failed to compile GoldBookSync.ex5 Expert Advisor natively."
         log.error(f"[{login}] {err_msg}")
         report_error(account_id, err_msg)
-        return {"login": login, "status": "error", "reason": "compilation_failed"}
+        return None
 
     # Write config file inside sandbox Files folder
     files_dir = data_dir / "MQL5" / "Files"
@@ -353,7 +351,7 @@ def sync_account(acc: dict, global_install_dir: Path) -> dict:
     if result_file.exists():
         result_file.unlink()
 
-    # Generate startup.ini configuration file
+    # Generate startup.ini pointing to the Expert Advisor
     try:
         startup_ini = data_dir / "startup.ini"
         startup_content = (
@@ -363,19 +361,18 @@ def sync_account(acc: dict, global_install_dir: Path) -> dict:
             f"Server={server}\r\n"
             "AutoConfirm=1\r\n\r\n"
             "[StartUp]\r\n"
-            "Script=GoldBookSync\r\n"
+            "Expert=GoldBookSync\r\n"
             "Symbol=EURUSD\r\n"
             "Period=M1\r\n"
         )
         startup_ini.write_bytes(b"\xff\xfe" + startup_content.encode("utf-16le"))
     except Exception as e:
-        log.warning(f"[{login}] Failed to generate startup.ini: {e}")
+        log.warning(f"[{login}] Failed writing startup.ini: {e}")
 
     terminal_path = data_dir / "terminal64.exe"
     if not terminal_path.exists():
         terminal_path = data_dir / "terminal.exe"
 
-    # Command line options to run portable headlessly
     cmd = [
         str(terminal_path),
         "/portable",
@@ -384,9 +381,7 @@ def sync_account(acc: dict, global_install_dir: Path) -> dict:
         "/nosplash",
     ]
 
-    t_start = time.time()
-    last_err_msg = ""
-    proc = None
+    log.info(f"▶ [{login}@{server}] Launching MT5 Windows persistent instance...")
     try:
         # Launch native Windows terminal minimized
         startupinfo = subprocess.STARTUPINFO()
@@ -400,37 +395,21 @@ def sync_account(acc: dict, global_install_dir: Path) -> dict:
             stderr=subprocess.DEVNULL,
             cwd=str(data_dir)
         )
-        
-        synced = False
-        while time.time() - t_start < MT5_TIMEOUT:
-            if result_file.exists():
-                time.sleep(0.5) # Wait for file lock release
-                try:
-                    data_str = result_file.read_text(encoding="utf-8-sig")
-                    payloads = json.loads(data_str)
-                    
-                    # POST results
-                    for item in payloads:
-                        requests.post(
-                            GOLDBOOK_URL, 
-                            json=item, 
-                            headers={"Content-Type": "application/json"},
-                            timeout=10
-                        )
-                    synced = True
-                    break
-                except Exception as e:
-                    last_err_msg = f"Error reading or sending sync payloads: {e}"
-                    log.error(f"[{login}] {last_err_msg}")
-                    break
-            
-            if proc.poll() is not None:
-                last_err_msg = "MT5 terminal closed unexpectedly."
-                break
-                
-            time.sleep(1.0)
+        return proc
+    except Exception as e:
+        log.error(f"[{login}] Failed launching terminal process: {e}")
+        report_error(account_id, f"Process execution failed: {e}")
+        return None
 
-        # Force kill the terminal process
+
+# ── Terminate Account Processes Safely ──────────────────────────────────────────
+def shutdown_terminal(item: dict):
+    login = item.get("login", "?")
+    proc = item.get("process")
+
+    log.info(f"⏹ [{login}] Terminating persistent terminal process...")
+
+    if proc:
         try:
             if proc.poll() is None:
                 proc.terminate()
@@ -440,100 +419,232 @@ def sync_account(acc: dict, global_install_dir: Path) -> dict:
             
         try:
             if proc.poll() is None:
-                # Force kill via Windows command line taskkill
+                # Force taskkill in Windows
                 subprocess.run(f"taskkill /F /PID {proc.pid}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
 
-        elapsed = round(time.time() - t_start, 1)
-        if synced:
-            log.info(f"✅ [{login}@{server}] Natively Synced in {elapsed}s")
-            return {"login": login, "status": "ok", "elapsed": elapsed}
-        else:
-            if not last_err_msg:
-                last_err_msg = f"Sync timed out after {MT5_TIMEOUT} seconds (failed to connect or scan)."
+
+def match_raw_trades_in_python(payload: dict) -> dict | None:
+    raw_list = payload.get("raw_trades", [])
+    sync_token = payload.get("sync_token")
+    if not raw_list:
+        return None
+        
+    by_position = {}
+    for deal in raw_list:
+        pos_id = deal["position_id"]
+        if pos_id not in by_position:
+            by_position[pos_id] = []
+        by_position[pos_id].append(deal)
+        
+    matched_trades = []
+    for _, deals in by_position.items():
+        deals = sorted(deals, key=lambda d: d["time"])
+        in_deals = [d for d in deals if d["entry"] == 0]
+        out_deals = [d for d in deals if d["entry"] in (1, 2)]
+        
+        if not out_deals:
+            continue
             
-            # Harvest logs for diagnostics
-            log.warning(f"⚠️  [{login}] Sync failed! Harvesting logs for diagnostics...")
-            try:
-                harvested_info = harvest_logs(data_dir, login)
-                log.warning(f"⚠️  [{login}] MT5 Logs harvested:\n{harvested_info}")
-            except Exception as e:
-                log.error(f"[{login}] Failed harvesting logs: {e}")
-
-            # Self-healing clean sandbox directory
-            if data_dir.exists():
-                shutil.rmtree(data_dir, ignore_errors=True)
-
-            log.warning(f"⚠️  [{login}] Sync failed: {last_err_msg}")
-            report_error(account_id, last_err_msg)
-            return {"login": login, "status": "timeout", "reason": last_err_msg}
-
-    except Exception as e:
-        if data_dir.exists():
-            shutil.rmtree(data_dir, ignore_errors=True)
-        err_msg = f"Worker exception: {e}"
-        log.error(f"[{login}] {err_msg}", exc_info=True)
-        report_error(account_id, err_msg)
-        return {"login": login, "status": "error", "reason": str(e)}
-
-
-# ── Parallel execution cycle ──────────────────────────────────────────────────
-def run_cycle(accounts: list[dict], global_install_dir: Path):
-    if not accounts:
-        log.info("No active accounts found.")
-        return
-
-    workers = min(len(accounts), MAX_PARALLEL)
-    log.info(f"▶ Syncing {len(accounts)} accounts in parallel (workers={workers})")
-
-    t_start = time.time()
-    results = []
-
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(sync_account, acc, global_install_dir): acc for acc in accounts}
-        for future in as_completed(futures):
-            try:
-                results.append(future.result())
-            except Exception as e:
-                log.error(f"Pool worker thread error: {e}")
-
-    elapsed = round(time.time() - t_start, 1)
-    ok = sum(1 for r in results if r.get("status") == "ok")
-    err = len(results) - ok
-    log.info(f"── Parallel cycle complete in {elapsed}s | ✅ {ok} ok | ❌ {err} errors ──\n")
+        for out_deal in out_deals:
+            matching_in = None
+            for in_deal in reversed(in_deals):
+                if in_deal["time"] <= out_deal["time"]:
+                    matching_in = in_deal
+                    break
+                    
+            entry_price = out_deal["price"]
+            open_time = out_deal["time"]
+            direction = "buy"
+            
+            if matching_in:
+                entry_price = matching_in["price"]
+                open_time = matching_in["time"]
+                direction = "buy" if matching_in["type"] == 0 else "sell"
+            else:
+                if deals:
+                    direction = "buy" if deals[0]["type"] == 0 else "sell"
+                    
+            pnl = out_deal["profit"] + out_deal["swap"] + out_deal["commission"]
+            matched_trades.append({
+                "ticket": out_deal["ticket"],
+                "position_id": out_deal["position_id"],
+                "symbol": out_deal["symbol"],
+                "direction": direction,
+                "lot_size": out_deal["volume"],
+                "entry_price": entry_price,
+                "close_price": out_deal["price"],
+                "pnl": pnl,
+                "close_time": out_deal["time"],
+                "open_time": open_time,
+                "swap": out_deal["swap"],
+                "commission": out_deal["commission"],
+                "status": "closed",
+            })
+            
+    return {
+        "type": "raw_trades",
+        "sync_token": sync_token,
+        "raw_trades": matched_trades
+    }
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
+# ── Clean Shutdown Handler ─────────────────────────────────────────────────────
+def handle_exit(signum, frame):
+    log.info("\n🚨 Shutdown signal received! Cleaning up all persistent terminals...")
+    for item in list(active_processes.values()):
+        shutdown_terminal(item)
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, handle_exit)
+signal.signal(signal.SIGTERM, handle_exit)
+
+
+# ── Main Farm Loop ─────────────────────────────────────────────────────────────
 def main():
-    log.info("🚀 Starting GoldBook Windows Native Parallel Orchestrator")
+    log.info("🚀 GoldBook Windows 24/7 Farm Watchdog Orchestrator started")
     global_install_dir = detect_global_mt5()
     log.info(f"   Detected MT5 directory  : {global_install_dir}")
     log.info(f"   API URL                 : {GOLDBOOK_URL}")
-    log.info(f"   Sync interval           : {SYNC_INTERVAL}s")
-    log.info(f"   MT5 timeout             : {MT5_TIMEOUT}s")
-    log.info(f"   Max parallel workers    : {MAX_PARALLEL}")
+    log.info(f"   Stagger interval        : {STAGGER_INTERVAL}s")
+    log.info(f"   Watchdog health timeout : {HEALTH_TIMEOUT}s")
     log.info("")
 
-    # Clean examples folder in global installation (catch permission errors silently)
     if global_install_dir.exists():
-        log.info("Wiping examples from global installation to bypass compilation delay...")
+        log.info("Cleaning up global MT5 install examples directory...")
         try:
             delete_examples_dirs(global_install_dir)
-        except Exception as e:
-            log.warning(f"Could not clean global examples directory (skipping global wipe): {e}")
+        except Exception:
+            pass
+
+    global last_launch_time
+    last_db_query_time = 0.0
+    active_db_accounts = []
 
     while True:
-        try:
-            accounts = fetch_active_accounts()
-            run_cycle(accounts, global_install_dir)
-        except KeyboardInterrupt:
-            log.info("Windows worker shutting down gracefully...")
-            break
-        except Exception as e:
-            log.error(f"Cycle execution error: {e}", exc_info=True)
+        current_time = time.time()
 
-        time.sleep(SYNC_INTERVAL)
+        # 1. Fetch active accounts from Supabase periodically (every 10 seconds)
+        if current_time - last_db_query_time > 10.0:
+            active_db_accounts = fetch_active_accounts()
+            last_db_query_time = current_time
+
+            # Decommission inactive accounts
+            active_db_ids = {str(a["id"]) for a in active_db_accounts}
+            for pid in list(active_processes.keys()):
+                if pid not in active_db_ids:
+                    log.info(f"decommissioning account {pid} (marked inactive in database)...")
+                    shutdown_terminal(active_processes[pid])
+                    del active_processes[pid]
+
+        # 2. Check if we need to launch any missing terminals
+        for acc in active_db_accounts:
+            acc_id = str(acc["id"])
+            login = acc.get("mt5_login", "?")
+
+            if acc_id not in active_processes:
+                # Stagger launch check
+                time_since_last_launch = current_time - last_launch_time
+                if time_since_last_launch < STAGGER_INTERVAL:
+                    log.info(f"⏳ Staggering boot. Deferring {login} (last launch was {round(time_since_last_launch, 1)}s ago)...")
+                    break
+
+                log.info(f"⚙️ Booting missing persistent terminal for {login}...")
+                sandboxes_root = Path(__file__).parent / "sandboxes"
+                data_dir = sandboxes_root / acc_id
+                
+                active_processes[acc_id] = {
+                    "process": None,
+                    "last_sync": current_time,
+                    "login": login,
+                    "server": acc.get("broker_server", "?"),
+                    "sandbox_dir": data_dir,
+                    "sync_token": acc.get("sync_token"),
+                    "is_booting": True
+                }
+                
+                proc = provision_terminal(acc, global_install_dir)
+                if proc:
+                    active_processes[acc_id]["process"] = proc
+                    active_processes[acc_id]["is_booting"] = False
+                    last_launch_time = time.time()
+                    log.info(f"✅ Boot successful for {login}. Staggering next launch...")
+                else:
+                    log.error(f"❌ Boot failed for {login}. Cleaning up...")
+                    del active_processes[acc_id]
+                break
+
+        # 3. Check for sync results in active sandboxes
+        for acc_id, item in list(active_processes.items()):
+            if item.get("is_booting"):
+                continue
+
+            data_dir = item["sandbox_dir"]
+            result_file = data_dir / "MQL5" / "Files" / "sync_result.json"
+
+            if result_file.exists():
+                time.sleep(0.1)
+                try:
+                    data_str = result_file.read_text(encoding="utf-8-sig")
+                    result_file.unlink()
+
+                    payloads = []
+                    try:
+                        import json
+                        payloads = json.loads(data_str)
+                    except Exception as je:
+                        log.error(f"[{item['login']}] Failed parsing JSON: {je}")
+                        continue
+
+                    processed_payloads = []
+                    for p in payloads:
+                        if p.get("type") == "raw_trades":
+                            matched = match_raw_trades_in_python(p)
+                            if matched:
+                                processed_payloads.append(matched)
+                        else:
+                            processed_payloads.append(p)
+
+                    # POST events to API
+                    for p in processed_payloads:
+                        requests.post(
+                            GOLDBOOK_URL,
+                            json=p,
+                            headers={"Content-Type": "application/json"},
+                            timeout=10
+                        )
+
+                    item["last_sync"] = time.time()
+                    log.info(f"🔄 [{item['login']}] Persistent Update Received & API Synced!")
+
+                except Exception as e:
+                    log.error(f"[{item['login']}] Error processing sync JSON file: {e}")
+
+        # 4. Watchdog Process Health Check & Self-Healing
+        for acc_id, item in list(active_processes.items()):
+            if item.get("is_booting"):
+                continue
+
+            proc = item["process"]
+            login = item["login"]
+
+            # Crash check
+            if proc and proc.poll() is not None:
+                log.warning(f"⚠️ [{login}] Persistent process died unexpectedly. Re-queuing boot...")
+                shutil.rmtree(item["sandbox_dir"], ignore_errors=True)
+                del active_processes[acc_id]
+                continue
+
+            # Silence (Hung Process) Check
+            time_since_sync = time.time() - item["last_sync"]
+            if time_since_sync > HEALTH_TIMEOUT:
+                log.warning(f"⚠️ [{login}] Silent for {round(time_since_sync)}s. Process is hung. Self-healing...")
+                shutdown_terminal(item)
+                shutil.rmtree(item["sandbox_dir"], ignore_errors=True)
+                del active_processes[acc_id]
+
+        time.sleep(2.0)
 
 
 if __name__ == "__main__":

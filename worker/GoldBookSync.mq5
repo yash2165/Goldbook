@@ -1,27 +1,36 @@
 //+------------------------------------------------------------------+
-//| GoldBookSync.mq5                                                 |
-//| Server-side MQL5 Script — runs inside MetaTrader 5 terminal      |
+//|                                             GoldBookSync.mq5     |
+//| Server-side MQL5 Expert Advisor — runs inside MT5 terminal       |
 //|                                                                  |
 //| Flow:                                                            |
-//|   1. Orchestrator launches MT5 with /script:GoldBookSync        |
-//|   2. This script runs automatically on MT5 startup              |
+//|   1. Launched automatically on MT5 startup as an Expert          |
+//|   2. Runs 24/7. Listens to OnTrade() and OnTimer()               |
 //|   3. Reads account balance, open positions, closed deals         |
-//|   4. Writes everything to MQL5/Files/sync_result.json           |
-//|   5. Calls TerminalClose(0) so MT5 exits and the thread is done |
+//|   4. Writes JSON to MQL5/Files/sync_result_temp.json             |
+//|   5. Atomically moves/renames to sync_result.json                |
 //+------------------------------------------------------------------+
-#property script_show_inputs
+#property expert_show_inputs
 
 input string SyncToken   = "";
 input int    HistoryDays = 90;
 
 string g_sync_token = "";
+datetime g_last_sync_time = 0;
+
+// Forward declarations
+void RunSync();
+string GetBalanceJson();
+string GetClosedDealsJson();
+string GetOpenPositionsJson();
 
 //+------------------------------------------------------------------+
-void OnStart()
+//| Expert initialization function                                   |
+//+------------------------------------------------------------------+
+int OnInit()
 {
    g_sync_token = SyncToken;
 
-   // Read config file from MQL5/Files/sync_config.txt if it exists
+   // Read config file from MQL5/Files/sync_config.txt if empty
    int file_handle = FileOpen("sync_config.txt", FILE_READ|FILE_ANSI|FILE_TXT);
    if(file_handle != INVALID_HANDLE)
    {
@@ -43,30 +52,70 @@ void OnStart()
 
    if(g_sync_token == "")
    {
-      Print("GoldBook: SyncToken is empty — aborting.");
-      TerminalClose(2);
-      return;
+      Print("GoldBook: SyncToken is empty — EA will not start.");
+      return(INIT_FAILED);
    }
 
-   Print("GoldBook: Starting sync for token=", g_sync_token);
+   Print("GoldBook: EA started successfully for token=", g_sync_token);
+   
+   // Set timer to trigger sync every 60 seconds
+   EventSetTimer(60);
+   
+   // Run initial sync after a short delay to allow terminal to establish connection
+   EventSetTimer(5); // Temporarily set short timer to trigger first sync in 5 seconds
+   
+   return(INIT_SUCCEEDED);
+}
 
-   // Wait up to 20 seconds for connection to the trade server
-   int max_wait = 20;
-   while(!TerminalInfoInteger(TERMINAL_CONNECTED) && max_wait > 0)
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   EventKillTimer();
+   Print("GoldBook: EA stopped.");
+}
+
+//+------------------------------------------------------------------+
+//| Timer event function                                             |
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+   // If we set the 5-second initial startup timer, restore it to 60 seconds
+   static bool initial_sync_done = false;
+   if(!initial_sync_done)
    {
-      Print("GoldBook: Waiting for connection to trade server... (attempts remaining: ", max_wait, ")");
-      Sleep(1000);
-      max_wait--;
+      EventKillTimer();
+      EventSetTimer(60);
+      initial_sync_done = true;
    }
+   
+   RunSync();
+}
 
+//+------------------------------------------------------------------+
+//| Trade event function (fires on transaction/order/position change)|
+//+------------------------------------------------------------------+
+void OnTrade()
+{
+   // Throttling: Avoid excessive syncs if many trades are updated in less than 2 seconds
+   datetime now = TimeCurrent();
+   if(now - g_last_sync_time >= 2)
+   {
+      Print("GoldBook: Trade event detected — triggering sync.");
+      RunSync();
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Sync routine                                                     |
+//+------------------------------------------------------------------+
+void RunSync()
+{
+   // Check connection status
    if(!TerminalInfoInteger(TERMINAL_CONNECTED))
    {
-      Print("GoldBook: Warning — Not connected to trade server. Balance and history snapshots might be incomplete or zero.");
-   }
-   else
-   {
-      Print("GoldBook: Connected to trade server successfully. Resting 2s for history synchronisation...");
-      Sleep(2000);
+      Print("GoldBook: Warning — Not connected to trade server.");
    }
 
    string account_json = GetBalanceJson();
@@ -82,22 +131,28 @@ void OnStart()
    
    final_json += "]";
 
-   // Write to result file
-   int out_handle = FileOpen("sync_result.json", FILE_WRITE|FILE_TXT|FILE_ANSI);
+   // Write to temporary file to avoid sharing violations during read
+   int out_handle = FileOpen("sync_result_temp.json", FILE_WRITE|FILE_TXT|FILE_ANSI);
    if(out_handle != INVALID_HANDLE)
    {
       FileWriteString(out_handle, final_json);
       FileClose(out_handle);
-      Print("GoldBook: Data written to sync_result.json");
+      
+      // Move/rename to sync_result.json atomically
+      if(FileMove("sync_result_temp.json", 0, "sync_result.json", FILE_REWRITE))
+      {
+         g_last_sync_time = TimeCurrent();
+         Print("GoldBook: Sync data successfully written to sync_result.json");
+      }
+      else
+      {
+         Print("GoldBook: Failed to rename temp file. Error=", GetLastError());
+      }
    }
    else
    {
-      Print("GoldBook: Failed to write sync_result.json. Error=", GetLastError());
+      Print("GoldBook: Failed to write sync_result_temp.json. Error=", GetLastError());
    }
-
-   Print("GoldBook: All data processed. Closing terminal.");
-   Sleep(500);
-   TerminalClose(0);
 }
 
 //+------------------------------------------------------------------+
