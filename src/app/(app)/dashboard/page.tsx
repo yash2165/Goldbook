@@ -265,6 +265,8 @@ export default function DashboardPage() {
   }, [])
 
   const [latestAiReport, setLatestAiReport] = useState<any | null>(null)
+  const [showBreakdown, setShowBreakdown] = useState(false)
+  const [toastVisible, setToastVisible] = useState(false)
 
   useEffect(() => {
     async function loadLatestReport() {
@@ -292,6 +294,61 @@ export default function DashboardPage() {
     }
     loadLatestReport()
   }, [activeAccount?.id])
+
+  const unjournaledCount = useMemo(() => {
+    const closed = trades.filter(t => t.status === 'closed')
+    return closed.filter(t => {
+      let isUnj = false
+      if (!t.notes) {
+        isUnj = true
+      } else {
+        try {
+          const parsed = JSON.parse(t.notes)
+          if (parsed && typeof parsed === 'object') {
+            isUnj = !(parsed.p1?.trim() || parsed.p2?.trim() || parsed.p3?.trim() || parsed.p4?.trim())
+          } else {
+            isUnj = !t.notes.trim()
+          }
+        } catch (e) {
+          isUnj = !t.notes.trim()
+        }
+      }
+      if (!isUnj || !t.close_time) return false
+      const closeDate = new Date(t.close_time)
+      const hoursSinceClose = (Date.now() - closeDate.getTime()) / (1000 * 60 * 60)
+      return hoursSinceClose > 2
+    }).length
+  }, [trades])
+
+  useEffect(() => {
+    if (!loading && unjournaledCount > 0) {
+      const shown = sessionStorage.getItem('unjournaled_toast_shown')
+      if (!shown) {
+        setToastVisible(true)
+        sessionStorage.setItem('unjournaled_toast_shown', 'true')
+        const timer = setTimeout(() => {
+          setToastVisible(false)
+        }, 6000)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [loading, unjournaledCount])
+
+  const todayTrades = useMemo(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd')
+    return trades.filter(t => t.status === 'closed' && t.close_time && format(new Date(t.close_time), 'yyyy-MM-dd') === todayStr)
+  }, [trades])
+
+  const todayPnl = useMemo(() => {
+    return todayTrades.reduce((sum, t) => sum + (t.net_profit ?? 0), 0)
+  }, [todayTrades])
+
+  const nextNewsItem = useMemo(() => {
+    if (news.length === 0) return null
+    const sorted = [...news].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const now = new Date().getTime()
+    return sorted.find(n => new Date(n.date).getTime() > now) || sorted[0]
+  }, [news])
 
   const filteredTrades = filterByPeriod(trades, period)
   const stats = computeStats(filteredTrades)
@@ -447,6 +504,79 @@ export default function DashboardPage() {
           ))
         }
       </div>
+
+      {/* Today's Trading Conditions widget */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2 }}
+        className="bg-[#12121a] border border-white/5 rounded-2xl p-5 space-y-4 shadow-xl"
+      >
+        <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+          <h3 className="font-semibold text-xs tracking-wider text-[#94A3B8] uppercase flex items-center gap-1.5">
+            <TrendingUp className="w-4 h-4 text-primary" /> Today's Trading Conditions
+          </h3>
+          <span className="text-[9px] px-2.5 py-0.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-black uppercase tracking-widest">
+            Live Feed
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Today's Performance */}
+          <div className="bg-[#09090E]/60 p-4 rounded-xl border border-white/5 space-y-1.5 flex flex-col justify-between">
+            <span className="text-[10px] text-[#64748B] uppercase font-black tracking-wider block">Today's Performance</span>
+            <div>
+              <div className="text-xl font-bold text-white tracking-tight flex items-baseline gap-2">
+                <span className={cn(todayPnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
+                  {todayPnl >= 0 ? '+' : '-'}${Math.abs(todayPnl).toFixed(2)}
+                </span>
+                <span className="text-xs text-[#64748B] font-mono">({todayTrades.length} trade{todayTrades.length !== 1 ? 's' : ''})</span>
+              </div>
+              <span className="text-[9px] text-[#64748B] block mt-0.5">Closed P&L since market open today</span>
+            </div>
+          </div>
+
+          {/* Activity/Volatility */}
+          <div className="bg-[#09090E]/60 p-4 rounded-xl border border-white/5 space-y-1.5 flex flex-col justify-between">
+            <span className="text-[10px] text-[#64748B] uppercase font-black tracking-wider block">Volatility / Activity</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "text-xs font-black px-2.5 py-0.5 rounded-lg border font-mono uppercase tracking-wider",
+                  todayTrades.length > 3
+                    ? "bg-red-500/10 border-red-500/25 text-[#EF4444]"
+                    : "bg-emerald-500/10 border-emerald-500/25 text-[#22C55E]"
+                )}>
+                  {todayTrades.length > 3 ? "⚡ High Activity" : "✔ Quiet"}
+                </span>
+              </div>
+              <span className="text-[9px] text-[#64748B] block mt-1.5">
+                {todayTrades.length > 3 ? "Overtrading danger zone. Respect maximum daily limits." : "Calm trading parameters. Focus on high-quality setups."}
+              </span>
+            </div>
+          </div>
+
+          {/* Next Catalyst */}
+          <div className="bg-[#09090E]/60 p-4 rounded-xl border border-white/5 space-y-1.5 flex flex-col justify-between">
+            <span className="text-[10px] text-[#64748B] uppercase font-black tracking-wider block">Upcoming Catalyst</span>
+            {nextNewsItem ? (
+              <div>
+                <span className="text-xs font-bold text-white line-clamp-1 block">
+                  [{nextNewsItem.country}] {nextNewsItem.title}
+                </span>
+                <span className="text-[9px] text-[#F59E0B] font-black uppercase tracking-wider block mt-1 font-mono">
+                  High Impact ({format(new Date(nextNewsItem.date), 'HH:mm')})
+                </span>
+              </div>
+            ) : (
+              <div>
+                <span className="text-xs font-bold text-[#64748B] block">No upcoming catalysts scheduled</span>
+                <span className="text-[9px] text-[#64748B] block mt-1">Calendar scans clear for rest of day</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
 
       {/* Chart + Calendar */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -689,74 +819,183 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* AI Psychology Coach Card - 1 col */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="col-span-1 bg-[#12121A] border border-white/5 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[260px] shadow-xl group hover:border-[#F59E0B]/30 transition-all duration-300"
-        >
-          {/* Subtle top decoration */}
-          <div className="absolute right-0 top-0 w-24 h-24 bg-[#F59E0B]/5 rounded-full blur-xl pointer-events-none" />
+        <div className="col-span-1 space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="bg-[#12121A] border border-white/5 rounded-2xl p-5 relative overflow-hidden flex flex-col justify-between min-h-[300px] shadow-xl group hover:border-[#F59E0B]/30 transition-all duration-300"
+          >
+            {/* Subtle top decoration */}
+            <div className="absolute right-0 top-0 w-24 h-24 bg-[#F59E0B]/5 rounded-full blur-xl pointer-events-none" />
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
-              <h3 className="font-semibold text-xs tracking-wider text-[#94A3B8] uppercase flex items-center gap-1.5">
-                <Brain className="w-4 h-4 text-primary animate-pulse" /> AI Psychology Coach
-              </h3>
-              <span className="text-[8px] px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-full font-black uppercase tracking-widest">
-                Nirikshan
-              </span>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                <h3 className="font-semibold text-xs tracking-wider text-[#94A3B8] uppercase flex items-center gap-1.5">
+                  <Brain className="w-4 h-4 text-primary animate-pulse" /> AI Psychology Coach
+                </h3>
+                <span className="text-[8px] px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-full font-black uppercase tracking-widest">
+                  Nirikshan
+                </span>
+              </div>
+
+              {latestAiReport ? (
+                <div className="space-y-3.5">
+                  <div className="space-y-2">
+                    <span className="text-[9px] text-[#64748B] uppercase font-black block">Detected Cognitive Profile</span>
+                    {latestAiReport.rules_analysis?.cognitive_biases && latestAiReport.rules_analysis.cognitive_biases.filter((b: any) => b.severity === 'critical' || b.severity === 'moderate').length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {latestAiReport.rules_analysis.cognitive_biases
+                          .filter((b: any) => b.severity === 'critical' || b.severity === 'moderate')
+                          .map((b: any) => (
+                            <span
+                              key={b.bias_name}
+                              title={b.description}
+                              className={cn(
+                                "text-[10px] px-2.5 py-0.5 rounded-lg border font-black uppercase tracking-wider shadow-sm flex items-center gap-1",
+                                b.severity === 'critical' 
+                                  ? "bg-red-500/10 border-red-500/30 text-[#EF4444]" 
+                                  : "bg-amber-500/10 border-amber-500/30 text-[#F59E0B]"
+                              )}
+                            >
+                              ⚠ {b.bias_name}
+                            </span>
+                          ))
+                        }
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-lg border font-black uppercase tracking-wider bg-emerald-500/10 border-emerald-500/30 text-[#22C55E] flex items-center gap-1">
+                          ✔ Stable Focus
+                        </span>
+                        <span className="text-xs text-slate-300 font-medium font-mono">Disciplined State</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-l-2 border-primary bg-[#09090E]/60 p-3 rounded-r-xl text-xs text-slate-300 italic font-medium leading-relaxed">
+                    "{latestAiReport.summary}"
+                  </div>
+
+                  {latestAiReport.rules_analysis?.cognitive_biases && latestAiReport.rules_analysis.cognitive_biases.length > 0 && (
+                    <div className="bg-white/5 border border-white/5 p-3 rounded-xl space-y-1">
+                      <span className="text-[9px] text-primary uppercase font-black block tracking-wider">Recommended Exercise</span>
+                      <p className="text-[11px] text-slate-300 leading-normal">
+                        {latestAiReport.rules_analysis.cognitive_biases[0].psychological_exercise}
+                      </p>
+                    </div>
+                  )}
+
+                  <div 
+                    onClick={() => setShowBreakdown(!showBreakdown)}
+                    className="flex items-center justify-between text-[10px] text-[#64748B] font-mono bg-white/5 hover:bg-white/10 px-3 py-2 rounded-lg cursor-pointer transition-colors border border-white/5"
+                  >
+                    <span className="flex items-center gap-1">Discipline: <strong className="text-white">{latestAiReport.discipline_score}/10</strong></span>
+                    <span className="flex items-center gap-1">Risk Control: <strong className="text-white">{latestAiReport.risk_score}/10</strong></span>
+                    <span className="text-xs text-slate-500">{showBreakdown ? '▲' : '▼'}</span>
+                  </div>
+
+                  {/* Collapsible breakdown */}
+                  <AnimatePresence>
+                    {showBreakdown && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="overflow-hidden space-y-2.5 mt-2"
+                      >
+                        <div className="text-[#94A3B8] font-bold uppercase tracking-wider text-[9px] mb-1.5 flex items-center justify-between">
+                          <span>Telemetry Breakdown</span>
+                          <span className="text-[8px] font-normal text-slate-500 font-mono">Real-time Metrics</span>
+                        </div>
+                        
+                        <div className="space-y-2 bg-[#09090E]/60 p-2.5 rounded-xl border border-white/5">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="text-[#64748B]">Discipline Expectancy</span>
+                            <span className="font-bold text-white font-mono">{latestAiReport.discipline_score * 10}%</span>
+                          </div>
+                          <p className="text-[10px] text-[#94A3B8] leading-tight pl-2 border-l border-primary/30">
+                            {latestAiReport.discipline_score >= 8 ? 'Exceptional execution. You are keeping trade sizes consistent and respecting rule boundaries.' : 
+                             latestAiReport.discipline_score >= 5 ? 'Moderate execution. Watch out for impulse sizing and stray setups near sessions transition.' : 
+                             'Critical lapses. Revenge entries detected after stopout. High risk of capital erosion.'}
+                          </p>
+                        </div>
+
+                        <div className="space-y-2 bg-[#09090E]/60 p-2.5 rounded-xl border border-white/5">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="text-[#64748B]">Risk Management</span>
+                            <span className="font-bold text-white font-mono">{latestAiReport.risk_score * 10}%</span>
+                          </div>
+                          <p className="text-[10px] text-[#94A3B8] leading-tight pl-2 border-l border-[#EF4444]/30">
+                            {latestAiReport.risk_score >= 8 ? 'Excellent drawdown preservation. Trade duration ratio aligns with standard risk-reward rules.' : 
+                             latestAiReport.risk_score >= 5 ? 'Moderate risk profile. Holding losing trades significantly longer than winners on average.' : 
+                             'Extremely high risk profile. Stop-loss movement or missing stops detected.'}
+                          </p>
+                        </div>
+
+                        {latestAiReport.rules_analysis?.compliance_score !== undefined && (
+                          <div className="space-y-2 bg-[#09090E]/60 p-2.5 rounded-xl border border-white/5">
+                            <div className="flex justify-between items-center text-[10px]">
+                              <span className="text-[#64748B]">Rule Compliance</span>
+                              <span className="font-bold text-white font-mono">{latestAiReport.rules_analysis.compliance_score * 10}%</span>
+                            </div>
+                            <p className="text-[10px] text-[#94A3B8] leading-tight pl-2 border-l border-emerald-500/30">
+                              {latestAiReport.rules_analysis.compliance_score >= 8 ? 'Flawless compliance with your personal checklist rules.' : 
+                               latestAiReport.rules_analysis.compliance_score >= 5 ? 'Minor breaches. Entering trades without complete checklist validation.' : 
+                               'Severe rule violations. Active trading rules ignored on high lot sizes.'}
+                            </p>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <div className="py-6 text-center space-y-3">
+                  <ShieldAlert className="w-8 h-8 text-[#64748B] mx-auto opacity-35 animate-bounce" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-white">No Psychological Audits</p>
+                    <p className="text-[10px] text-[#64748B] max-w-xs mx-auto leading-relaxed">
+                      You haven't run any cognitive trading audits yet. Nirikshan stands ready to scan your behavior!
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {latestAiReport ? (
-              <div className="space-y-3.5">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "text-3xl font-black px-3.5 py-1.5 rounded-xl border font-mono select-none shadow-md",
-                    latestAiReport.grade.startsWith('A') ? "bg-[#F59E0B]/10 border-[#F59E0B]/20 text-primary" :
-                    latestAiReport.grade.startsWith('B') ? "bg-[#22C55E]/10 border-[#22C55E]/20 text-[#22C55E]" :
-                    "bg-[#EF4444]/10 border-[#EF4444]/20 text-[#EF4444]"
-                  )}>
-                    {latestAiReport.grade}
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] text-[#64748B] uppercase font-black block">Archived Performance Grade</span>
-                    <span className="text-xs text-[#F1F5F9] font-medium leading-relaxed block max-w-[120px] md:max-w-[160px] truncate">
-                      {latestAiReport.grade_reason}
-                    </span>
-                  </div>
-                </div>
+            <div className="pt-4 border-t border-white/5 shrink-0 mt-4">
+              <Link href="/ai-report">
+                <button className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-primary/10 hover:bg-[#F59E0B]/25 border border-primary/20 hover:border-primary/40 rounded-xl text-xs font-black text-primary transition-all active:scale-95 shadow-md">
+                  {latestAiReport ? 'Open Full Diagnostics Dossier' : 'Generate Behavior Diagnostic'} <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </Link>
+            </div>
+          </motion.div>
 
-                <div className="border-l-2 border-primary bg-[#09090E]/60 p-3 rounded-r-xl text-xs text-slate-300 italic font-medium leading-relaxed line-clamp-3">
-                  "{latestAiReport.summary}"
-                </div>
-
-                <div className="flex items-center justify-between text-[10px] text-[#64748B] font-mono">
-                  <span>Discipline: {latestAiReport.discipline_score}/10</span>
-                  <span>Risk Control: {latestAiReport.risk_score}/10</span>
-                </div>
+          {/* Unjournaled alert banner box */}
+          {unjournaledCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.48 }}
+              className="bg-[#12121A] border border-amber-500/20 rounded-2xl p-4 space-y-3 shadow-xl"
+            >
+              <div className="flex items-center gap-2 text-amber-500 font-bold text-xs">
+                <span className="text-sm">⚠</span>
+                <span>Unjournaled Trades Reminder</span>
               </div>
-            ) : (
-              <div className="py-6 text-center space-y-3">
-                <ShieldAlert className="w-8 h-8 text-[#64748B] mx-auto opacity-35 animate-bounce" />
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-white">No Psychological Audits</p>
-                  <p className="text-[10px] text-[#64748B] max-w-xs mx-auto leading-relaxed">
-                    You haven't run any cognitive trading audits yet. Nirikshan stands ready to scan your behavior!
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="pt-4 border-t border-white/5 shrink-0">
-            <Link href="/ai-report">
-              <button className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-primary/10 hover:bg-[#F59E0B]/25 border border-primary/20 hover:border-primary/40 rounded-xl text-xs font-black text-primary transition-all active:scale-95 shadow-md">
-                {latestAiReport ? 'Open Full Diagnostics Dossier' : 'Generate Behavior Diagnostic'} <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </Link>
-          </div>
-        </motion.div>
+              <p className="text-[11px] text-[#94A3B8] leading-relaxed">
+                You have <strong className="text-white">{unjournaledCount}</strong> trade{unjournaledCount > 1 ? 's' : ''} closed more than 2 hours ago that haven't been journaled. Reflections are vital to diagnose and prevent revenge trading cycles.
+              </p>
+              <Link href="/journal">
+                <button className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 font-black rounded-xl text-[10px] text-black transition-all active:scale-95 shadow-sm mt-1">
+                  Go to Journal <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </Link>
+            </motion.div>
+          )}
+        </div>
 
       </div>
 
@@ -790,6 +1029,45 @@ export default function DashboardPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Framer motion toast notification */}
+      <AnimatePresence>
+        {toastVisible && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="fixed bottom-6 right-6 z-50 max-w-sm bg-[#12121A] border border-amber-500/25 shadow-[0_10px_30px_rgba(245,159,11,0.15)] rounded-2xl p-4 flex gap-3 items-start"
+          >
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500 shrink-0 mt-0.5 animate-pulse">
+              <span>⚠</span>
+            </div>
+            <div className="flex-1 space-y-1">
+              <span className="text-xs font-black text-white uppercase tracking-wider block">Reflective Alert</span>
+              <p className="text-[11px] text-[#94A3B8] leading-relaxed">
+                You have <strong className="text-white">{unjournaledCount} unjournaled trade{unjournaledCount > 1 ? 's' : ''}</strong> older than 2 hours. Reviewing your trades keeps your discipline high!
+              </p>
+              <div className="flex gap-2 pt-1">
+                <Link href="/journal">
+                  <button 
+                    onClick={() => setToastVisible(false)}
+                    className="text-[10px] px-2.5 py-1 bg-amber-500 text-black hover:bg-amber-400 font-bold rounded-lg transition-colors"
+                  >
+                    Journal Now
+                  </button>
+                </Link>
+                <button 
+                  onClick={() => setToastVisible(false)}
+                  className="text-[10px] px-2.5 py-1 bg-white/5 text-[#64748B] hover:text-white rounded-lg transition-all"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   )

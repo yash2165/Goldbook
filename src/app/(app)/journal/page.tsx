@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
@@ -79,7 +79,60 @@ function TradeJournalCard({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   
-  const [notes, setNotes] = useState(trade.notes || '')
+  const [p1, setP1] = useState('')
+  const [p2, setP2] = useState('')
+  const [p3, setP3] = useState('')
+  const [p4, setP4] = useState('')
+
+  const parsedNotes = useMemo(() => {
+    if (!trade.notes) return { p1: '', p2: '', p3: '', p4: '' }
+    try {
+      const parsed = JSON.parse(trade.notes)
+      if (parsed && typeof parsed === 'object') {
+        return {
+          p1: parsed.p1 || '',
+          p2: parsed.p2 || '',
+          p3: parsed.p3 || '',
+          p4: parsed.p4 || ''
+        }
+      }
+    } catch (e) {
+      return { p1: trade.notes, p2: '', p3: '', p4: '' }
+    }
+    return { p1: '', p2: '', p3: '', p4: '' }
+  }, [trade.notes])
+
+  useEffect(() => {
+    setP1(parsedNotes.p1)
+    setP2(parsedNotes.p2)
+    setP3(parsedNotes.p3)
+    setP4(parsedNotes.p4)
+  }, [parsedNotes])
+
+  const answeredCount = useMemo(() => {
+    return [p1, p2, p3, p4].filter(p => p.trim().length > 0).length
+  }, [p1, p2, p3, p4])
+
+  const isUnjournaled = useMemo(() => {
+    if (!trade.notes) return true
+    try {
+      const parsed = JSON.parse(trade.notes)
+      if (parsed && typeof parsed === 'object') {
+        return !(parsed.p1?.trim() || parsed.p2?.trim() || parsed.p3?.trim() || parsed.p4?.trim())
+      }
+    } catch (e) {
+      return !trade.notes.trim()
+    }
+    return !trade.notes.trim()
+  }, [trade.notes])
+
+  const isOldEmpty = useMemo(() => {
+    if (!isUnjournaled || !trade.close_time) return false
+    const closeDate = new Date(trade.close_time)
+    const hoursSinceClose = (Date.now() - closeDate.getTime()) / (1000 * 60 * 60)
+    return hoursSinceClose > 2
+  }, [isUnjournaled, trade.close_time])
+
   const [setupTag, setSetupTag] = useState(trade.setup_tag || '')
   const [emotionBefore, setEmotionBefore] = useState(trade.emotion_before || '')
   const [emotionAfter, setEmotionAfter] = useState(trade.emotion_after || '')
@@ -150,8 +203,9 @@ function TradeJournalCard({
   const saveJournal = async (e: React.MouseEvent) => {
     e.stopPropagation()
     setSaving(true)
+    const notesJsonString = JSON.stringify({ p1, p2, p3, p4 })
     await supabase.from('trades').update({
-      notes, 
+      notes: notesJsonString, 
       setup_tag: setupTag, 
       emotion_before: emotionBefore, 
       emotion_after: emotionAfter, 
@@ -193,7 +247,14 @@ function TradeJournalCard({
       >
         <div className="flex items-center gap-6">
           <div className="flex flex-col">
-            <span className="text-lg font-black text-[#F1F5F9] tracking-tight">{trade.symbol}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-[#F1F5F9] tracking-tight">{trade.symbol}</span>
+              {isOldEmpty && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 font-bold uppercase tracking-wider animate-pulse shrink-0 flex items-center gap-1">
+                  <span>⚠</span> Unjournaled
+                </span>
+              )}
+            </div>
             <span className="text-[11px] text-[#64748B] font-medium mt-0.5">
               {trade.close_time ? format(new Date(trade.close_time), 'MMM dd, yyyy HH:mm') : '—'}
             </span>
@@ -401,14 +462,49 @@ function TradeJournalCard({
 
               {/* Right col */}
               <div className="flex flex-col space-y-6">
-                <div className="flex-1 flex flex-col">
-                  <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Trade Notes / Lessons</label>
-                  <textarea
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="What did you learn? Did you follow your rules? What could you have done better?"
-                    className="flex-1 w-full bg-[#12121A] border border-[#1A1A2E] rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#F59E0B]/50 transition-colors resize-none min-h-[120px]"
-                  />
+                <div className="flex-1 flex flex-col space-y-4">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                    <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-primary" /> Psychological Prompts
+                    </label>
+                    <span className={cn(
+                      "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest transition-all",
+                      answeredCount === 4 
+                        ? "bg-emerald-500/10 border border-emerald-500/25 text-[#22C55E]" 
+                        : answeredCount > 0 
+                          ? "bg-amber-500/10 border border-amber-500/25 text-[#F59E0B]" 
+                          : "bg-white/5 border border-white/10 text-slate-500"
+                    )}>
+                      {answeredCount}/4 Prompts
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {[
+                      { key: 'p1', label: 'I entered this trade because...', placeholder: 'Detail your setup triggers, market structure, or checklist alignment...' },
+                      { key: 'p2', label: 'When price moved against me, I felt...', placeholder: 'Identify any urges to move stops, add to losers, or exit early in fear...' },
+                      { key: 'p3', label: 'If I could redo this trade, I would...', placeholder: 'Note any tactical optimization, execution errors, or mental state improvements...' },
+                      { key: 'p4', label: 'This trade proves that I am...', placeholder: 'Extract a pattern-level lesson about your current discipline or risk rules...' }
+                    ].map((p, idx) => {
+                      const val = p.key === 'p1' ? p1 : p.key === 'p2' ? p2 : p.key === 'p3' ? p3 : p4
+                      const setVal = p.key === 'p1' ? setP1 : p.key === 'p2' ? setP2 : p.key === 'p3' ? setP3 : setP4
+                      return (
+                        <div key={p.key} className="space-y-1.5">
+                          <label className="text-[11px] text-[#94A3B8] font-bold block flex items-center gap-1.5 leading-tight">
+                            <span className="text-[9px] w-4 h-4 rounded-full bg-white/5 border border-white/10 text-[#64748B] flex items-center justify-center font-mono shrink-0">{idx + 1}</span>
+                            {p.label}
+                          </label>
+                          <textarea
+                            value={val}
+                            onChange={e => setVal(e.target.value)}
+                            placeholder={p.placeholder}
+                            rows={3}
+                            className="w-full bg-[#12121A] border border-[#1A1A2E] focus:border-primary/45 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-[#64748B] focus:outline-none transition-colors resize-none leading-relaxed"
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
 
                 <div>
@@ -510,6 +606,30 @@ function JournalPageContent() {
     load()
   }, [])
 
+  const unjournaledCount = useMemo(() => {
+    return closed.filter(t => {
+      let isUnj = false
+      if (!t.notes) {
+        isUnj = true
+      } else {
+        try {
+          const parsed = JSON.parse(t.notes)
+          if (parsed && typeof parsed === 'object') {
+            isUnj = !(parsed.p1?.trim() || parsed.p2?.trim() || parsed.p3?.trim() || parsed.p4?.trim())
+          } else {
+            isUnj = !t.notes.trim()
+          }
+        } catch (e) {
+          isUnj = !t.notes.trim()
+        }
+      }
+      if (!isUnj || !t.close_time) return false
+      const closeDate = new Date(t.close_time)
+      const hoursSinceClose = (Date.now() - closeDate.getTime()) / (1000 * 60 * 60)
+      return hoursSinceClose > 2
+    }).length
+  }, [closed])
+
   return (
     <div className="p-6 max-w-4xl mx-auto min-h-screen">
       <motion.div 
@@ -522,7 +642,14 @@ function JournalPageContent() {
             <BookOpen className="w-5 h-5 text-[#F59E0B]" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Trade Journal</h1>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <span>Trade Journal</span>
+              {unjournaledCount > 0 && (
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-500 font-bold uppercase tracking-wider animate-pulse shrink-0">
+                  {unjournaledCount} Pending
+                </span>
+              )}
+            </h1>
             <p className="text-sm text-[#64748B]">Document and analyze your psychological edge.</p>
           </div>
         </div>
@@ -531,6 +658,20 @@ function JournalPageContent() {
           <span className="font-bold text-[#F1F5F9]">{closed.length}</span>
         </div>
       </motion.div>
+
+      {unjournaledCount > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-400 text-xs leading-relaxed flex items-start gap-3 shadow-md"
+        >
+          <span className="text-lg leading-none shrink-0">⚠</span>
+          <div>
+            <span className="font-bold text-white uppercase tracking-wider block mb-0.5">Reflective Action Required</span>
+            You have <strong className="text-white">{unjournaledCount}</strong> trade{unjournaledCount > 1 ? 's' : ''} closed more than 2 hours ago that haven't been journaled. An empty journal is the first step toward blind revenge cycles. Take a moment to record your emotional telemetry.
+          </div>
+        </motion.div>
+      )}
 
       <div className="space-y-4 pb-20">
         {loading ? (
