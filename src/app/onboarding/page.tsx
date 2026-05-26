@@ -238,7 +238,7 @@ export default function OnboardingPage() {
               <input
                 value={profile.display_name}
                 onChange={e => setProfile({...profile, display_name: e.target.value})}
-                placeholder="Display Name (e.g., John Doe)"
+                placeholder="Display Name (e.g., Alexander)"
                 className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors text-white placeholder:text-[#334155]"
               />
             </div>
