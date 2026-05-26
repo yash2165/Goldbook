@@ -129,6 +129,37 @@ export default function CustomTemplatePage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  // Delete custom template to revert back to default psychological prompts
+  const revertToDefault = async () => {
+    if (confirm("Are you sure you want to delete your custom template and revert to the default GoldBook prompts? This will not delete your past trade logs.")) {
+      setSaving(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        localStorage.removeItem('goldbook_custom_template')
+        setSaving(false)
+        router.push('/journal')
+        return
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ custom_journal_template: null })
+        .eq('id', user.id)
+
+      if (error) {
+        const { data: profile } = await supabase.from('profiles').select('trading_setups').eq('id', user.id).single()
+        const setups = profile?.trading_setups || {}
+        const newSetups = { ...setups }
+        delete (newSetups as any).__custom_journal_template
+        await supabase.from('profiles').update({ trading_setups: newSetups }).eq('id', user.id)
+      }
+
+      setSaving(false)
+      router.push('/journal')
+    }
+  }
+
   // Pre-designed templates quick-loader
   const loadPreset = (type: 'technical' | 'psychology' | 'smc') => {
     if (type === 'technical') {
@@ -348,6 +379,15 @@ export default function CustomTemplatePage() {
             className="bg-[#060A12] border border-white/5 rounded-xl px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 w-full sm:w-64 text-left sm:text-right"
             placeholder="Template name..."
           />
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={revertToDefault}
+            disabled={saving}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-red-400 rounded-xl text-xs font-bold transition-all cursor-pointer w-full sm:w-auto"
+          >
+            Revert to Default
+          </motion.button>
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
