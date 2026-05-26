@@ -152,3 +152,27 @@ ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS image_url TEXT;
 -- 14. Custom templates & Habit tracker columns on profiles
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS custom_journal_template JSONB;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS custom_habit_tracker JSONB;
+
+-- 15. Backtest Trades Table for permanent tracking
+CREATE TABLE IF NOT EXISTS public.backtest_trades (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  symbol TEXT NOT NULL,
+  direction TEXT NOT NULL,
+  entry_price NUMERIC NOT NULL,
+  exit_price NUMERIC NOT NULL,
+  sl_price NUMERIC,
+  tp_price NUMERIC,
+  lots NUMERIC DEFAULT 0.1,
+  pnl NUMERIC NOT NULL,
+  pct_return NUMERIC,
+  duration_candles INTEGER,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.backtest_trades ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users own backtest data" ON public.backtest_trades;
+CREATE POLICY "Users own backtest data" ON public.backtest_trades 
+  FOR ALL USING (auth.uid() = user_id);
