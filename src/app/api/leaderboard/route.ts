@@ -10,10 +10,10 @@ const supabaseAdmin = createClient(
 
 export async function GET() {
   try {
-    // 1. Query all closed trades with their owner's username
+    // 1. Query all closed trades with their owner's username and avatar
     const { data: trades, error: tradesError } = await supabaseAdmin
       .from('trades')
-      .select('user_id, symbol, net_profit, profiles(username)')
+      .select('user_id, symbol, net_profit, profiles(username, avatar_url)')
       .eq('status', 'closed')
 
     if (tradesError) {
@@ -41,6 +41,7 @@ export async function GET() {
       if (!byUser[uid]) {
         byUser[uid] = {
           username: t.profiles?.username ?? 'Anonymous',
+          avatar_url: t.profiles?.avatar_url ?? '',
           pnl: 0,
           trades: 0,
           wins: 0,
@@ -75,8 +76,9 @@ export async function GET() {
         const winRate = v.trades > 0 ? Math.round((v.wins / v.trades) * 100) : 0
 
         return {
-          uid, // Anonymized representation on client (only used for list keys)
+          uid,
           username: v.username,
+          avatar_url: v.avatar_url,
           pnl: v.pnl,
           trades: v.trades,
           winRate,

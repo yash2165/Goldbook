@@ -591,9 +591,13 @@ export default function CommunityPage() {
                 <div key={msg.id} className={cn('flex gap-3', msg.user_id === user?.id && 'flex-row-reverse')}>
                   <button 
                     onClick={() => setSelectedUser(msg.user_id)}
-                    className="w-8 h-8 rounded-lg bg-[#FFD700]/10 border border-[#FFD700]/20 flex items-center justify-center shrink-0 text-xs font-bold text-[#FFD700] hover:scale-105 transition-transform animate-in fade-in zoom-in-75 duration-300"
+                    className="w-8 h-8 rounded-lg overflow-hidden border border-[#FFD700]/20 flex items-center justify-center shrink-0 text-xs font-bold text-[#FFD700] hover:scale-105 transition-transform animate-in fade-in zoom-in-75 duration-300 bg-[#FFD700]/10"
                   >
-                    {(msg.profiles?.username ?? 'U').charAt(0).toUpperCase()}
+                    {msg.profiles?.avatar_url ? (
+                      <img src={msg.profiles.avatar_url} alt={msg.profiles.username} className="w-full h-full object-cover" />
+                    ) : (
+                      (msg.profiles?.username ?? 'U').charAt(0).toUpperCase()
+                    )}
                   </button>
                   
                   <div className={cn('max-w-md space-y-1', msg.user_id === user?.id && 'items-end flex flex-col')}>
@@ -1067,8 +1071,12 @@ function LeaderboardTab() {
               {top3[1] ? (
                 <div className="flex flex-col items-center">
                   <div className="relative group mb-2">
-                    <div className="w-16 h-16 rounded-full bg-slate-800/80 border-2 border-slate-300 flex items-center justify-center font-bold text-slate-300 text-lg shadow-[0_0_15px_rgba(203,213,225,0.2)] select-none">
-                      {top3[1].username.charAt(0).toUpperCase()}
+                    <div className="w-16 h-16 rounded-full bg-slate-800/80 border-2 border-slate-300 flex items-center justify-center font-bold text-slate-300 text-lg shadow-[0_0_15px_rgba(203,213,225,0.2)] select-none overflow-hidden">
+                      {top3[1].avatar_url ? (
+                        <img src={top3[1].avatar_url} alt={top3[1].username} className="w-full h-full object-cover" />
+                      ) : (
+                        top3[1].username.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <span className="absolute -top-2 -right-2 text-lg">🥈</span>
                   </div>
@@ -1091,8 +1099,12 @@ function LeaderboardTab() {
               {top3[0] ? (
                 <div className="flex flex-col items-center">
                   <div className="relative group mb-2 scale-110">
-                    <div className="w-20 h-20 rounded-full bg-yellow-950/40 border-2 border-[#FFD700] flex items-center justify-center font-bold text-[#FFD700] text-xl shadow-[0_0_25px_rgba(255,215,0,0.3)] animate-[pulse_2s_infinite] select-none">
-                      {top3[0].username.charAt(0).toUpperCase()}
+                    <div className="w-20 h-20 rounded-full bg-yellow-950/40 border-2 border-[#FFD700] flex items-center justify-center font-bold text-[#FFD700] text-xl shadow-[0_0_25px_rgba(255,215,0,0.3)] animate-[pulse_2s_infinite] select-none overflow-hidden">
+                      {top3[0].avatar_url ? (
+                        <img src={top3[0].avatar_url} alt={top3[0].username} className="w-full h-full object-cover" />
+                      ) : (
+                        top3[0].username.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <span className="absolute -top-3 -right-2 text-2xl animate-bounce">👑</span>
                   </div>
@@ -1115,8 +1127,12 @@ function LeaderboardTab() {
               {top3[2] ? (
                 <div className="flex flex-col items-center">
                   <div className="relative group mb-2">
-                    <div className="w-16 h-16 rounded-full bg-[#3d2719]/40 border-2 border-[#CD7F32] flex items-center justify-center font-bold text-[#CD7F32] text-lg shadow-[0_0_15px_rgba(205,127,50,0.2)] select-none">
-                      {top3[2].username.charAt(0).toUpperCase()}
+                    <div className="w-16 h-16 rounded-full bg-[#3d2719]/40 border-2 border-[#CD7F32] flex items-center justify-center font-bold text-[#CD7F32] text-lg shadow-[0_0_15px_rgba(205,127,50,0.2)] select-none overflow-hidden">
+                      {top3[2].avatar_url ? (
+                        <img src={top3[2].avatar_url} alt={top3[2].username} className="w-full h-full object-cover" />
+                      ) : (
+                        top3[2].username.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <span className="absolute -top-2 -right-2 text-lg">🥉</span>
                   </div>
@@ -1146,8 +1162,12 @@ function LeaderboardTab() {
                       <div className="w-8 text-center text-[#64748B] font-bold text-sm font-mono">
                         #{rank}
                       </div>
-                      <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm font-bold text-white/90">
-                        {entry.username.charAt(0).toUpperCase()}
+                      <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm font-bold text-white/90 overflow-hidden">
+                        {entry.avatar_url ? (
+                          <img src={entry.avatar_url} alt={entry.username} className="w-full h-full object-cover" />
+                        ) : (
+                          entry.username.charAt(0).toUpperCase()
+                        )}
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm text-white">{entry.username}</p>

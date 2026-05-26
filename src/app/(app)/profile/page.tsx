@@ -71,9 +71,13 @@ export default function ProfilePage() {
             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full -mr-10 -mt-10" />
 
             <div className="flex flex-col items-center text-center space-y-4">
-              {/* Avatar Initial Badge */}
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-orange-600/20 border-2 border-primary/30 flex items-center justify-center text-3xl font-black text-primary shadow-[0_0_20px_rgba(245,159,11,0.15)] animate-pulse-slow">
-                {profile?.username?.charAt(0).toUpperCase() || profile?.display_name?.charAt(0).toUpperCase() || profile?.email?.charAt(0).toUpperCase() || '?'}
+              {/* Avatar Initial Badge / Image */}
+              <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-primary/30 flex items-center justify-center text-3xl font-black text-primary shadow-[0_0_20px_rgba(245,159,11,0.15)] bg-gradient-to-br from-primary/20 to-orange-600/20">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="Profile avatar" className="w-full h-full object-cover" />
+                ) : (
+                  profile?.username?.charAt(0).toUpperCase() || profile?.display_name?.charAt(0).toUpperCase() || profile?.email?.charAt(0).toUpperCase() || '?'
+                )}
               </div>
 
               <div>

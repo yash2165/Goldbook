@@ -90,7 +90,7 @@ export function ParticleBackground({
     const particleTexture = new THREE.CanvasTexture(particleCanvas)
 
     const particlesMaterial = new THREE.PointsMaterial({
-      size: 0.035,
+      size: 0.05,
       map: particleTexture,
       transparent: true,
       vertexColors: true,
@@ -164,7 +164,7 @@ export function ParticleBackground({
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none z-0 mix-blend-screen opacity-50"
+      className="absolute inset-0 w-full h-full pointer-events-none z-0 mix-blend-screen opacity-80"
       style={{ transform: 'translate3d(0,0,0)' }}
     />
   )

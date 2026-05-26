@@ -3,12 +3,15 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, Bell, Shield, CheckCircle2, MonitorSmartphone, Settings as SettingsIcon, Globe, Clock, TrendingUp, Link as LinkIcon, Edit3, Loader2, Save } from 'lucide-react'
+import { 
+  User, Bell, Shield, CheckCircle2, MonitorSmartphone, Settings as SettingsIcon, 
+  Globe, Clock, TrendingUp, Edit3, Loader2, Save, Key, AlertTriangle, Trash2, 
+  Copy, ShieldAlert, Check, CopyCheck, RefreshCcw
+} from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/context/ToastContext'
 
 type Tab = 'profile' | 'security'
@@ -61,7 +64,28 @@ export default function SettingsPage() {
   // Security form states
   const [emailUpdate, setEmailUpdate] = useState('')
   const [passwordUpdate, setPasswordUpdate] = useState('')
+  const [confirmPasswordUpdate, setConfirmPasswordUpdate] = useState('')
   const [authMessage, setAuthMessage] = useState('')
+  const [authErrorMsg, setAuthErrorMsg] = useState('')
+  
+  // 2FA TOTP state hooks
+  const [mfaFactors, setMfaFactors] = useState<any[]>([])
+  const [mfaSecret, setMfaSecret] = useState<any>(null)
+  const [mfaVerificationCode, setMfaVerificationCode] = useState('')
+  const [enrollingMfa, setEnrollingMfa] = useState(false)
+  const [mfaLoading, setMfaLoading] = useState(false)
+  const [copiedKey, setCopiedKey] = useState(false)
+
+  // Session state hooks
+  const [userAgentInfo, setUserAgentInfo] = useState<any>({
+    browser: 'Modern Browser',
+    os: 'Windows OS',
+    ip: 'Current Session'
+  })
+
+  // Danger zone confirmation
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
 
   const supabase = createClient()
   const router = useRouter()
@@ -95,8 +119,42 @@ export default function SettingsPage() {
         .eq('is_active', true)
       
       if (rulesData) setRules(rulesData)
+
+      // Load native Supabase TOTP MFA configuration
+      try {
+        const { data: factors, error: factorsErr } = await supabase.auth.mfa.listFactors()
+        if (!factorsErr && factors) {
+          setMfaFactors(factors.totp.filter(f => f.status === 'verified'))
+        }
+      } catch (err) {
+        console.error('Error loading MFA factors:', err)
+      }
     }
     load()
+
+    // Detect browser/OS for session tracking
+    if (typeof window !== 'undefined') {
+      const ua = window.navigator.userAgent
+      let browserName = 'Modern Browser'
+      let osName = 'Windows OS'
+      
+      if (ua.includes('Chrome')) browserName = 'Google Chrome'
+      else if (ua.includes('Firefox')) browserName = 'Mozilla Firefox'
+      else if (ua.includes('Safari')) browserName = 'Apple Safari'
+      else if (ua.includes('Edge')) browserName = 'Microsoft Edge'
+      
+      if (ua.includes('Windows')) osName = 'Windows Operating System'
+      else if (ua.includes('Macintosh')) osName = 'macOS Operating System'
+      else if (ua.includes('Linux')) osName = 'Linux Operating System'
+      else if (ua.includes('Android')) osName = 'Android Mobile'
+      else if (ua.includes('iPhone')) osName = 'iOS iPhone'
+      
+      setUserAgentInfo({
+        browser: browserName,
+        os: osName,
+        ip: 'Current Session'
+      })
+    }
   }, [])
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -208,50 +266,195 @@ export default function SettingsPage() {
   }
 
   const handleUpdateAuth = async (type: 'email' | 'password') => {
-    setAuthMessage('Updating...')
-    let error = null
-    if (type === 'email' && emailUpdate) {
-      const res = await supabase.auth.updateUser({ email: emailUpdate })
-      error = res.error
-    } else if (type === 'password' && passwordUpdate) {
-      const res = await supabase.auth.updateUser({ password: passwordUpdate })
-      error = res.error
+    setAuthMessage('')
+    setAuthErrorMsg('')
+
+    if (type === 'email') {
+      if (!emailUpdate) {
+        setAuthErrorMsg('Please provide a valid email address.')
+        return
+      }
+      setSaving(true)
+      const { error } = await supabase.auth.updateUser({ email: emailUpdate })
+      setSaving(false)
+      if (error) {
+        setAuthErrorMsg(error.message)
+      } else {
+        setAuthMessage('Email verification link dispatched. Please check both your current and new inbox to confirm the change.')
+        setEmailUpdate('')
+      }
+    } else if (type === 'password') {
+      if (!passwordUpdate) {
+        setAuthErrorMsg('Password field cannot be blank.')
+        return
+      }
+      if (passwordUpdate !== confirmPasswordUpdate) {
+        setAuthErrorMsg('New passwords do not match. Double-check your entries.')
+        return
+      }
+      if (passwordUpdate.length < 6) {
+        setAuthErrorMsg('Password must be at least 6 characters for adequate security.')
+        return
+      }
+      setSaving(true)
+      const { error } = await supabase.auth.updateUser({ password: passwordUpdate })
+      setSaving(false)
+      if (error) {
+        setAuthErrorMsg(error.message)
+      } else {
+        setAuthMessage('Password updated successfully.')
+        setPasswordUpdate('')
+        setConfirmPasswordUpdate('')
+      }
+    }
+  }
+
+  // 2FA TOTP Enrollment & Activation
+  const startMfaEnrollment = async () => {
+    setMfaLoading(true)
+    setError(null)
+    try {
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: 'totp',
+        issuer: 'GoldBook',
+        friendlyName: profile.username || 'Trader'
+      })
+      if (error) {
+        showError('2FA Enrollment Failed', error.message)
+      } else if (data) {
+        setMfaSecret(data)
+        setEnrollingMfa(true)
+      }
+    } catch (err: any) {
+      showError('MFA Error', err.message || 'An error occurred during enrollment.')
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  const verifyAndActivateMfa = async () => {
+    if (!mfaSecret || !mfaVerificationCode) return
+    setMfaLoading(true)
+    try {
+      const factorId = mfaSecret.id
+      const { data: challengeData, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId })
+      if (challengeErr) throw challengeErr
+
+      const { error: verifyErr } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId: challengeData.id,
+        code: mfaVerificationCode
+      })
+
+      if (verifyErr) throw verifyErr
+
+      showSuccess('2FA Activated Successfully', 'Hardware-level two-factor authentication has been locked onto your account.')
+      setEnrollingMfa(false)
+      setMfaSecret(null)
+      setMfaVerificationCode('')
+      
+      // Reload active factors
+      const { data: factors } = await supabase.auth.mfa.listFactors()
+      if (factors) setMfaFactors(factors.totp.filter(f => f.status === 'verified'))
+    } catch (err: any) {
+      showError('Verification Failed', err.message || 'Invalid or expired 2FA verification code.')
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  const disableMfa = async (factorId: string) => {
+    setMfaLoading(true)
+    try {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId })
+      if (error) throw error
+      showSuccess('2FA Disabled', 'Two-Factor Authentication has been removed from your account.')
+      
+      // Reload factors
+      const { data: factors } = await supabase.auth.mfa.listFactors()
+      if (factors) setMfaFactors(factors.totp.filter(f => f.status === 'verified'))
+    } catch (err: any) {
+      showError('Action Failed', err.message)
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  const copySecretToClipboard = () => {
+    if (!mfaSecret?.totp?.secret) return
+    navigator.clipboard.writeText(mfaSecret.totp.secret)
+    setCopiedKey(true)
+    setTimeout(() => setCopiedKey(false), 2000)
+  }
+
+  // Global logouts
+  const handleGlobalSignOut = async () => {
+    setMfaLoading(true)
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'global' })
+      if (error) throw error
+      showSuccess('Sessions Revoked', 'Logged out globally from all other devices successfully.')
+      router.push('/')
+    } catch (err: any) {
+      showError('Action Failed', err.message)
+    } finally {
+      setMfaLoading(false)
+    }
+  }
+
+  // Danger zone account wipe
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== profile.username) {
+      showError('Verification Failed', 'Verification username is incorrect.')
+      return
     }
     
-    if (error) {
-      setAuthMessage(error.message)
-    } else {
-      setAuthMessage('Success! Check your email if required.')
-      setEmailUpdate('')
-      setPasswordUpdate('')
+    setDeletingAccount(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { error } = await supabase.from('profiles').delete().eq('id', user.id)
+        if (error) throw error
+        await supabase.auth.signOut()
+        showSuccess('Account Deleted', 'Your profile and data have been scrubbed from GoldBook.')
+        router.push('/')
+      }
+    } catch (err: any) {
+      showError('Action Failed', err.message)
+    } finally {
+      setDeletingAccount(false)
     }
   }
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'profile', label: 'Profile & Preferences', icon: User },
-    { id: 'security', label: 'Security', icon: Shield },
+    { id: 'profile', label: 'Profile & Setups', icon: User },
+    { id: 'security', label: 'Security & 2FA', icon: Shield },
   ]
 
+  const isPasswordStrong = passwordUpdate.length >= 8
+
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-6 max-w-5xl mx-auto space-y-8 mt-6 text-[#F1F5F9] pb-24 relative overflow-hidden">
       
-      {/* Top Banner equivalent */}
-      <div className="flex items-center justify-between mb-8">
+      {/* Settings Top Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="text-sm text-[#64748B] mt-1">Manage your account preferences and security.</p>
+          <h1 className="text-3xl font-black uppercase tracking-wider text-white">Observatory Settings</h1>
+          <p className="text-xs text-[#64748B] mt-1 font-bold uppercase tracking-wider">Configure your trading setups, rules baseline, and account security</p>
         </div>
       </div>
 
-      {/* Tab nav */}
-      <div className="flex gap-1 border-b border-white/5 pb-4">
+      {/* Premium Tab Selectors */}
+      <div className="flex gap-2 border-b border-white/5 pb-4">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all',
-              tab === t.id ? 'bg-primary/10 text-primary' : 'text-[#64748B] hover:text-white hover:bg-white/5'
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border cursor-pointer',
+              tab === t.id 
+                ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.1)]' 
+                : 'border-transparent text-[#64748B] hover:text-white hover:bg-white/5'
             )}
           >
             <t.icon className="w-4 h-4" /> {t.label}
@@ -259,30 +462,34 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      <div className="space-y-6 pb-20">
+      <div className="space-y-8">
+        
+        {/* PROFILE TAB */}
         {tab === 'profile' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-            {/* Trading Rules Summary */}
-            <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
+            {/* Visual Rules Overview card */}
+            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-primary" />
+                  <div className="w-9 h-9 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37]">
+                    <Shield className="w-5 h-5" />
+                  </div>
                   <div>
-                    <h3 className="font-bold text-white text-sm">Active Trading Rules</h3>
-                    <p className="text-xs text-[#64748B] mt-0.5">Your personal risk ceiling and conditions.</p>
+                    <h3 className="font-black text-white text-xs uppercase tracking-wider">Active Observance Rules</h3>
+                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Automated constraints tracked by psychology coach</p>
                   </div>
                 </div>
                 <Link href="/rules">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 rounded-lg text-xs font-bold text-white transition-colors">
+                  <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg text-xs font-black uppercase tracking-wider border border-white/5 transition-all cursor-pointer">
                     <Edit3 className="w-3 h-3" /> Edit Rules
                   </button>
                 </Link>
               </div>
               
               {rules.length === 0 ? (
-                <div className="p-4 bg-white/5 rounded-xl text-sm text-[#64748B] text-center">
-                  You have no active trading rules. Set them up to let AI coach track your discipline.
+                <div className="p-5 bg-white/[0.01] border border-dashed border-white/5 rounded-2xl text-xs text-[#64748B] text-center font-semibold">
+                  No active risk constraints established. Set rules to let our coach keep you accountable.
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -293,11 +500,11 @@ export default function SettingsPage() {
                     if (r.rule_type === 'max_risk_per_trade' && r.value) val = `${r.value}%`
                     
                     return (
-                      <div key={r.id} className="bg-[#0d1017] border border-white/5 rounded-xl p-3">
-                        <p className="text-[10px] text-[#64748B] font-bold uppercase tracking-widest flex items-center gap-1 truncate" title={r.label}>
-                          <span className="text-primary">*</span> {r.label}
+                      <div key={r.id} className="bg-[#050508]/40 border border-white/5 rounded-2xl p-4 shadow-sm hover:border-white/10 transition-all">
+                        <p className="text-[9px] text-[#64748B] font-black uppercase tracking-widest flex items-center gap-1 truncate" title={r.label}>
+                          <span className="text-[#D4AF37]">•</span> {r.label}
                         </p>
-                        <p className="text-lg font-black mt-2 truncate">{val}</p>
+                        <p className="text-xl font-black mt-2 font-mono text-white/90 truncate">{val}</p>
                       </div>
                     )
                   })}
@@ -305,24 +512,27 @@ export default function SettingsPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
               {/* Preferences */}
-              <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
+              <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
                 <div className="flex items-center gap-3 mb-6">
-                  <Globe className="w-5 h-5 text-primary" />
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                    <Globe className="w-5 h-5" />
+                  </div>
                   <div>
-                    <h3 className="font-bold text-white text-sm">Preferences</h3>
-                    <p className="text-xs text-[#64748B] mt-0.5">Localisation and display settings</p>
+                    <h3 className="font-black text-white text-xs uppercase tracking-wider">Observatory Preferences</h3>
+                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Localisation settings and time frames</p>
                   </div>
                 </div>
                 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider">Country</Label>
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Local Country</Label>
                     <select
                       value={profile.country}
                       onChange={e => setProfile(p => ({ ...p, country: e.target.value }))}
-                      className="w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] text-white appearance-none"
+                      className="w-full bg-[#050508] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer"
                     >
                       <option value="">Select Country</option>
                       {Array.from(new Set([...COUNTRIES, profile.country])).filter(Boolean).map(c => (
@@ -332,11 +542,11 @@ export default function SettingsPage() {
                   </div>
                   
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider">Timezone</Label>
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Workspace Timezone</Label>
                     <select
                       value={profile.timezone}
                       onChange={e => setProfile(p => ({ ...p, timezone: e.target.value }))}
-                      className="w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] text-white appearance-none"
+                      className="w-full bg-[#050508] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer"
                     >
                       {Array.from(new Set([...TIMEZONES, profile.timezone])).filter(Boolean).map(t => (
                         <option key={t} value={t}>{t}</option>
@@ -347,39 +557,40 @@ export default function SettingsPage() {
               </div>
 
               {/* Personal Details */}
-              <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
+              <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
                 <div className="flex items-center gap-3 mb-6">
-                  <User className="w-5 h-5 text-primary" />
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                    <User className="w-5 h-5" />
+                  </div>
                   <div>
-                    <h3 className="font-bold text-white text-sm">Personal Details</h3>
-                    <p className="text-xs text-[#64748B] mt-0.5">How you appear to others</p>
+                    <h3 className="font-black text-white text-xs uppercase tracking-wider">Profile Elements</h3>
+                    <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Customize how you appear in chat and podiums</p>
                   </div>
                 </div>
                 
                 <div className="space-y-4">
-                  {/* Premium Avatar Upload */}
-                  <div className="flex items-center gap-4 p-4 bg-[#0d1017] border border-white/5 rounded-xl">
+                  {/* Avatar Upload */}
+                  <div className="flex items-center gap-4 p-4 bg-[#050508]/60 border border-white/5 rounded-2xl relative overflow-hidden">
                     <div className="relative group">
-                      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary/30 group-hover:border-primary transition-all flex items-center justify-center bg-[#12121a] relative">
+                      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[#D4AF37]/30 group-hover:border-[#D4AF37] transition-all flex items-center justify-center bg-[#12121a] relative">
                         {profile.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={profile.avatar_url} alt="Profile picture" className="w-full h-full object-cover" />
                         ) : (
-                          <User className="w-8 h-8 text-[#64748B]" />
+                          <User className="w-7 h-7 text-[#64748B]" />
                         )}
                         {uploadingAvatar && (
-                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                            <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                          <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
+                            <Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" />
                           </div>
                         )}
                       </div>
                     </div>
                     <div>
-                      <Label className="text-xs text-white font-bold block mb-1">Profile Picture</Label>
-                      <p className="text-[10px] text-[#64748B] mb-2">Secure Cloud Storage. Max size 2MB (JPG, PNG, WEBP)</p>
+                      <Label className="text-xs text-white font-black uppercase tracking-wider block mb-0.5">Avatar Image</Label>
+                      <p className="text-[9px] text-[#64748B] mb-2 font-semibold">JPG, PNG, WEBP. Max size 2MB</p>
                       <input 
                         type="file" 
-                        id="avatar-input" 
+                        id="settings-avatar-input" 
                         accept="image/*" 
                         className="hidden" 
                         onChange={handleAvatarUpload} 
@@ -387,9 +598,9 @@ export default function SettingsPage() {
                       />
                       <button 
                         type="button"
-                        onClick={() => document.getElementById('avatar-input')?.click()} 
+                        onClick={() => document.getElementById('settings-avatar-input')?.click()} 
                         disabled={uploadingAvatar}
-                        className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-bold transition-all"
+                        className="px-3 py-1.5 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/25 hover:border-[#D4AF37]/50 text-[#D4AF37] rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
                       >
                         {profile.avatar_url ? 'Change Avatar' : 'Upload Avatar'}
                       </button>
@@ -397,242 +608,469 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider">Username</Label>
-                    <Input value={profile.username} onChange={e => setProfile(p => ({ ...p, username: e.target.value }))} className="bg-[#0d1017] border-white/10 h-11" />
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Observation Nickname</Label>
+                    <Input value={profile.display_name} onChange={e => setProfile(p => ({ ...p, display_name: e.target.value }))} className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white" />
                   </div>
+                  
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider">Display Name</Label>
-                    <Input value={profile.display_name} onChange={e => setProfile(p => ({ ...p, display_name: e.target.value }))} className="bg-[#0d1017] border-white/10 h-11" />
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Observatory Username</Label>
+                    <Input value={profile.username} onChange={e => setProfile(p => ({ ...p, username: e.target.value }))} className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white" />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider">Trading Style</Label>
-                    <select
-                      value={profile.trading_style}
-                      onChange={e => setProfile(p => ({ ...p, trading_style: e.target.value }))}
-                      className="w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] text-white appearance-none h-11"
-                    >
-                      <option value="">Select Trading Style (None)</option>
-                      <option value="scalper">Scalper</option>
-                      <option value="swing">Swing</option>
-                      <option value="intraday">Intraday</option>
-                      <option value="position">Position</option>
-                    </select>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Trading Style</Label>
+                      <select
+                        value={profile.trading_style}
+                        onChange={e => setProfile(p => ({ ...p, trading_style: e.target.value }))}
+                        className="w-full bg-[#050508] border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer h-11"
+                      >
+                        <option value="">None / System</option>
+                        <option value="scalper">Scalper</option>
+                        <option value="swing">Swing</option>
+                        <option value="intraday">Intraday</option>
+                        <option value="position">Position</option>
+                      </select>
+                    </div>
                   </div>
+
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-[#64748B] uppercase tracking-wider">Bio</Label>
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Trader Bio</Label>
                     <textarea 
                       value={profile.bio} 
                       onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} 
-                      placeholder="Share a short bio..." 
-                      className="w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50 transition-colors text-white h-24 resize-none"
+                      placeholder="Identify your setups..." 
+                      className="w-full bg-[#050508] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#D4AF37]/50 transition-colors text-white h-24 resize-none placeholder:text-[#334155]"
                     />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Pre-Trade Checklist customizer */}
-            <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-primary" />
-                  <div>
-                    <h3 className="font-bold text-white text-sm">Pre-Trade Checklist</h3>
-                    <p className="text-xs text-[#64748B] mt-0.5">Customize the checklist you see before opening a trade.</p>
-                  </div>
+            {/* Custom Pre-trade checklist manager */}
+            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-xs uppercase tracking-wider">Custom Pre-Trade Checklist</h3>
+                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Parameters you confirm before opening any MT5 trade</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 {profile.pre_trade_checklist.length === 0 ? (
-                  <div className="text-sm text-[#64748B]">No checklist items. Add some below.</div>
+                  <div className="text-xs text-[#64748B] font-semibold py-4 uppercase text-center bg-white/[0.01] border border-[#64748B]/10 rounded-xl">No checklist items configured.</div>
                 ) : (
                   profile.pre_trade_checklist.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-[#0d1017] border border-white/5 rounded-lg">
-                      <span className="text-sm font-medium">{item}</span>
-                      <button onClick={() => removeChecklistItem(idx)} className="text-[#EF4444] text-xs hover:underline">Remove</button>
+                    <div key={idx} className="flex items-center justify-between p-3.5 bg-[#050508]/40 border border-white/5 rounded-xl hover:border-white/10 transition-all">
+                      <span className="text-sm font-semibold text-white/95">{item}</span>
+                      <button onClick={() => removeChecklistItem(idx)} className="text-[#EF4444] text-xs font-black uppercase tracking-wider hover:underline cursor-pointer">Remove</button>
                     </div>
                   ))
                 )}
 
-                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/5">
                   <Input 
                     value={newChecklist} 
                     onChange={e => setNewChecklist(e.target.value)} 
                     onKeyDown={e => e.key === 'Enter' && addChecklistItem()}
-                    placeholder="E.g. Wait for 5m candle close..." 
-                    className="bg-[#0d1017] border-white/10 flex-1"
+                    placeholder="E.g. Confirm 4H trend direction..." 
+                    className="bg-[#050508] border-white/10 flex-1 focus-visible:ring-[#D4AF37]/35 text-white h-11"
                   />
-                  <button onClick={addChecklistItem} className="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm font-bold transition-colors">
-                    Add
+                  <button onClick={addChecklistItem} className="px-5 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/5 transition-all cursor-pointer">
+                    Add Step
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Trading Setups customizer */}
-            <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                  <div>
-                    <h3 className="font-bold text-white text-sm">Trading Setups</h3>
-                    <p className="text-xs text-[#64748B] mt-0.5">Define your custom setups to tag trades easily.</p>
-                  </div>
+            {/* Custom trading setups tag manager */}
+            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-xs uppercase tracking-wider">Trading Setup Catalog</h3>
+                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Formulate unique entry tags to map closed win rates</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 {profile.trading_setups?.length === 0 ? (
-                  <div className="text-sm text-[#64748B]">No setups defined. Add some below.</div>
+                  <div className="text-xs text-[#64748B] font-semibold py-4 uppercase text-center bg-white/[0.01] border border-[#64748B]/10 rounded-xl">No custom setups cataloged yet.</div>
                 ) : (
                   profile.trading_setups?.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-[#0d1017] border border-white/5 rounded-lg">
+                    <div key={idx} className="flex items-center justify-between p-4 bg-[#050508]/40 border border-white/5 rounded-xl hover:border-white/10 transition-all">
                       <div>
-                        <p className="text-sm font-bold text-white">{item.name}</p>
-                        {item.description && <p className="text-xs text-[#64748B] mt-0.5">{item.description}</p>}
+                        <p className="text-sm font-black uppercase text-white tracking-wide">{item.name}</p>
+                        {item.description && <p className="text-xs text-[#64748B] mt-1 font-medium">{item.description}</p>}
                       </div>
-                      <button onClick={() => removeSetupItem(idx)} className="text-[#EF4444] text-xs hover:underline">Remove</button>
+                      <button onClick={() => removeSetupItem(idx)} className="text-[#EF4444] text-xs font-black uppercase tracking-wider hover:underline cursor-pointer">Remove</button>
                     </div>
                   ))
                 )}
 
-                <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/5">
-                  <div className="flex gap-2">
+                <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-white/5">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <Input 
                       value={newSetupName} 
                       onChange={e => setNewSetupName(e.target.value)} 
-                      placeholder="Setup Name (e.g. Liquidity Sweep)" 
-                      className="bg-[#0d1017] border-white/10 flex-1"
+                      placeholder="Setup Title (e.g. Liquidity Grab)" 
+                      className="bg-[#050508] border-white/10 flex-1 focus-visible:ring-[#D4AF37]/35 text-white h-11"
                     />
-                  </div>
-                  <div className="flex gap-2">
-                    <Input 
-                      value={newSetupDesc} 
-                      onChange={e => setNewSetupDesc(e.target.value)} 
-                      onKeyDown={e => e.key === 'Enter' && addSetupItem()}
-                      placeholder="Description (Optional)" 
-                      className="bg-[#0d1017] border-white/10 flex-1"
-                    />
-                    <button onClick={addSetupItem} className="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm font-bold transition-colors">
-                      Add
-                    </button>
+                    <div className="flex flex-1 gap-3">
+                      <Input 
+                        value={newSetupDesc} 
+                        onChange={e => setNewSetupDesc(e.target.value)} 
+                        onKeyDown={e => e.key === 'Enter' && addSetupItem()}
+                        placeholder="Setup Description (Optional)" 
+                        className="bg-[#050508] border-white/10 flex-1 focus-visible:ring-[#D4AF37]/35 text-white h-11"
+                      />
+                      <button onClick={addSetupItem} className="px-5 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/5 transition-all cursor-pointer shrink-0">
+                        Add Setup
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* User details save */}
+            {/* Profile update save button */}
             <div className="flex justify-end pt-4">
               <button
                 onClick={save}
                 disabled={saving}
                 className={cn(
-                  'flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-semibold transition-all',
-                  saved ? 'bg-[#22C55E] text-white' : 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20'
+                  'flex items-center gap-2 px-8 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all cursor-pointer',
+                  saved 
+                    ? 'bg-[#22C55E]/10 border-[#22C55E] text-[#22C55E] shadow-[0_0_15px_rgba(34,197,94,0.15)]' 
+                    : 'bg-gradient-to-b from-[#D4AF37] to-[#B8860B] border-[#D4AF37]/30 text-black shadow-lg shadow-[#D4AF37]/10'
                 )}
               >
-                {saved ? <><CheckCircle2 className="w-4 h-4" /> Saved Successfully!</> : saving ? <><Loader2 className="w-4 h-4 animate-spin"/> Saving...</> : <><Save className="w-4 h-4" /> Save Profile</>}
+                {saved ? (
+                  <><CheckCircle2 className="w-4 h-4 text-[#22C55E]" /> Profile Saved!</>
+                ) : saving ? (
+                  <><Loader2 className="w-4 h-4 animate-spin text-black" /> Saving...</>
+                ) : (
+                  <><Save className="w-4 h-4" /> Save Workspace Changes</>
+                )}
               </button>
             </div>
           </div>
         )}
 
+        {/* SECURITY TAB */}
         {tab === 'security' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Session Security */}
-            <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
-              <h3 className="font-bold text-white text-sm mb-1">Session Security</h3>
-              <p className="text-xs text-[#64748B] mb-6">Manage your active sessions</p>
-              
-              <div className="flex items-center justify-between py-4 border-b border-white/5">
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium">Session Alerts</p>
-                  <p className="text-xs text-[#64748B]">Get notified of new login attempts</p>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            
+            {/* Supabase 2FA TOTP Wizard */}
+            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Shield className="w-5 h-5" />
                 </div>
-                <Switch defaultChecked />
+                <div>
+                  <h3 className="font-black text-white text-xs uppercase tracking-wider">Two-Factor Authentication (2FA)</h3>
+                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Encrypt authentication requests using hardware devices</p>
+                </div>
               </div>
 
-              <div className="mt-6">
-                <p className="text-sm font-bold mb-4">Active Sessions</p>
-                <div className="bg-[#0d1017] border border-white/5 rounded-xl p-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
-                    <MonitorSmartphone className="w-5 h-5 text-primary" />
+              {mfaFactors.length > 0 ? (
+                /* 2FA Enabled State */
+                <div className="p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.02] shadow-[0_0_20px_rgba(16,185,129,0.02)] space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                        <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-emerald-400 uppercase tracking-wider">2FA Locked & Active</h4>
+                        <p className="text-[11px] text-[#94A3B8] font-medium mt-0.5">Authenticator app-linked TOTP factor successfully linked on your profile.</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => disableMfa(mfaFactors[0].id)}
+                      disabled={mfaLoading}
+                      className="px-4 py-2 border border-red-500/30 hover:border-red-500 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 disabled:opacity-40"
+                    >
+                      {mfaLoading ? 'Scrubbing...' : 'Remove 2FA'}
+                    </button>
+                  </div>
+                  
+                  <div className="p-4 bg-black/45 rounded-xl border border-white/5">
+                    <h5 className="text-[10px] text-[#64748B] font-black uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-amber-500" /> Active Security Checklist
+                    </h5>
+                    <p className="text-[11px] text-slate-400 leading-normal font-semibold">
+                      Your sessions are locked using two-factor codes. Keep your backup recovery credentials safe. If you lose access, contact support with your sync key.
+                    </p>
+                  </div>
+                </div>
+              ) : enrollingMfa ? (
+                /* 2FA Enrollment Wizard Step */
+                <div className="p-5 rounded-2xl border border-[#D4AF37]/20 bg-[#D4AF37]/[0.01] space-y-6 animate-in zoom-in-95 duration-300">
+                  <div className="text-center space-y-2">
+                    <span className="px-3.5 py-1.5 bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                      Verification Setup
+                    </span>
+                    <h4 className="text-base font-black text-white uppercase tracking-wider mt-2">Scan Authenticator Key</h4>
+                    <p className="text-xs text-[#94A3B8] max-w-md mx-auto leading-relaxed font-semibold">
+                      Scan the QR code below using Google Authenticator, Authy, or your browser security manager.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-8 py-4">
+                    {/* QR Code base64 image render */}
+                    <div className="p-4 bg-white rounded-2xl shadow-xl flex items-center justify-center border border-white/10 relative overflow-hidden select-none">
+                      {mfaSecret?.totp?.qr_code ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={mfaSecret.totp.qr_code} alt="2FA QR Code" className="w-40 h-40 object-contain select-none pointer-events-none" />
+                      ) : (
+                        <div className="w-40 h-40 flex items-center justify-center text-black font-bold text-xs uppercase tracking-wider">QR Code Loading...</div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4 max-w-sm">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-[#64748B] uppercase tracking-wider font-black">Secret Account Key</Label>
+                        <div className="flex items-center gap-2 bg-[#050508] border border-white/10 px-3 py-2 rounded-xl">
+                          <code className="text-xs font-mono font-bold text-slate-300 truncate max-w-[200px]">{mfaSecret?.totp?.secret || 'Generating key...'}</code>
+                          <button 
+                            type="button"
+                            onClick={copySecretToClipboard}
+                            className="p-1.5 hover:bg-white/5 rounded text-[#94A3B8] hover:text-[#D4AF37] transition-all cursor-pointer"
+                          >
+                            {copiedKey ? <Check className="w-4 h-4 text-[#22C55E]" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] text-[#64748B] uppercase tracking-wider font-black">Enter 6-Digit Code</Label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={mfaVerificationCode}
+                            onChange={e => setMfaVerificationCode(e.target.value.replace(/\D/g, ''))}
+                            placeholder="e.g. 847291"
+                            className="bg-[#050508] border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono font-bold tracking-[0.3em] text-center w-full focus:outline-none focus:border-[#D4AF37]/50 text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 justify-center pt-2 border-t border-white/5 max-w-md mx-auto">
+                    <button 
+                      onClick={() => { setEnrollingMfa(false); setMfaSecret(null) }}
+                      className="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/5 text-[#94A3B8] hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={verifyAndActivateMfa}
+                      disabled={mfaLoading || mfaVerificationCode.length !== 6}
+                      className="flex-1 py-2.5 bg-[#22C55E] hover:bg-[#22C55E]/90 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors disabled:opacity-40 cursor-pointer border border-emerald-500/25"
+                    >
+                      {mfaLoading ? 'Activating...' : 'Verify & Lock 2FA'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* 2FA Disabled/Prompt State */
+                <div className="space-y-4">
+                  <p className="text-xs text-[#94A3B8] leading-relaxed font-semibold">
+                    Protect your connected MT5 accounts and setups with hardware two-factor authentication. On each login attempt, you will be required to input a rolling 6-digit passcode generated by your authenticator app.
+                  </p>
+                  <button 
+                    onClick={startMfaEnrollment}
+                    disabled={mfaLoading}
+                    className="px-6 py-3 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:opacity-95 text-black rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-[#D4AF37]/10 hover:scale-[1.01]"
+                  >
+                    {mfaLoading ? 'Loading Wizard...' : 'Activate 2FA Device'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Active Sessions */}
+            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <MonitorSmartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-xs uppercase tracking-wider">Active Device Sessions</h3>
+                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Device nodes currently authorized on your profile</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-[#050508]/40 border border-white/5 rounded-2xl p-4 flex items-center gap-4 hover:border-white/10 transition-all">
+                  <div className="w-12 h-12 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center shrink-0 text-[#D4AF37]">
+                    <MonitorSmartphone className="w-5 h-5" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-white">Current Browser</p>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase">Current</span>
+                      <p className="text-sm font-black uppercase tracking-wider text-white">{userAgentInfo.browser}</p>
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-[#D4AF37]/15 border border-[#D4AF37]/35 text-[#D4AF37]">Active Node</span>
                     </div>
-                    <p className="text-xs text-[#64748B] mt-0.5">Active now</p>
+                    <p className="text-[10px] text-[#64748B] mt-0.5 font-bold uppercase tracking-wider">{userAgentInfo.os} • {userAgentInfo.ip}</p>
                   </div>
+                </div>
+
+                <div className="pt-4 border-t border-white/5 flex justify-end">
+                  <button 
+                    onClick={handleGlobalSignOut}
+                    disabled={mfaLoading}
+                    className="px-5 py-3 border border-red-500/30 hover:border-red-500 bg-red-500/5 hover:bg-red-500/10 text-red-400 rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    {mfaLoading ? 'Revoking...' : 'Revoke All Other Device Sessions'}
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* Account Credentials */}
-            <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
-              <h3 className="font-bold text-white text-sm mb-1">Account Credentials</h3>
-              <p className="text-xs text-[#64748B] mb-6">Update your login email and password.</p>
+            <div className="bg-[#12121a]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-xs uppercase tracking-wider">Profile Credentials</h3>
+                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Manage login email and password locks</p>
+                </div>
+              </div>
 
               {authMessage && (
-                <div className="mb-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-primary text-sm">
-                  {authMessage}
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-semibold leading-relaxed mb-6">
+                  ✓ {authMessage}
                 </div>
               )}
 
-              <div className="space-y-6">
-                <div>
-                  <Label className="text-xs text-[#64748B] uppercase tracking-wider mb-2 block">Change Email</Label>
-                  <div className="flex gap-2">
+              {authErrorMsg && (
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs font-semibold leading-relaxed mb-6">
+                  ⚠️ {authErrorMsg}
+                </div>
+              )}
+
+              <div className="grid md:grid-cols-2 gap-8">
+                {/* Change Email */}
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Observatory Email Address</Label>
+                    <p className="text-[10px] text-[#64748B] mb-2 font-semibold">Current login email: <strong className="text-white">{user?.email}</strong></p>
                     <Input 
                       type="email" 
-                      placeholder="New Email Address" 
+                      placeholder="Enter new email address" 
                       value={emailUpdate}
                       onChange={e => setEmailUpdate(e.target.value)}
-                      className="bg-[#0d1017] border-white/10 max-w-sm"
+                      className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white"
                     />
-                    <button 
-                      onClick={() => handleUpdateAuth('email')}
-                      className="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm font-bold transition-colors"
-                    >
-                      Update
-                    </button>
                   </div>
+                  <button 
+                    onClick={() => handleUpdateAuth('email')}
+                    disabled={saving || !emailUpdate}
+                    className="px-5 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/5 transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    Update Email Address
+                  </button>
                 </div>
 
-                <div>
-                  <Label className="text-xs text-[#64748B] uppercase tracking-wider mb-2 block">Change Password</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      type="password" 
-                      placeholder="New Password" 
-                      value={passwordUpdate}
-                      onChange={e => setPasswordUpdate(e.target.value)}
-                      className="bg-[#0d1017] border-white/10 max-w-sm"
-                    />
-                    <button 
-                      onClick={() => handleUpdateAuth('password')}
-                      className="px-4 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-sm font-bold transition-colors"
-                    >
-                      Update
-                    </button>
+                {/* Change Password */}
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Configure New Password</Label>
+                      <Input 
+                        type="password" 
+                        placeholder="Type new secure password" 
+                        value={passwordUpdate}
+                        onChange={e => setPasswordUpdate(e.target.value)}
+                        className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Verify New Password</Label>
+                      <Input 
+                        type="password" 
+                        placeholder="Re-type new password to confirm" 
+                        value={confirmPasswordUpdate}
+                        onChange={e => setConfirmPasswordUpdate(e.target.value)}
+                        className="bg-[#050508] border-white/10 h-11 focus-visible:ring-[#D4AF37]/35 text-white"
+                      />
+                    </div>
                   </div>
+
+                  {passwordUpdate && (
+                    <div className="p-3 bg-[#050508]/60 border border-white/5 rounded-xl flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                      <span>Password Strength:</span>
+                      <span className={cn('font-black', isPasswordStrong ? 'text-emerald-400' : 'text-red-400')}>
+                        {isPasswordStrong ? 'STRENGTH COMPLIANT ✓' : 'TOO WEAK ❌ (MIN 8 CHARS)'}
+                      </span>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={() => handleUpdateAuth('password')}
+                    disabled={saving || !passwordUpdate || passwordUpdate !== confirmPasswordUpdate || !isPasswordStrong}
+                    className="px-5 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/5 transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    Update Password Lock
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* 2FA */}
-            <div className="bg-[#12121a] border border-white/5 rounded-2xl p-6">
-              <h3 className="font-bold text-white text-sm mb-1">Two-Factor Authentication</h3>
-              <p className="text-xs text-[#64748B] mb-6">Add an extra layer of security to your account</p>
-              
-              <p className="text-sm text-[#64748B] mb-4">Protect your account with phone-based two-factor authentication. You'll receive an SMS code on each login.</p>
-              
-              <button className="px-4 py-2 border border-primary text-primary hover:bg-primary/10 rounded-lg text-sm font-bold transition-colors">
-                Enable 2FA
-              </button>
+            {/* DANGER ZONE */}
+            <div className="bg-red-500/[0.01] border border-red-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-red-400 text-xs uppercase tracking-wider">Observatory Scrub Protocol (Danger Zone)</h3>
+                  <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold mt-0.5">Permanent account deletion and data scrubbing</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex gap-4">
+                  <ShieldAlert className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-black text-red-400 uppercase tracking-widest">IRREVERSIBLE scrubbing WARNING</h4>
+                    <p className="text-[11px] text-red-200/80 leading-relaxed font-semibold mt-1">
+                      Deleting your account is permanent. This wipes all database rows: connected MT5 servers, synced trade logs, journals, emotion metrics, and AI behavioral analysis reports. This cannot be undone under any circumstances.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 max-w-md">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#64748B] uppercase tracking-wider font-black">Type your username (<span className="text-white font-mono">{profile.username}</span>) to verify:</Label>
+                    <Input 
+                      value={deleteConfirmation}
+                      onChange={e => setDeleteConfirmation(e.target.value)}
+                      placeholder="Enter username to verify delete"
+                      className="bg-[#050508] border-red-500/10 h-11 focus-visible:ring-red-500/25 text-white"
+                    />
+                  </div>
+                  <button 
+                    onClick={handleDeleteAccount}
+                    disabled={deletingAccount || deleteConfirmation !== profile.username}
+                    className="px-6 py-3.5 bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:hover:bg-red-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-500/15 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {deletingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4" /> Scrub Account Permanently</>}
+                  </button>
+                </div>
+              </div>
             </div>
+
           </div>
         )}
       </div>

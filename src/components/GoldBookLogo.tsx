@@ -13,116 +13,85 @@ export default function GoldBookLogo({ size = 32, className = '' }: { size?: num
       className={`overflow-visible select-none shrink-0 ${className}`}
     >
       <defs>
-        {/* Core metallic gold gradient with champagne and deep gold transitions */}
-        <linearGradient id="goldPlateGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#784F06" /> {/* Deep Bronze Shadow */}
-          <stop offset="30%" stopColor="#C59E37" /> {/* Antique Gold */}
-          <stop offset="50%" stopColor="#FDF0CD" /> {/* Champagne Highlight */}
-          <stop offset="70%" stopColor="#D8A928" /> {/* Pure Yellow Gold */}
-          <stop offset="100%" stopColor="#8C5B05" /> {/* Dark Gold Border */}
+        {/* Modern metallic gold gradient */}
+        <linearGradient id="goldPlate" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#784F06" />
+          <stop offset="25%" stopColor="#C59E37" />
+          <stop offset="50%" stopColor="#FFF2CC" />
+          <stop offset="75%" stopColor="#F59E0B" />
+          <stop offset="100%" stopColor="#8C5B05" />
         </linearGradient>
 
-        {/* Dynamic bright neon accent gold for glows and key paths */}
-        <linearGradient id="neonGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFF2CC" />
+        {/* Dynamic bright neon gold gradient */}
+        <linearGradient id="neonGold" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FFF5D6" />
           <stop offset="100%" stopColor="#FFD700" />
         </linearGradient>
 
-        {/* Radial backing glow */}
-        <radialGradient id="glowBacking" cx="50%" cy="50%" r="50%">
+        {/* Ambient backing glow */}
+        <radialGradient id="backingGlow" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#FFD700" stopOpacity="0.25" />
           <stop offset="100%" stopColor="#FFD700" stopOpacity="0" />
         </radialGradient>
 
-        {/* Premium high-glow drop shadow for vectors */}
-        <filter id="vectorGlow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="3.5" result="blur" />
+        {/* Premium high-glow drop shadow */}
+        <filter id="premiumGlow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="4" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
 
-        {/* Soft shadow for the base elements to pop */}
-        <filter id="softEmblemShadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#000" floodOpacity="0.45" />
+        {/* Soft shadow for depth */}
+        <filter id="emblemShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000000" floodOpacity="0.5" />
         </filter>
       </defs>
 
-      {/* Atmospheric Golden Backing Glow */}
-      <circle cx="50" cy="50" r="46" fill="url(#glowBacking)" />
+      {/* Atmospheric Glow */}
+      <circle cx="50" cy="50" r="45" fill="url(#backingGlow)" className="animate-pulse" style={{ animationDuration: '4s' }} />
 
-      <g filter="url(#softEmblemShadow)">
-        {/* Outer Circular Ring (Modern aesthetic, broken at top-right for breakout path) */}
+      <g filter="url(#emblemShadow)">
+        {/* Sleek Outer Shield Hexagon - Premium Minimalist Frame */}
         <path
-          d="M 50 12 A 38 38 0 1 0 88 50 A 38 38 0 0 0 78.8 23.5"
-          stroke="url(#goldPlateGrad)"
+          d="M 50 10 L 85 30 L 85 70 L 50 90 L 15 70 L 15 30 Z"
+          stroke="url(#goldPlate)"
+          strokeWidth="3"
+          strokeLinejoin="round"
+          fill="none"
+          opacity="0.8"
+        />
+
+        {/* Interlocking Monogram - Left Leaf forming 'G' and book silhouette */}
+        <path
+          d="M 45 28 C 30 28 24 38 24 50 C 24 62 30 72 45 72 L 45 64 C 34 64 31 58 31 50 C 31 42 34 36 45 36 Z"
+          fill="url(#goldPlate)"
+        />
+
+        {/* Interlocking Monogram - Right Leaf forming 'B' pages */}
+        <path
+          d="M 55 28 C 65 28 73 34 73 43 C 73 48 69 50 63 50 C 70 50 75 55 75 62 C 75 70 65 72 55 72 L 55 28 Z M 62 36 L 55 36 L 55 45 L 62 45 C 66 45 68 43 68 40.5 C 68 38 66 36 62 36 Z M 63 55 L 55 55 L 55 64 L 63 64 C 67 64 70 62 70 59.5 C 70 57 67 55 63 55 Z"
+          fill="url(#goldPlate)"
+        />
+
+        {/* Spine line connecting G and B */}
+        <path
+          d="M 50 20 L 50 80"
+          stroke="url(#neonGold)"
           strokeWidth="2.5"
           strokeLinecap="round"
-          fill="none"
-          opacity="0.85"
+          opacity="0.75"
         />
 
-        {/* The Left Page of the GoldBook (Curved geometric golden leaf) */}
-        <path
-          d="M47 28C33 28 22 36 22 49C22 62 33 69 47 69V64C36 64 27 58 27 49C27 40 36 33 47 33V28Z"
-          fill="url(#goldPlateGrad)"
-        />
-
-        {/* The Right Page of the GoldBook (Curved geometric golden leaf) */}
-        <path
-          d="M53 28V33C64 33 73 40 73 49C73 58 64 64 53 64V69C67 69 78 62 78 49C78 36 67 28 53 28Z"
-          fill="url(#goldPlateGrad)"
-        />
-
-        {/* Book Spine (Elegant central glowing golden pillar) */}
-        <rect
-          x="48.5"
-          y="25"
-          width="3"
-          height="45"
-          rx="1.5"
-          fill="url(#neonGoldGrad)"
-          opacity="0.9"
-        />
-
-        {/* Ascending Chart Bars (Volume/Price candles integrated inside the book structure) */}
-        {/* Left page bars */}
-        <rect x="31" y="47" width="4" height="12" rx="2" fill="url(#goldPlateGrad)" opacity="0.75" />
-        <rect x="38" y="40" width="4" height="18" rx="2" fill="url(#goldPlateGrad)" opacity="0.85" />
-        
-        {/* Right page bars */}
-        <rect x="58" y="38" width="4" height="20" rx="2" fill="url(#goldPlateGrad)" opacity="0.85" />
-        <rect x="65" y="30" width="4" height="26" rx="2" fill="url(#goldPlateGrad)" opacity="0.95" />
-
-        {/* Glowing Breakout Trend Line (Threads through the spine and shoots out of the circle) */}
-        <path
-          d="M26 55 L40 43 L52 49 L76 21 L85 21"
-          stroke="#FFFFFF"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          filter="url(#vectorGlow)"
-        />
-
-        {/* Floating growth node (The ultimate trade peak) */}
+        {/* A beautiful, elegant glowing star node at the top intersection (The edge node) */}
         <circle
-          cx="85"
-          cy="21"
-          r="4.5"
+          cx="50"
+          cy="20"
+          r="3"
           fill="#FFFFFF"
-          filter="url(#vectorGlow)"
+          filter="url(#premiumGlow)"
         />
-
-        {/* Compass Calibration Markings at the base for premium financial design feel */}
-        <path
-          d="M 38 78 L 62 78"
-          stroke="url(#goldPlateGrad)"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          opacity="0.5"
-        />
-        <circle cx="50" cy="78" r="2.5" fill="url(#neonGoldGrad)" opacity="0.8" />
       </g>
     </svg>
   )

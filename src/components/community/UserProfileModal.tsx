@@ -99,8 +99,12 @@ export function UserProfileModal({ userId, currentUserId, onClose, onMessage }: 
           <div className="px-6 pb-6 relative">
             {/* Avatar */}
             <div className="absolute -top-12 left-6 w-24 h-24 rounded-2xl bg-[#12121a] p-1.5">
-              <div className="w-full h-full rounded-xl bg-primary/20 flex items-center justify-center text-3xl font-black text-primary border border-primary/30">
-                {profile?.display_name?.charAt(0).toUpperCase() || profile?.username?.charAt(0).toUpperCase()}
+              <div className="w-full h-full rounded-xl overflow-hidden border border-primary/30 flex items-center justify-center text-3xl font-black text-primary bg-primary/20">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+                ) : (
+                  profile?.display_name?.charAt(0).toUpperCase() || profile?.username?.charAt(0).toUpperCase()
+                )}
               </div>
             </div>
 

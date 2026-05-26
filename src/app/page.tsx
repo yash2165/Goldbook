@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Lenis from 'lenis'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   ArrowRight, Bot, Shield, Zap, BarChart2, BookOpen, Activity, 
@@ -30,6 +31,29 @@ export default function LandingPage() {
   const [analyticsTab, setAnalyticsTab] = useState<'equity' | 'calendar' | 'stats'>('equity')
   const [aiTab, setAiTab] = useState<'bias' | 'emotions'>('bias')
   const [selectedDay, setSelectedDay] = useState<number>(21)
+
+  // Initialize Lenis smooth scroll
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+      wheelMultiplier: 1,
+      touchMultiplier: 1.5,
+      infinite: false,
+    })
+
+    function raf(time: number) {
+      lenis.raf(time)
+      requestAnimationFrame(raf)
+    }
+
+    requestAnimationFrame(raf)
+
+    return () => {
+      lenis.destroy()
+    }
+  }, [])
 
   const mockCalendarDays = [
     { day: 10, profit: 450, win: true },
@@ -80,7 +104,7 @@ export default function LandingPage() {
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-xs uppercase tracking-widest font-bold text-white/50">
-            <a href="#telemetry" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">Telemetry</a>
+            <a href="#sync-feed" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">Live Sync</a>
             <a href="#ai-coach" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">AI Coaching</a>
             <a href="#discipline" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">Discipline</a>
             <a href="#analytics" className="hover:text-[#D4AF37] hover:tracking-[0.12em] transition-all">Analytics</a>
@@ -115,7 +139,7 @@ export default function LandingPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#D4AF37] opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#D4AF37]" />
               </span>
-              Real-Time MT5 Telemetry & AI Behavioral Assessment
+              Automated MT5 Journaling & Trading Psychology Coach
             </div>
           </ScrollReveal>
 
@@ -131,22 +155,22 @@ export default function LandingPage() {
 
           <ScrollReveal delay={0.35}>
             <p className="text-base sm:text-lg text-[#94A3B8] max-w-3xl mx-auto leading-relaxed font-semibold">
-              Connect MT5 instantly. Stream trade telemetry. Let Nirikshan AI dissect your psychology, block revenge trading, and enforce concrete discipline metrics.
+              Sync your MT5 account instantly. Log trades automatically. Let our psychology coach identify your blind spots, block revenge trading, and keep you disciplined.
             </p>
           </ScrollReveal>
 
           {/* Pill Shaped CTA with magnetic shimmer sweep */}
           <ScrollReveal delay={0.5} className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Link href="/auth">
-              <MagneticButton className="group relative px-8 py-3.5 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:from-[#FFD700] hover:to-[#D4AF37] text-black font-black text-xs uppercase tracking-widest rounded-full transition-all hover:scale-105 shadow-[0_5px_25px_rgba(212,175,55,0.2)] cursor-pointer">
+              <MagneticButton className="group relative px-8 py-3.5 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:from-[#FFD700] hover:to-[#D4AF37] text-black font-black text-xs uppercase tracking-widest rounded-full transition-all hover:scale-105 shadow-[0_5px_25px_rgba(212,175,55,0.2)] cursor-pointer overflow-hidden">
                 <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
                 <span className="relative z-10 flex items-center gap-3">
                   Initialize Connection
-                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </span>
               </MagneticButton>
             </Link>
-            <a href="#telemetry" className="px-7 py-3.5 text-[#94A3B8] hover:text-white text-xs font-black uppercase tracking-widest transition-colors flex items-center gap-2 group border border-white/5 hover:border-white/20 rounded-full bg-white/[0.02]">
+            <a href="#sync-feed" className="px-7 py-3.5 text-[#94A3B8] hover:text-white text-xs font-black uppercase tracking-widest transition-colors flex items-center gap-2 group border border-white/5 hover:border-white/20 rounded-full bg-white/[0.02]">
               <Activity className="w-4 h-4 group-hover:text-[#D4AF37] animate-pulse" /> Explore Features
             </a>
           </ScrollReveal>
@@ -196,11 +220,11 @@ export default function LandingPage() {
                   <div className="flex justify-between items-center">
                     <div>
                       <h3 className="text-sm uppercase font-black tracking-widest text-white">Console Overview</h3>
-                      <p className="text-[#64748B] text-[10px] font-mono">Live Telemetry Link established via MT5.</p>
+                      <p className="text-[#64748B] text-[10px] font-mono">Live Sync Connection established with MT5.</p>
                     </div>
                     <div className="flex items-center gap-2 text-[9px] font-black uppercase bg-[#00D4AA]/8 text-[#00D4AA] px-3 py-1.5 rounded-full border border-[#00D4AA]/15">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA] animate-pulse" />
-                      MT5_CONNECTED
+                      SYNC_CONNECTED
                     </div>
                   </div>
 
@@ -222,7 +246,7 @@ export default function LandingPage() {
                   {/* Live Trade Ticker Widget inside the Hero Terminal */}
                   <div className="bg-[#050508]/80 border border-[#00D4AA]/12 rounded-xl p-4 transform translateZ(0)">
                     <div className="flex justify-between items-center mb-3">
-                      <p className="text-[9px] text-[#00D4AA] uppercase tracking-widest font-black">Active Telemetry Stream</p>
+                      <p className="text-[9px] text-[#00D4AA] uppercase tracking-widest font-black">Live Sync Stream</p>
                       <span className="text-[9px] font-mono text-[#64748B] bg-white/5 px-2 py-0.5 rounded">Latency: 14ms</span>
                     </div>
                     <div className="space-y-2">
@@ -279,10 +303,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 2: Live Telemetry — "The Stream" */}
-      <section id="telemetry" className="relative py-36 overflow-hidden border-b border-[#00D4AA]/8">
-        {/* Subtle Horizontal Scanline & Dark Texture Background */}
+      {/* SECTION 2: Live MT5 Trade Stream */}
+      <section id="sync-feed" className="relative py-36 overflow-hidden border-b border-[#00D4AA]/8">
+        {/* Sleek golden-accented grid mesh backing & radial gold glow */}
         <div className="absolute inset-0 bg-[#050508] pointer-events-none -z-20" />
+        <div className="absolute top-1/4 left-1/4 w-[40vw] h-[40vw] bg-[radial-gradient(circle,rgba(0,212,170,0.045)_0%,transparent_70%)] pointer-events-none -z-10 blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-[35vw] h-[35vw] bg-[radial-gradient(circle,rgba(212,175,55,0.035)_0%,transparent_70%)] pointer-events-none -z-10 blur-3xl" />
         <div 
           className="absolute inset-0 pointer-events-none -z-10 opacity-[0.03]" 
           style={{ 
@@ -300,9 +326,9 @@ export default function LandingPage() {
             </ScrollReveal>
             <ScrollReveal direction="left" delay={0.2}>
               <h2 className="text-3xl sm:text-5xl font-black tracking-tight uppercase leading-none text-white">
-                Zero Manual Entry. <br />
+                Zero Manual Logging. <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D4AA] to-[#008066]">
-                  Immediate Telemetry.
+                  Automatic Syncing.
                 </span>
               </h2>
             </ScrollReveal>
@@ -347,7 +373,7 @@ export default function LandingPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA] animate-pulse" />
                   LIVE STREAMING
                 </div>
-                <h3 className="text-[10px] uppercase font-black text-white tracking-widest mb-1">MT5 Telemetry Feed</h3>
+                <h3 className="text-[10px] uppercase font-black text-white tracking-widest mb-1">Live MT5 Trade Stream</h3>
                 <p className="text-[#64748B] text-[9px] font-mono mb-4">Simulating ticking prices from your MT5 terminal.</p>
 
                 <div className="space-y-3">
@@ -403,8 +429,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 3: Nirikshan AI — "The Cognitive Shield" */}
+      {/* SECTION 3: Trading Psychology Coach */}
       <section id="ai-coach" className="relative py-36 overflow-hidden border-b border-[#D4AF37]/8">
+        {/* Ambient glow container to break the dark void */}
+        <div className="absolute inset-0 bg-[#050508] pointer-events-none -z-20" />
+        <div className="absolute top-1/3 right-1/4 w-[45vw] h-[45vw] bg-[radial-gradient(circle,rgba(212,175,55,0.045)_0%,transparent_75%)] pointer-events-none -z-10 blur-3xl" />
+        <div className="absolute bottom-1/4 left-1/3 w-[35vw] h-[35vw] bg-[radial-gradient(circle,rgba(0,212,170,0.025)_0%,transparent_70%)] pointer-events-none -z-10 blur-3xl" />
+
         <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row-reverse items-center gap-16">
           
           {/* Left side text */}
@@ -416,15 +447,15 @@ export default function LandingPage() {
             </ScrollReveal>
             <ScrollReveal direction="right" delay={0.2}>
               <h2 className="text-3xl sm:text-5xl font-black tracking-tight uppercase leading-none text-white">
-                Nirikshan AI. <br />
+                Psychology Coach. <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#B8860B]">
-                  Your Cognitive Shield.
+                  Your Behavioral Edge.
                 </span>
               </h2>
             </ScrollReveal>
             <ScrollReveal direction="right" delay={0.3}>
               <p className="text-[#94A3B8] leading-relaxed text-xs sm:text-sm font-medium">
-                Most traders don't lack strategies—they lack emotional discipline. Nirikshan AI is a cognitive trading model trained to recognize revenge trading cycles, FOMO entry signals, greed holds, and exhaustion. It grades your execution quality on every execution, delivering behavioral diagnostics when you need them.
+                Most traders don't lack edge in strategy—they lack emotional control. Our built-in trading psychology coach is trained to recognize revenge trading patterns, FOMO entries, greed holds, and mental exhaustion. It grades your execution quality on every trade, delivering actionable behavioral feedback to keep you in peak performance.
               </p>
             </ScrollReveal>
 
@@ -449,7 +480,7 @@ export default function LandingPage() {
             <ScrollReveal direction="right" delay={0.65} className="pt-2">
               <Link href="/auth">
                 <button className="flex items-center gap-2 text-[10px] font-black text-[#D4AF37] uppercase tracking-widest hover:text-white transition-colors cursor-pointer group">
-                  Consult Nirikshan AI <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
+                  Consult Psychology Coach <ArrowRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               </Link>
             </ScrollReveal>
@@ -581,10 +612,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 4: Discipline Safeguards — "The Framework" */}
+      {/* SECTION 4: Discipline Safeguards */}
       <section id="discipline" className="relative py-36 overflow-hidden border-b border-[#00D4AA]/8">
-        {/* Scroll blueprint grid background */}
+        {/* High-fidelity blueprints grid mesh & radial glows */}
         <div className="absolute inset-0 bg-[#050508] pointer-events-none -z-20" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55vw] h-[55vw] bg-[radial-gradient(circle,rgba(0,212,170,0.03)_0%,rgba(212,175,55,0.02)_40%,transparent_75%)] pointer-events-none -z-10 blur-3xl" />
         <div 
           className="absolute inset-0 pointer-events-none -z-10 opacity-[0.03] transition-opacity duration-1000"
           style={{
@@ -704,8 +736,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 5: Visual Analytics — "The Edge" */}
+      {/* SECTION 5: Visual Analytics */}
       <section id="analytics" className="relative py-36 overflow-hidden border-b border-[#D4AF37]/8">
+        {/* Premium ambient glow background to prevent pitch-black scrolls */}
+        <div className="absolute inset-0 bg-[#050508] pointer-events-none -z-20" />
+        <div className="absolute top-1/3 left-1/4 w-[45vw] h-[45vw] bg-[radial-gradient(circle,rgba(212,175,55,0.03)_0%,rgba(0,212,170,0.02)_50%,transparent_80%)] pointer-events-none -z-10 blur-3xl" />
+
         <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row-reverse items-center gap-16">
           {/* Left/Right Text copy */}
           <div className="flex-1 space-y-6">
@@ -972,13 +1008,13 @@ export default function LandingPage() {
           
           <ScrollReveal direction="up" delay={0.25}>
             <p className="text-[#94A3B8] text-base max-w-xl mx-auto font-semibold">
-              Join the cohort of institutional-minded retail traders tracking emotion, executing with discipline, and streaming verified telemetry.
+              Join the community of systematic retail traders tracking emotion, executing with discipline, and streaming verified trade logs.
             </p>
           </ScrollReveal>
 
           <ScrollReveal direction="up" delay={0.4} className="flex justify-center">
             <Link href="/auth">
-              <MagneticButton className="group relative px-9 py-4 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:from-[#FFD700] hover:to-[#D4AF37] text-black font-black uppercase tracking-widest text-xs rounded-full transition-transform hover:scale-105 shadow-[0_0_30px_rgba(212,175,55,0.25)] cursor-pointer">
+              <MagneticButton className="group relative px-9 py-4 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:from-[#FFD700] hover:to-[#D4AF37] text-black font-black uppercase tracking-widest text-xs rounded-full transition-transform hover:scale-105 shadow-[0_0_30px_rgba(212,175,55,0.25)] cursor-pointer overflow-hidden">
                 <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
                 <span className="relative z-10 flex items-center gap-2">
                   Enter The Terminal <ChevronRight className="w-4 h-4" />

@@ -154,6 +154,30 @@ void RunSync()
 }
 
 //+------------------------------------------------------------------+
+//| Helper to fetch the very first deposit from closed deal history |
+//+------------------------------------------------------------------+
+double GetInitialDeposit()
+{
+   if(!HistorySelect(0, TimeCurrent())) return 0.0;
+   int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      ulong t = HistoryDealGetTicket(i);
+      if(!t) continue;
+      long type = HistoryDealGetInteger(t, DEAL_TYPE);
+      if(type == DEAL_TYPE_BALANCE)
+      {
+         double profit = HistoryDealGetDouble(t, DEAL_PROFIT);
+         if(profit > 0)
+         {
+            return profit; // The first positive balance operation is the initial deposit!
+         }
+      }
+   }
+   return 0.0;
+}
+
+//+------------------------------------------------------------------+
 //| 1. Account balance & equity                                      |
 //+------------------------------------------------------------------+
 string GetBalanceJson()
@@ -169,7 +193,8 @@ string GetBalanceJson()
         "\"login\":%d,"
         "\"server\":\"%s\","
         "\"currency\":\"%s\","
-        "\"name\":\"%s\""
+        "\"name\":\"%s\","
+        "\"initial_deposit\":%.2f"
       "}",
       g_sync_token,
       AccountInfoDouble(ACCOUNT_BALANCE),
@@ -179,7 +204,8 @@ string GetBalanceJson()
       AccountInfoInteger(ACCOUNT_LOGIN),
       AccountInfoString(ACCOUNT_SERVER),
       AccountInfoString(ACCOUNT_CURRENCY),
-      AccountInfoString(ACCOUNT_NAME)
+      AccountInfoString(ACCOUNT_NAME),
+      GetInitialDeposit()
    );
 }
 

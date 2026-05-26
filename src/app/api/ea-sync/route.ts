@@ -54,10 +54,18 @@ export async function POST(req: Request) {
 
   // ── Account balance ──────────────────────────────────────────────────────
   if (type === 'account') {
-    const { balance, equity, margin, free_margin } = body
+    const { balance, equity, margin, free_margin, initial_deposit } = body
 
-    // Only set initial_balance on the very first successful sync (or if it is 0)
-    const extra = (account.initial_balance == null || account.initial_balance === 0) ? { initial_balance: balance } : {}
+    // Use initial_deposit from MT5 if available (representing first deposit deal),
+    // otherwise default to current balance on first sync
+    const mt5InitialDeposit = typeof initial_deposit === 'number' && initial_deposit > 0 ? initial_deposit : null
+
+    const extra: any = {}
+    if (mt5InitialDeposit !== null) {
+      extra.initial_balance = mt5InitialDeposit
+    } else if (account.initial_balance == null || account.initial_balance === 0) {
+      extra.initial_balance = balance
+    }
 
     const { error } = await supabase
       .from('mt5_accounts')

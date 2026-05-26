@@ -236,9 +236,15 @@ export function TopBar() {
         <div className="relative ml-2" ref={profileRef}>
           <button 
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-sm font-bold text-primary transition-transform hover:scale-105"
+            className="w-8 h-8 rounded-full overflow-hidden border border-white/10 flex items-center justify-center text-sm font-bold text-primary transition-transform hover:scale-105"
           >
-            {profile?.username?.charAt(0).toUpperCase() || profile?.display_name?.charAt(0).toUpperCase() || profile?.email?.charAt(0).toUpperCase() || '?'}
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span className="w-full h-full flex items-center justify-center bg-primary/20 text-primary">
+                {profile?.username?.charAt(0).toUpperCase() || profile?.display_name?.charAt(0).toUpperCase() || profile?.email?.charAt(0).toUpperCase() || '?'}
+              </span>
+            )}
           </button>
           
           {isProfileOpen && (
