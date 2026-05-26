@@ -8,13 +8,13 @@ import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { InteractiveBackground } from '@/components/InteractiveBackground'
-import FloatingLines from '@/components/FloatingLines'
+import dynamic from 'next/dynamic'
 import GoldBookLogo from '@/components/GoldBookLogo'
 
-const STATIC_LINES_GRADIENT = ['#FFD700', '#F59E0B', '#B8860B', '#996515']
-const STATIC_ENABLED_WAVES: ('top' | 'middle' | 'bottom')[] = ['top', 'bottom', 'middle']
-const STATIC_LINE_DISTANCE = [6, 5, 4]
+const ParticleBackground = dynamic(
+  () => import('@/components/obsidian/ParticleBackground').then(mod => mod.ParticleBackground),
+  { ssr: false }
+)
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true)
@@ -129,22 +129,9 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-transparent text-[#F1F5F9] p-4 relative overflow-hidden font-sans isolate">
-      {/* Cinematic Glowing Backdrop */}
-      <InteractiveBackground />
-
-      {/* Dynamic Animated Line Waves Backdrop */}
-      <div className="fixed inset-0 pointer-events-none h-screen w-screen opacity-40" style={{ zIndex: 1 }}>
-        <FloatingLines
-          linesGradient={STATIC_LINES_GRADIENT}
-          enabledWaves={STATIC_ENABLED_WAVES}
-          lineCount={10}
-          lineDistance={STATIC_LINE_DISTANCE}
-          bendRadius={7.0}
-          bendStrength={-0.35}
-          interactive={true}
-          parallax={true}
-          animationSpeed={1.2}
-        />
+      {/* Landing Page Background (Obsidian + Three.js Interactive Particles) */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[#050508]">
+        <ParticleBackground density={1200} />
       </div>
 
       {/* Floating Lights */}
