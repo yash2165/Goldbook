@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import nodemailer from 'nodemailer'
+import { sendOtpEmail } from '@/lib/email'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_APP_PASS,
-  },
-})
 
 export async function POST(req: Request) {
   try {
@@ -28,8 +20,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Registration is restricted to verified Gmail addresses only.' }, { status: 400 })
     }
 
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASS) {
-      console.error('Email credentials missing from env variables')
+    if (!process.env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY is missing from environment variables')
       return NextResponse.json({ error: 'Mail server configuration missing' }, { status: 500 })
     }
 
@@ -57,7 +49,7 @@ export async function POST(req: Request) {
     const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: false, // Must verify OTP to confirm email and login
+      email_confirm: false,
       user_metadata: {
         full_name: name,
         display_name: name,
@@ -79,39 +71,18 @@ export async function POST(req: Request) {
     }, { onConflict: 'id' })
 
     if (profileError) {
-      // Rollback auth user if profile database entry fails
       await supabaseAdmin.auth.admin.deleteUser(userData.user.id)
       return NextResponse.json({ error: 'Profile setup failed: ' + profileError.message }, { status: 500 })
     }
 
-    // 6. Dispatch OTP email via Nodemailer & Gmail SMTP
-    const mailOptions = {
-      from: `"GoldBook" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'Verify your GoldBook trading account',
-      text: `Hi ${name},\n\nYour 6-digit verification code is: ${otpCode}\n\nThis code will expire in 15 minutes.\n\nThanks,\nGoldBook Team`,
-      html: `
-        <div style="font-family: sans-serif; font-size: 16px; color: #1e293b; max-width: 500px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <h2 style="color: #F59E0B; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 1px;">GOLDBOOK</h2>
-            <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; font-weight: bold;">Secure Trading Console</p>
-          </div>
-          <p>Hi <strong>${name}</strong>,</p>
-          <p>Please use the following 6-digit verification code to activate your trading terminal and start syncing your MT5 accounts:</p>
-          <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
-            <span style="font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #F59E0B; font-family: monospace;">${otpCode}</span>
-          </div>
-          <p style="font-size: 13px; color: #64748B;">This code is valid for <strong>15 minutes</strong>. If you did not request this code, please ignore this email.</p>
-          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
-          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Thanks,<br><strong>GoldBook Team</strong></p>
-        </div>
-      `,
-    }
-
+    // 6. Dispatch OTP email via Resend
     try {
-      await transporter.sendMail(mailOptions)
+      const { error: emailError } = await sendOtpEmail(email, name, otpCode)
+      if (emailError) {
+        throw new Error((emailError as any).message ?? 'Unknown Resend error')
+      }
     } catch (emailError: any) {
-      console.error('NODEMAILER GMAIL ERROR:', emailError)
+      console.error('RESEND EMAIL ERROR:', emailError)
       // Rollback user creation if email transmission fails
       await supabaseAdmin.auth.admin.deleteUser(userData.user.id)
       return NextResponse.json({ error: `Failed to send verification email: ${emailError.message}` }, { status: 500 })

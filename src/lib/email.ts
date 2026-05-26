@@ -109,3 +109,27 @@ export async function sendHighImpactNewsAlert(to: string, name: string, events: 
     `,
   })
 }
+
+export async function sendOtpEmail(to: string, name: string, otpCode: string) {
+  return resend.emails.send({
+    from: 'GoldBook <noreply@goldbook.app>',
+    to,
+    subject: 'Verify your GoldBook trading account',
+    html: `
+      <div style="font-family: sans-serif; font-size: 16px; color: #1e293b; max-width: 500px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background: #0A0A0F; color: #F1F5F9;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #FFD700; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 1px;">GOLDBOOK</h2>
+          <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; font-weight: bold;">Secure Trading Console</p>
+        </div>
+        <p>Hi <strong>${name}</strong>,</p>
+        <p>Please use the following 6-digit verification code to activate your trading terminal and start syncing your MT5 accounts:</p>
+        <div style="background-color: #12121A; border: 1px dashed rgba(255,255,255,0.1); border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
+          <span style="font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #FFD700; font-family: monospace;">${otpCode}</span>
+        </div>
+        <p style="font-size: 13px; color: #64748B;">This code is valid for <strong>15 minutes</strong>. If you did not request this code, please ignore this email.</p>
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 24px 0;">
+        <p style="font-size: 12px; color: #94a3b8; text-align: center;">Thanks,<br><strong>GoldBook Team</strong></p>
+      </div>
+    `,
+  })
+}
