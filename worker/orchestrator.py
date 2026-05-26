@@ -327,13 +327,8 @@ def prepare_data_dir(acc: dict, acc_wineprefix: Path) -> Path:
     data_dir = acc_wineprefix / "drive_c" / "mt5data" / str(acc["id"])
     global_install_dir = global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
 
-    terminal_path = find_file_case_insensitive(data_dir, "terminal64.exe")
-    if not terminal_path.exists():
-        terminal_path = find_file_case_insensitive(data_dir, "terminal.exe")
-
-    if not terminal_path.exists() and global_install_dir.exists():
-        log.info(f"[{acc['mt5_login']}] Replicating MT5 installation to isolated directory: {data_dir}")
-        shutil.copytree(global_install_dir, data_dir, dirs_exist_ok=True)
+    # No replication of executables inside data_dir to prevent JIT path-mapping crashes in Hangover/FEX.
+    # The global MT5 executable inside /Program Files/MetaTrader 5 will be launched directly.
 
     delete_examples_dirs(data_dir)
 
@@ -503,12 +498,13 @@ def provision_terminal(acc: dict) -> subprocess.Popen | None:
     env["HOME"] = os.environ.get("HOME", str(Path.home()))
     env["USER"] = os.environ.get("USER", "ubuntu")
 
-    terminal_path = find_file_case_insensitive(data_dir, "terminal64.exe")
+    # Target the global MT5 installation binary directly to prevent emulator JIT deadlocks
+    terminal_path = find_file_case_insensitive(global_install_dir, "terminal64.exe")
     if not terminal_path.exists():
-        terminal_path = find_file_case_insensitive(data_dir, "terminal.exe")
+        terminal_path = find_file_case_insensitive(global_install_dir, "terminal.exe")
 
     if not terminal_path.exists():
-        log.error(f"[{login}] MT5 terminal executable not found in isolated directory: {data_dir}")
+        log.error(f"[{login}] Global MT5 terminal executable not found: {global_install_dir}")
         return None
 
     cmd = [
