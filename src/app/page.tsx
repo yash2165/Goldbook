@@ -117,7 +117,7 @@ export default function LandingPage() {
             </Link>
             <Link href="/auth">
               <MagneticButton className="relative group px-5 py-2 border border-[#D4AF37]/30 hover:border-[#D4AF37]/80 bg-gradient-to-b from-white/5 to-transparent text-white font-extrabold text-[10px] uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(212,175,55,0.05)] cursor-pointer overflow-hidden">
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#D4AF37]/15 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#D4AF37]/15 to-transparent -translate-x-full opacity-0 group-hover:opacity-100 group-hover:animate-shimmer transition-opacity duration-300 pointer-events-none" />
                 <span className="relative z-10 flex items-center gap-2">
                   Launch Terminal <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </span>
@@ -163,7 +163,7 @@ export default function LandingPage() {
           <ScrollReveal delay={0.5} className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Link href="/auth">
               <MagneticButton className="group relative px-8 py-3.5 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:from-[#FFD700] hover:to-[#D4AF37] text-black font-black text-xs uppercase tracking-widest rounded-full transition-all hover:scale-105 shadow-[0_5px_25px_rgba(212,175,55,0.2)] cursor-pointer overflow-hidden">
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full opacity-0 group-hover:opacity-100 group-hover:animate-shimmer transition-opacity duration-300 pointer-events-none" />
                 <span className="relative z-10 flex items-center gap-3">
                   Initialize Connection
                   <ChevronRight className="w-4 h-4 group-hover:translate-x-1.5 transition-transform" />
@@ -1015,7 +1015,7 @@ export default function LandingPage() {
           <ScrollReveal direction="up" delay={0.4} className="flex justify-center">
             <Link href="/auth">
               <MagneticButton className="group relative px-9 py-4 bg-gradient-to-b from-[#D4AF37] to-[#B8860B] hover:from-[#FFD700] hover:to-[#D4AF37] text-black font-black uppercase tracking-widest text-xs rounded-full transition-transform hover:scale-105 shadow-[0_0_30px_rgba(212,175,55,0.25)] cursor-pointer overflow-hidden">
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none" />
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full opacity-0 group-hover:opacity-100 group-hover:animate-shimmer transition-opacity duration-300 pointer-events-none" />
                 <span className="relative z-10 flex items-center gap-2">
                   Enter The Terminal <ChevronRight className="w-4 h-4" />
                 </span>
