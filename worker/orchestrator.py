@@ -523,7 +523,7 @@ def provision_terminal(acc: dict) -> subprocess.Popen | None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True, # Allow killing process tree safely
-            cwd=str(data_dir)
+            cwd=str(global_install_dir)
         )
         return proc
     except Exception as e:
