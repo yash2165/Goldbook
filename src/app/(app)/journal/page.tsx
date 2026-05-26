@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect, Suspense, useMemo } from 'react'
+import { useState, useEffect, Suspense, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
 import { getClosedTrades, fmt } from '@/lib/calculations'
 import { format } from 'date-fns'
-import { BookOpen, TrendingUp, TrendingDown, Save, CheckCircle2, Check, ChevronDown, ChevronUp, Camera, Trash2, Loader2 } from 'lucide-react'
+import { BookOpen, TrendingUp, TrendingDown, Save, CheckCircle2, Check, ChevronDown, ChevronUp, Camera, Trash2, Loader2, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import CountUp from 'react-countup'
+import Link from 'next/link'
 
 function PnlBadge({ value }: { value: number }) {
   const isWin = value >= 0
@@ -64,14 +65,16 @@ function TradeJournalCard({
   expanded, 
   onToggle,
   profileChecklist,
-  profileSetups
+  profileSetups,
+  customTemplate
 }: { 
   trade: any, 
   index: number, 
   expanded: boolean, 
   onToggle: () => void,
   profileChecklist: string[],
-  profileSetups: {name: string, description: string}[]
+  profileSetups: {name: string, description: string}[],
+  customTemplate: any | null
 }) {
   const isWin = (trade.net_profit ?? 0) >= 0
   const supabase = createClient()
@@ -84,40 +87,86 @@ function TradeJournalCard({
   const [p3, setP3] = useState('')
   const [p4, setP4] = useState('')
 
+  // Default confirmations section
+  const [confirmations, setConfirmations] = useState<string[]>([])
+  const [confirmationsPool, setConfirmationsPool] = useState<string[]>([
+    'Fib Retracement', 'VWAP Bounds', 'EMA Crossover', 'Support/Resistance Bounce', 'Liquidity Sweep'
+  ])
+  const [newConfirmText, setNewConfirmText] = useState('')
+
+  // Custom template values
+  const [customValues, setCustomValues] = useState<Record<string, any>>({})
+
   const parsedNotes = useMemo(() => {
-    if (!trade.notes) return { p1: '', p2: '', p3: '', p4: '' }
+    if (!trade.notes) return { p1: '', p2: '', p3: '', p4: '', isCustom: false, values: {} }
     try {
       const parsed = JSON.parse(trade.notes)
       if (parsed && typeof parsed === 'object') {
+        if (parsed.isCustom) {
+          return {
+            p1: '', p2: '', p3: '', p4: '',
+            isCustom: true,
+            values: parsed.values || {}
+          }
+        }
         return {
           p1: parsed.p1 || '',
           p2: parsed.p2 || '',
           p3: parsed.p3 || '',
-          p4: parsed.p4 || ''
+          p4: parsed.p4 || '',
+          confirmations: parsed.confirmations || [],
+          isCustom: false,
+          values: {}
         }
       }
     } catch (e) {
-      return { p1: trade.notes, p2: '', p3: '', p4: '' }
+      return { p1: trade.notes, p2: '', p3: '', p4: '', isCustom: false, values: {} }
     }
-    return { p1: '', p2: '', p3: '', p4: '' }
+    return { p1: '', p2: '', p3: '', p4: '', isCustom: false, values: {} }
   }, [trade.notes])
 
   useEffect(() => {
-    setP1(parsedNotes.p1)
-    setP2(parsedNotes.p2)
-    setP3(parsedNotes.p3)
-    setP4(parsedNotes.p4)
+    if (parsedNotes.isCustom) {
+      setCustomValues(parsedNotes.values || {})
+    } else {
+      setP1(parsedNotes.p1 || '')
+      setP2(parsedNotes.p2 || '')
+      setP3(parsedNotes.p3 || '')
+      setP4(parsedNotes.p4 || '')
+      setConfirmations(parsedNotes.confirmations || [])
+      
+      // Merge unique confirmations from DB into pool
+      if (parsedNotes.confirmations && parsedNotes.confirmations.length > 0) {
+        setConfirmationsPool(prev => {
+          const combined = [...prev]
+          parsedNotes.confirmations.forEach((c: string) => {
+            if (!combined.includes(c)) combined.push(c)
+          })
+          return combined
+        })
+      }
+    }
   }, [parsedNotes])
 
   const answeredCount = useMemo(() => {
+    if (parsedNotes.isCustom) {
+      return Object.values(customValues).filter(val => {
+        if (Array.isArray(val)) return val.length > 0
+        if (typeof val === 'string') return val.trim().length > 0
+        return val !== undefined && val !== null
+      }).length
+    }
     return [p1, p2, p3, p4].filter(p => p.trim().length > 0).length
-  }, [p1, p2, p3, p4])
+  }, [p1, p2, p3, p4, parsedNotes.isCustom, customValues])
 
   const isUnjournaled = useMemo(() => {
     if (!trade.notes) return true
     try {
       const parsed = JSON.parse(trade.notes)
       if (parsed && typeof parsed === 'object') {
+        if (parsed.isCustom) {
+          return Object.keys(parsed.values || {}).length === 0
+        }
         return !(parsed.p1?.trim() || parsed.p2?.trim() || parsed.p3?.trim() || parsed.p4?.trim())
       }
     } catch (e) {
@@ -203,7 +252,12 @@ function TradeJournalCard({
   const saveJournal = async (e: React.MouseEvent) => {
     e.stopPropagation()
     setSaving(true)
-    const notesJsonString = JSON.stringify({ p1, p2, p3, p4 })
+    
+    // Save template values or standard prompts based on choice
+    const notesJsonString = customTemplate
+      ? JSON.stringify({ isCustom: true, values: customValues })
+      : JSON.stringify({ p1, p2, p3, p4, confirmations })
+
     await supabase.from('trades').update({
       notes: notesJsonString, 
       setup_tag: setupTag, 
@@ -215,6 +269,259 @@ function TradeJournalCard({
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const addConfirmToPool = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (newConfirmText.trim() && !confirmationsPool.includes(newConfirmText.trim())) {
+      setConfirmationsPool(prev => [...prev, newConfirmText.trim()])
+      setNewConfirmText('')
+    }
+  }
+
+  // Render custom blocks helper
+  const renderCustomBlock = (block: any) => {
+    if (block.type === 'header') {
+      return (
+        <div key={block.id} className="pt-2 border-b border-white/5 pb-1">
+          <h4 className="text-xs font-black text-slate-100 uppercase tracking-wider text-primary">{block.label}</h4>
+        </div>
+      )
+    }
+
+    if (block.type === 'paragraph') {
+      const val = customValues[block.id] || ''
+      return (
+        <div key={block.id} className="space-y-1">
+          <label className="text-[10px] text-[#94A3B8] font-bold block leading-tight">{block.label}</label>
+          <textarea
+            value={val}
+            onChange={e => setCustomValues(prev => ({ ...prev, [block.id]: e.target.value }))}
+            placeholder={block.placeholder || "Enter notes..."}
+            rows={3}
+            className="w-full bg-[#0D1421] border border-[#1A1A2E] focus:border-primary/45 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none transition-all resize-none leading-relaxed"
+          />
+        </div>
+      )
+    }
+
+    if (block.type === 'dropdown') {
+      const val = customValues[block.id] || ''
+      return (
+        <div key={block.id} className="space-y-1">
+          <label className="text-[10px] text-[#94A3B8] font-bold block leading-tight">{block.label}</label>
+          <div className="flex flex-wrap gap-1">
+            {(block.options || []).map((opt: string) => {
+              const isSelected = val === opt
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setCustomValues(prev => ({ ...prev, [block.id]: opt }))}
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all border cursor-pointer",
+                    isSelected
+                      ? "bg-primary border-primary text-black shadow-md shadow-primary/20"
+                      : "bg-[#0D1421] border-[#1A1A2E] text-[#64748B] hover:text-white"
+                  )}
+                >
+                  {opt}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )
+    }
+
+    if (block.type === 'confirmations') {
+      const val = customValues[block.id] || []
+      return (
+        <div key={block.id} className="space-y-1">
+          <label className="text-[10px] text-[#94A3B8] font-bold block leading-tight">{block.label}</label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+            {(block.options || []).map((opt: string) => {
+              const isChecked = val.includes(opt)
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    const newArr = isChecked ? val.filter((v: string) => v !== opt) : [...val, opt]
+                    setCustomValues(prev => ({ ...prev, [block.id]: newArr }))
+                  }}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1.5 border rounded-lg text-[10px] transition-all cursor-pointer",
+                    isChecked
+                      ? "border-primary bg-primary/10 text-white"
+                      : "border-[#1A1A2E] bg-[#0D1421] text-[#64748B] hover:bg-white/5"
+                  )}
+                >
+                  <div className={cn("w-3.5 h-3.5 rounded flex items-center justify-center border shrink-0", isChecked ? "bg-primary border-primary text-black" : "border-white/10 bg-white/5")}>
+                    {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                  </div>
+                  <span className="truncate">{opt}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )
+    }
+
+    if (block.type === 'table') {
+      const val = customValues[block.id] || []
+      const cols = block.columns || []
+      
+      const addRow = () => {
+        const newRow = { id: `row_${Date.now()}` }
+        setCustomValues(prev => ({ ...prev, [block.id]: [...val, newRow] }))
+      }
+
+      const removeRow = (rId: string) => {
+        setCustomValues(prev => ({ ...prev, [block.id]: val.filter((r: any) => r.id !== rId) }))
+      }
+
+      const updateCell = (rId: string, colId: string, cellVal: any) => {
+        setCustomValues(prev => {
+          const rows = val.map((row: any) => row.id === rId ? { ...row, [colId]: cellVal } : row)
+          return { ...prev, [block.id]: rows }
+        })
+      }
+
+      const computeFormula = (col: any) => {
+        if (col.type !== 'number') return null
+        const numbers = val.map((row: any) => Number(row[col.id])).filter((n: any) => !isNaN(n))
+        if (numbers.length === 0) return '-'
+        
+        const lowerLabel = col.label.toLowerCase()
+        const isSum = lowerLabel.includes('pip') || lowerLabel.includes('profit') || lowerLabel.includes('risk') || lowerLabel.includes('loss') || lowerLabel.includes('cash') || lowerLabel.includes('dollar')
+        
+        if (isSum) {
+          const sum = numbers.reduce((a: number, b: number) => a + b, 0)
+          return `Sum: ${sum.toFixed(2)}`
+        } else {
+          const avg = numbers.reduce((a: number, b: number) => a + b, 0) / numbers.length
+          return `Avg: ${avg.toFixed(2)}`
+        }
+      }
+
+      return (
+        <div key={block.id} className="space-y-1.5 pt-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] text-[#94A3B8] font-bold block leading-tight">{block.label}</label>
+            <button
+              type="button"
+              onClick={addRow}
+              className="px-2 py-0.5 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary text-[9px] font-bold rounded transition-all cursor-pointer"
+            >
+              + Add Row
+            </button>
+          </div>
+
+          <div className="overflow-x-auto border border-[#1A1A2E] bg-[#09090E]/60 rounded-xl">
+            <table className="w-full text-[10px] text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[#1A1A2E] bg-white/2 text-[8px] text-[#64748B] uppercase tracking-wider font-bold">
+                  {cols.map((col: any) => (
+                    <th key={col.id} className="py-2 px-2.5">{col.label}</th>
+                  ))}
+                  <th className="py-2 px-2 text-center w-8">Del</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1A1A2E]/50">
+                {val.map((row: any) => (
+                  <tr key={row.id} className="hover:bg-white/[0.01]">
+                    {cols.map((col: any) => {
+                      const cellVal = row[col.id]
+                      
+                      return (
+                        <td key={col.id} className="py-1.5 px-2.5">
+                          {col.type === 'checkbox' && (
+                            <button
+                              type="button"
+                              onClick={() => updateCell(row.id, col.id, !cellVal)}
+                              className={cn(
+                                "w-4 h-4 mx-auto rounded flex items-center justify-center border transition-all cursor-pointer",
+                                cellVal ? "bg-primary border-primary text-black" : "border-white/10 bg-white/5 text-transparent"
+                              )}
+                            >
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </button>
+                          )}
+
+                          {col.type === 'dropdown' && (
+                            <select
+                              value={cellVal || ''}
+                              onChange={e => updateCell(row.id, col.id, e.target.value)}
+                              className="bg-[#0D1421] border border-[#1A1A2E] rounded px-1 py-0.5 text-[9px] text-white focus:outline-none focus:border-primary/50 [color-scheme:dark]"
+                            >
+                              <option value="">...</option>
+                              {(col.options || []).map((o: string) => (
+                                <option key={o} value={o}>{o}</option>
+                              ))}
+                            </select>
+                          )}
+
+                          {col.type === 'text' && (
+                            <input
+                              type="text"
+                              value={cellVal || ''}
+                              onChange={e => updateCell(row.id, col.id, e.target.value)}
+                              className="w-full bg-[#0D1421] border border-[#1A1A2E] rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none focus:border-primary/50"
+                              placeholder="..."
+                            />
+                          )}
+
+                          {col.type === 'number' && (
+                            <input
+                              type="number"
+                              step="any"
+                              value={cellVal === undefined ? '' : cellVal}
+                              onChange={e => updateCell(row.id, col.id, e.target.value === '' ? undefined : Number(e.target.value))}
+                              className="w-16 bg-[#0D1421] border border-[#1A1A2E] rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none focus:border-primary/50 text-right font-mono"
+                              placeholder="0.0"
+                            />
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td className="py-1.5 px-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => removeRow(row.id)}
+                        className="text-[#334155] hover:text-[#EF4444] transition-colors cursor-pointer text-xs"
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {val.length === 0 && (
+                  <tr>
+                    <td colSpan={cols.length + 1} className="py-4 text-center text-[#64748B] italic text-[9px]">
+                      No rows added. Click "+ Add Row" above.
+                    </td>
+                  </tr>
+                )}
+                {val.length > 0 && cols.some((c: any) => c.type === 'number') && (
+                  <tr className="bg-white/[0.01] border-t border-[#1A1A2E] text-[8px] text-[#64748B] font-bold font-mono">
+                    {cols.map((col: any) => (
+                      <td key={col.id} className="py-1.5 px-2.5 text-right">
+                        {computeFormula(col)}
+                      </td>
+                    ))}
+                    <td />
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+    }
+
+    return null
   }
 
   return (
@@ -306,7 +613,7 @@ function TradeJournalCard({
                         onClick={() => setSetupTag(s.name)}
                         title={s.description}
                         className={cn(
-                          'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                          'px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
                           setupTag === s.name ? 'bg-[#F59E0B] text-black shadow-[0_0_10px_rgba(245,159,11,0.3)]' : 'bg-white/5 text-[#64748B] hover:text-white'
                         )}
                       >
@@ -334,7 +641,7 @@ function TradeJournalCard({
                             type="button"
                             onClick={() => setEmotionBefore(em.value)}
                             className={cn(
-                              'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300',
+                              'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer',
                               isSelected
                                 ? em.activeClass
                                 : 'bg-[#0D1421]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
@@ -358,7 +665,7 @@ function TradeJournalCard({
                             type="button"
                             onClick={() => setEmotionAfter(em.value)}
                             className={cn(
-                              'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300',
+                              'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer',
                               isSelected
                                 ? em.activeClass
                                 : 'bg-[#0D1421]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
@@ -383,7 +690,7 @@ function TradeJournalCard({
                         whileTap={{ scale: 0.9 }}
                         onClick={() => setRating(star)}
                         className={cn(
-                          'w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold transition-all',
+                          'w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold transition-all cursor-pointer',
                           rating >= star ? 'bg-[#F59E0B] text-black shadow-[0_0_15px_rgba(245,159,11,0.4)]' : 'bg-[#0D1421] border border-[#1A1A2E] text-[#64748B]'
                         )}
                       >
@@ -416,7 +723,7 @@ function TradeJournalCard({
                         <button
                           type="button"
                           onClick={deleteScreenshot}
-                          className="px-3 py-2 bg-[#EF4444]/10 hover:bg-[#EF4444]/25 border border-[#EF4444]/30 text-[#EF4444] text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all"
+                          className="px-3 py-2 bg-[#EF4444]/10 hover:bg-[#EF4444]/25 border border-[#EF4444]/30 text-[#EF4444] text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
                         >
                           🗑️ Delete Screenshot
                         </button>
@@ -449,7 +756,7 @@ function TradeJournalCard({
                           <button
                             type="button"
                             onClick={() => document.getElementById(`screenshot-input-${trade.id}`)?.click()}
-                            className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-bold uppercase tracking-wider text-white border border-white/10 mt-2 transition-all"
+                            className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-bold uppercase tracking-wider text-white border border-white/10 mt-2 transition-all cursor-pointer"
                           >
                             Select File
                           </button>
@@ -462,50 +769,116 @@ function TradeJournalCard({
 
               {/* Right col */}
               <div className="flex flex-col space-y-6">
-                <div className="flex-1 flex flex-col space-y-4">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                    <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5 text-primary" /> Psychological Prompts
-                    </label>
-                    <span className={cn(
-                      "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest transition-all",
-                      answeredCount === 4 
-                        ? "bg-emerald-500/10 border border-emerald-500/25 text-[#22C55E]" 
-                        : answeredCount > 0 
-                          ? "bg-amber-500/10 border border-amber-500/25 text-[#F59E0B]" 
-                          : "bg-white/5 border border-white/10 text-slate-500"
-                    )}>
-                      {answeredCount}/4 Prompts
-                    </span>
+                
+                {customTemplate ? (
+                  /* RENDER CUSTOM NOTION TEMPLATE */
+                  <div className="flex-1 flex flex-col space-y-5">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                      <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-primary" /> {customTemplate.name || "Custom Journal Template"}
+                      </label>
+                      <span className="text-[9px] px-2.5 py-0.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-black uppercase tracking-widest">
+                        Custom Template Layout
+                      </span>
+                    </div>
+                    <div className="space-y-4">
+                      {customTemplate.blocks?.map((block: any) => renderCustomBlock(block))}
+                    </div>
                   </div>
+                ) : (
+                  /* RENDER DEFAULT JOURNAL TEMPLATE */
+                  <div className="flex-1 flex flex-col space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                      <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-primary" /> Psychological Prompts
+                      </label>
+                      <span className={cn(
+                        "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest transition-all",
+                        answeredCount === 4 
+                          ? "bg-emerald-500/10 border border-emerald-500/25 text-[#22C55E]" 
+                          : answeredCount > 0 
+                            ? "bg-amber-500/10 border border-amber-500/25 text-[#F59E0B]" 
+                            : "bg-white/5 border border-white/10 text-slate-500"
+                      )}>
+                        {answeredCount}/4 Prompts
+                      </span>
+                    </div>
 
-                  <div className="space-y-4">
-                    {[
-                      { key: 'p1', label: 'I entered this trade because...', placeholder: 'Detail your setup triggers, market structure, or checklist alignment...' },
-                      { key: 'p2', label: 'When price moved against me, I felt...', placeholder: 'Identify any urges to move stops, add to losers, or exit early in fear...' },
-                      { key: 'p3', label: 'If I could redo this trade, I would...', placeholder: 'Note any tactical optimization, execution errors, or mental state improvements...' },
-                      { key: 'p4', label: 'This trade proves that I am...', placeholder: 'Extract a pattern-level lesson about your current discipline or risk rules...' }
-                    ].map((p, idx) => {
-                      const val = p.key === 'p1' ? p1 : p.key === 'p2' ? p2 : p.key === 'p3' ? p3 : p4
-                      const setVal = p.key === 'p1' ? setP1 : p.key === 'p2' ? setP2 : p.key === 'p3' ? setP3 : setP4
-                      return (
-                        <div key={p.key} className="space-y-1.5">
-                          <label className="text-[11px] text-[#94A3B8] font-bold block flex items-center gap-1.5 leading-tight">
-                            <span className="text-[9px] w-4 h-4 rounded-full bg-white/5 border border-white/10 text-[#64748B] flex items-center justify-center font-mono shrink-0">{idx + 1}</span>
-                            {p.label}
-                          </label>
-                          <textarea
-                            value={val}
-                            onChange={e => setVal(e.target.value)}
-                            placeholder={p.placeholder}
-                            rows={3}
-                            className="w-full bg-[#0D1421] border border-[#1A1A2E] focus:border-primary/45 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-[#64748B] focus:outline-none transition-colors resize-none leading-relaxed"
+                    <div className="space-y-4">
+                      {[
+                        { key: 'p1', label: 'I entered this trade because...', placeholder: 'Detail your setup triggers, market structure, or checklist alignment...' },
+                        { key: 'p2', label: 'When price moved against me, I felt...', placeholder: 'Identify any urges to move stops, add to losers, or exit early in fear...' },
+                        { key: 'p3', label: 'If I could redo this trade, I would...', placeholder: 'Note any tactical optimization, execution errors, or mental state improvements...' },
+                        { key: 'p4', label: 'This trade proves that I am...', placeholder: 'Extract a pattern-level lesson about your current discipline or risk rules...' }
+                      ].map((p, idx) => {
+                        const val = p.key === 'p1' ? p1 : p.key === 'p2' ? p2 : p.key === 'p3' ? p3 : p4
+                        const setVal = p.key === 'p1' ? setP1 : p.key === 'p2' ? setP2 : p.key === 'p3' ? setP3 : setP4
+                        return (
+                          <div key={p.key} className="space-y-1.5">
+                            <label className="text-[11px] text-[#94A3B8] font-bold block flex items-center gap-1.5 leading-tight">
+                              <span className="text-[9px] w-4 h-4 rounded-full bg-white/5 border border-white/10 text-[#64748B] flex items-center justify-center font-mono shrink-0">{idx + 1}</span>
+                              {p.label}
+                            </label>
+                            <textarea
+                              value={val}
+                              onChange={e => setVal(e.target.value)}
+                              placeholder={p.placeholder}
+                              rows={3}
+                              className="w-full bg-[#0D1421] border border-[#1A1A2E] focus:border-primary/45 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-[#64748B] focus:outline-none transition-colors resize-none leading-relaxed"
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Customizable confirmations in default template */}
+                    <div className="space-y-3 pt-3 border-t border-white/5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Trade Confirmations</label>
+                        <form onSubmit={addConfirmToPool} className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={newConfirmText}
+                            onChange={e => setNewConfirmText(e.target.value)}
+                            placeholder="Add tag..."
+                            className="bg-[#060A12] border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white focus:outline-none placeholder:text-[#334155] w-24"
                           />
-                        </div>
-                      )
-                    })}
+                          <button type="submit" className="px-2 py-1 bg-primary text-black rounded-lg text-[10px] font-bold cursor-pointer">
+                            +
+                          </button>
+                        </form>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {confirmationsPool.map(c => {
+                          const isChecked = confirmations.includes(c)
+                          return (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => {
+                                setConfirmations(prev =>
+                                  prev.includes(c) ? prev.filter(v => v !== c) : [...prev, c]
+                                )
+                              }}
+                              className={cn(
+                                "flex items-center gap-1.5 px-2 py-1.5 border rounded-lg text-[10px] font-bold transition-all cursor-pointer",
+                                isChecked
+                                  ? "border-primary bg-primary/10 text-white"
+                                  : "border-white/5 bg-[#060A12] text-[#64748B] hover:text-white"
+                              )}
+                            >
+                              <div className={cn("w-3.5 h-3.5 rounded flex items-center justify-center border shrink-0", isChecked ? "bg-primary border-primary text-black" : "border-white/10 bg-white/5")}>
+                                {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                              </div>
+                              <span className="truncate">{c}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div>
                   <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Pre-Trade Checklist</label>
@@ -521,7 +894,7 @@ function TradeJournalCard({
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setTradeChecklist(p => ({ ...p, [item]: !p[item] }))}
                             className={cn(
-                              'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm transition-all',
+                              'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm transition-all cursor-pointer',
                               isChecked
                                 ? 'border-[#22C55E]/30 bg-[#22C55E]/10 text-[#F1F5F9]'
                                 : 'border-[#1A1A2E] bg-[#060A12] text-[#64748B] hover:bg-white/5'
@@ -548,7 +921,7 @@ function TradeJournalCard({
                 onClick={saveJournal}
                 disabled={saving}
                 className={cn(
-                  'flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all',
+                  'flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer',
                   saved ? 'bg-[#22C55E] text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-black shadow-lg shadow-[#F59E0B]/20'
                 )}
               >
@@ -571,6 +944,7 @@ function JournalPageContent() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [profileChecklist, setProfileChecklist] = useState<string[]>([])
   const [profileSetups, setProfileSetups] = useState<{name: string, description: string}[]>([])
+  const [profileTemplate, setProfileTemplate] = useState<any | null>(null)
 
   const searchParams = useSearchParams()
   const tradeId = searchParams.get('tradeId')
@@ -597,11 +971,20 @@ function JournalPageContent() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data } = await supabase.from('profiles').select('pre_trade_checklist, trading_setups').eq('id', user.id).single()
+      
+      const { data } = await supabase.from('profiles').select('pre_trade_checklist, trading_setups, custom_journal_template').eq('id', user.id).single()
       if (data?.pre_trade_checklist) setProfileChecklist(data.pre_trade_checklist)
       else setProfileChecklist(['Checked higher timeframe', 'Risk within limits', 'Fits my trading plan', 'Key levels identified'])
       
       if (data?.trading_setups) setProfileSetups(data.trading_setups)
+
+      if (data?.custom_journal_template) setProfileTemplate(data.custom_journal_template)
+      else if (data?.trading_setups && (data.trading_setups as any).__custom_journal_template) {
+        setProfileTemplate((data.trading_setups as any).__custom_journal_template)
+      } else {
+        const local = localStorage.getItem('goldbook_custom_template')
+        if (local) setProfileTemplate(JSON.parse(local))
+      }
     }
     load()
   }, [])
@@ -615,6 +998,9 @@ function JournalPageContent() {
         try {
           const parsed = JSON.parse(t.notes)
           if (parsed && typeof parsed === 'object') {
+            if (parsed.isCustom) {
+              return Object.keys(parsed.values || {}).length === 0
+            }
             isUnj = !(parsed.p1?.trim() || parsed.p2?.trim() || parsed.p3?.trim() || parsed.p4?.trim())
           } else {
             isUnj = !t.notes.trim()
@@ -632,14 +1018,16 @@ function JournalPageContent() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto min-h-screen">
+      
+      {/* Dynamic Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-8"
+        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center border border-[#F59E0B]/20 shadow-[0_0_15px_rgba(245,159,11,0.2)]">
-            <BookOpen className="w-5 h-5 text-[#F59E0B]" />
+          <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center border border-primary/30 shadow-[0_0_15px_rgba(245,159,11,0.15)]">
+            <BookOpen className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -653,9 +1041,21 @@ function JournalPageContent() {
             <p className="text-sm text-[#64748B]">Document and analyze your psychological edge.</p>
           </div>
         </div>
-        <div className="bg-[#0D1421] border border-[#1A1A2E] px-4 py-2 rounded-lg text-sm">
-          <span className="text-[#64748B]">Total Entries: </span>
-          <span className="font-bold text-[#F1F5F9]">{closed.length}</span>
+
+        <div className="flex items-center gap-3 w-full md:w-auto self-stretch md:self-auto justify-end">
+          <Link href="/journal/custom-template">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="px-4 py-2 bg-primary/10 hover:bg-primary/25 border border-primary/30 text-primary font-black uppercase text-xs tracking-wider rounded-xl transition-all shadow-[0_0_15px_rgba(56,189,248,0.1)] shrink-0 cursor-pointer flex items-center gap-1.5"
+            >
+              <Settings className="w-3.5 h-3.5 text-primary" /> Create Your Own Template
+            </motion.button>
+          </Link>
+          <div className="bg-[#0D1421] border border-white/5 px-4 py-2 rounded-xl text-sm shrink-0">
+            <span className="text-[#64748B]">Total Entries: </span>
+            <span className="font-bold text-[#F1F5F9]">{closed.length}</span>
+          </div>
         </div>
       </motion.div>
 
@@ -692,6 +1092,7 @@ function JournalPageContent() {
                 onToggle={() => setExpandedId(expandedId === t.id ? null : t.id)}
                 profileChecklist={profileChecklist}
                 profileSetups={profileSetups}
+                customTemplate={profileTemplate}
               />
             ))}
           </motion.div>

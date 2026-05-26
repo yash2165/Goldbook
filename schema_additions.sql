@@ -148,3 +148,7 @@ ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS image_url TEXT;
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('chat_images', 'chat_images', true) ON CONFLICT (id) DO NOTHING;
 -- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'chat_images');
 -- CREATE POLICY "Authenticated users can upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'chat_images' AND auth.role() = 'authenticated');
+
+-- 14. Custom templates & Habit tracker columns on profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS custom_journal_template JSONB;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS custom_habit_tracker JSONB;

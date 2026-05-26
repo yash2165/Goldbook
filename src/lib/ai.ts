@@ -860,6 +860,57 @@ export function compilePsychologicalTelemetry(trades: Trade[]): PsychologicalTel
   }
 }
 
+// ── JSON Notes Parser Helper ─────────────────────────────────────────────────
+
+export function extractTextFromNotes(notes: string | null): string {
+  if (!notes) return ''
+  const trimmed = notes.trim()
+  if (!trimmed) return ''
+
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.isCustom && parsed.values) {
+          const parts: string[] = []
+          Object.values(parsed.values).forEach((val: any) => {
+            if (typeof val === 'string') {
+              parts.push(val)
+            } else if (Array.isArray(val)) {
+              val.forEach((item: any) => {
+                if (typeof item === 'string') {
+                  parts.push(item)
+                } else if (item && typeof item === 'object') {
+                  Object.entries(item).forEach(([k, cellVal]) => {
+                    if (k !== 'id' && (typeof cellVal === 'string' || typeof cellVal === 'number')) {
+                      parts.push(String(cellVal))
+                    }
+                  })
+                }
+              })
+            }
+          })
+          return parts.filter(Boolean).join(' ')
+        }
+
+        const parts: string[] = []
+        if (parsed.p1) parts.push(parsed.p1)
+        if (parsed.p2) parts.push(parsed.p2)
+        if (parsed.p3) parts.push(parsed.p3)
+        if (parsed.p4) parts.push(parsed.p4)
+        if (parsed.confirmations && Array.isArray(parsed.confirmations)) {
+          parts.push(parsed.confirmations.join(' '))
+        }
+        return parts.filter(Boolean).join(' ')
+      }
+    } catch (e) {
+      // Ignored: parse failure fallback to raw notes string
+    }
+  }
+
+  return trimmed
+}
+
 // ── Linguistic Telemetry Engine ──────────────────────────────────────────────
 
 export function compileLinguisticTelemetry(trades: Trade[]): LinguisticTelemetry {
@@ -893,7 +944,7 @@ export function compileLinguisticTelemetry(trades: Trade[]): LinguisticTelemetry
   let futureFocusCount = 0
 
   closed.forEach(t => {
-    const text = t.notes || ''
+    const text = extractTextFromNotes(t.notes)
     
     // Count matches
     const selfAttackMatches = text.match(selfAttackRegex)
@@ -957,7 +1008,7 @@ export function journalQualityGate(trades: Trade[]): { pass: boolean; wordCount:
   }
 
   const totalWords = closed.reduce((sum, e) => {
-    const text = String(e.notes || '').trim()
+    const text = extractTextFromNotes(e.notes)
     if (!text) return sum
     return sum + text.split(/\s+/).length
   }, 0)

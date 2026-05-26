@@ -334,14 +334,53 @@ export default function DashboardPage() {
     }
   }, [loading, unjournaledCount])
 
+  const [isClient, setIsClient] = useState(false)
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  const todayStr = useMemo(() => {
+    if (!isClient) return ''
+    return format(new Date(), 'yyyy-MM-dd')
+  }, [isClient])
+
   const todayTrades = useMemo(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd')
+    if (!todayStr) return []
     return trades.filter(t => t.status === 'closed' && t.close_time && format(new Date(t.close_time), 'yyyy-MM-dd') === todayStr)
-  }, [trades])
+  }, [trades, todayStr])
 
   const todayPnl = useMemo(() => {
     return todayTrades.reduce((sum, t) => sum + (t.net_profit ?? 0), 0)
   }, [todayTrades])
+
+  // Count both open & closed trades that were opened today
+  const todayOpenedCount = useMemo(() => {
+    if (!todayStr) return 0
+    return trades.filter(t => t.open_time && format(new Date(t.open_time), 'yyyy-MM-dd') === todayStr).length
+  }, [trades, todayStr])
+
+  const todayFloatingPnl = useMemo(() => {
+    if (!todayStr) return 0
+    const openToday = trades.filter(t => t.status === 'open' && t.open_time && format(new Date(t.open_time), 'yyyy-MM-dd') === todayStr)
+    
+    let floating = 0
+    openToday.forEach(t => {
+      if (t.net_profit != null && Number(t.net_profit) !== 0) {
+        floating += Number(t.net_profit)
+        return
+      }
+      const cleanSymbol = String(t.symbol).toUpperCase().replace(/[^A-Z]/g, '')
+      if (cleanSymbol.includes('XAU') && liveGoldPrice && t.entry_price && t.lot_size) {
+        const entry = Number(t.entry_price)
+        const lots = Number(t.lot_size)
+        const isBuy = t.direction === 'buy'
+        const multiplier = 100
+        const diff = isBuy ? (liveGoldPrice - entry) : (entry - liveGoldPrice)
+        floating += diff * multiplier * lots
+      }
+    })
+    return floating
+  }, [trades, todayStr, liveGoldPrice])
 
   const nextNewsItem = useMemo(() => {
     if (news.length === 0) return null
@@ -526,13 +565,20 @@ export default function DashboardPage() {
           <div className="bg-[#09090E]/60 p-4 rounded-xl border border-white/5 space-y-1.5 flex flex-col justify-between">
             <span className="text-[10px] text-[#64748B] uppercase font-black tracking-wider block">Today's Performance</span>
             <div>
-              <div className="text-xl font-bold text-white tracking-tight flex items-baseline gap-2">
-                <span className={cn(todayPnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
-                  {todayPnl >= 0 ? '+' : '-'}${Math.abs(todayPnl).toFixed(2)}
-                </span>
-                <span className="text-xs text-[#64748B] font-mono">({todayTrades.length} trade{todayTrades.length !== 1 ? 's' : ''})</span>
+              <div className="text-xl font-bold text-white tracking-tight flex flex-col justify-end">
+                <div className="flex items-baseline gap-2">
+                  <span className={cn(todayPnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
+                    {todayPnl >= 0 ? '+' : '-'}${Math.abs(todayPnl).toFixed(2)}
+                  </span>
+                  <span className="text-xs text-[#64748B] font-mono">({todayTrades.length} closed)</span>
+                </div>
+                {todayFloatingPnl !== 0 && (
+                  <span className={cn("text-xs font-bold font-mono mt-0.5", todayFloatingPnl >= 0 ? "text-emerald-400 animate-pulse" : "text-rose-400 animate-pulse")}>
+                    {todayFloatingPnl >= 0 ? '+' : '-'}${Math.abs(todayFloatingPnl).toFixed(2)} floating
+                  </span>
+                )}
               </div>
-              <span className="text-[9px] text-[#64748B] block mt-0.5">Closed P&L since market open today</span>
+              <span className="text-[9px] text-[#64748B] block mt-1.5">Realized and active floating P&L today</span>
             </div>
           </div>
 
@@ -543,15 +589,17 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <span className={cn(
                   "text-xs font-black px-2.5 py-0.5 rounded-lg border font-mono uppercase tracking-wider",
-                  todayTrades.length > 3
+                  todayOpenedCount > 3
                     ? "bg-red-500/10 border-red-500/25 text-[#EF4444]"
                     : "bg-emerald-500/10 border-emerald-500/25 text-[#22C55E]"
                 )}>
-                  {todayTrades.length > 3 ? "⚡ High Activity" : "✔ Quiet"}
+                  {todayOpenedCount > 3 ? "⚡ High Activity" : "✔ Quiet"}
                 </span>
               </div>
               <span className="text-[9px] text-[#64748B] block mt-1.5">
-                {todayTrades.length > 3 ? "Overtrading danger zone. Respect maximum daily limits." : "Calm trading parameters. Focus on high-quality setups."}
+                {todayOpenedCount > 3 
+                  ? `Overtrading danger zone. ${todayOpenedCount} trades opened today. Respect maximum daily limits.` 
+                  : `Calm trading parameters (${todayOpenedCount} opened). Focus on high-quality setups.`}
               </span>
             </div>
           </div>
