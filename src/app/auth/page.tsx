@@ -12,7 +12,7 @@ import { InteractiveBackground } from '@/components/InteractiveBackground'
 import FloatingLines from '@/components/FloatingLines'
 import GoldBookLogo from '@/components/GoldBookLogo'
 
-const STATIC_LINES_GRADIENT = ['#D4AF37', '#00D4AA', '#B8860B', '#008B8B']
+const STATIC_LINES_GRADIENT = ['#FFD700', '#F59E0B', '#B8860B', '#996515']
 const STATIC_ENABLED_WAVES: ('top' | 'middle' | 'bottom')[] = ['top', 'bottom', 'middle']
 const STATIC_LINE_DISTANCE = [6, 5, 4]
 
@@ -148,26 +148,26 @@ export default function AuthPage() {
       </div>
 
       {/* Floating Lights */}
-      <div className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#00D4AA]/5 blur-[180px] rounded-full pointer-events-none mix-blend-screen z-0 animate-pulse duration-[8000ms]" />
-      <div className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#D4AF37]/4 blur-[200px] rounded-full pointer-events-none mix-blend-screen z-0 animate-pulse duration-[10000ms]" />
+      <div className="fixed top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-[#F59E0B]/6 blur-[180px] rounded-full pointer-events-none mix-blend-screen z-0" />
+      <div className="fixed bottom-[-15%] right-[-10%] w-[50vw] h-[50vw] bg-[#B8860B]/4 blur-[200px] rounded-full pointer-events-none mix-blend-screen z-0" />
 
       {/* Back to Home CTA */}
       <div className="absolute top-6 left-6 z-20">
         <Link href="/">
-          <button className="px-4 py-2 rounded-xl text-xs font-bold border border-white/5 bg-white/[0.02] hover:bg-white/[0.06] text-white/80 transition-all cursor-pointer">
+          <button className="px-4 py-2 rounded-xl text-xs font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-white/80 transition-colors cursor-pointer">
             ← Back to Home
           </button>
         </Link>
       </div>
 
       <div className="relative z-10 w-full flex justify-center py-12">
-        <div className="w-full max-w-md space-y-8 bg-[#050508]/85 backdrop-blur-3xl p-8 rounded-2xl border border-white/5 shadow-[0_30px_70px_rgba(0,0,0,0.85)] relative">
+        <div className="w-full max-w-md space-y-8 bg-[#0c0c14]/95 backdrop-blur-2xl p-8 rounded-2xl border border-white/10 shadow-[0_30px_70px_rgba(0,0,0,0.8)] relative">
           
           {/* Gold Badge Logo Header */}
           <div className="text-center space-y-3">
-            <GoldBookLogo size={42} className="shadow-[0_0_20px_rgba(212,175,55,0.15)] mx-auto" />
+            <GoldBookLogo size={42} className="shadow-[0_0_20px_rgba(255,215,0,0.2)] mx-auto" />
             <h1 className="font-extrabold text-2xl tracking-wider uppercase">
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#FFF] to-[#00D4AA]">GOLD</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37]">GOLD</span>
               <span className="text-white/90 font-light">BOOK</span>
             </h1>
             <p className="text-xs font-bold text-[#64748B] uppercase tracking-widest mt-1">
@@ -177,13 +177,13 @@ export default function AuthPage() {
 
           {/* Tab Switcher */}
           {!otpSent && (
-            <div className="flex bg-white/[0.02] rounded-xl p-1.5 gap-1 border border-white/5">
+            <div className="flex bg-white/[0.03] rounded-xl p-1.5 gap-1 border border-white/5">
               <button
                 onClick={() => { setIsLogin(true); setError(null) }}
                 className={cn(
                   "flex-1 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-all border cursor-pointer",
                   isLogin 
-                    ? "bg-gradient-to-r from-[#D4AF37]/8 to-[#00D4AA]/8 border-[#D4AF37]/20 text-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.06)]" 
+                    ? "bg-[#FFD700]/15 border-[#FFD700]/20 text-[#FFD700] shadow-[0_0_15px_rgba(255,215,0,0.1)]" 
                     : "text-[#64748B] border-transparent hover:text-white/90"
                 )}
               >
@@ -194,7 +194,7 @@ export default function AuthPage() {
                 className={cn(
                   "flex-1 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-lg transition-all border cursor-pointer",
                   !isLogin 
-                    ? "bg-gradient-to-r from-[#D4AF37]/8 to-[#00D4AA]/8 border-[#D4AF37]/20 text-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.06)]" 
+                    ? "bg-[#FFD700]/15 border-[#FFD700]/20 text-[#FFD700] shadow-[0_0_15px_rgba(255,215,0,0.1)]" 
                     : "text-[#64748B] border-transparent hover:text-white/90"
                 )}
               >
@@ -241,7 +241,7 @@ export default function AuthPage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required
-                      className="bg-[#09090F] border-white/5 h-12 text-white focus:border-[#D4AF37]/50 focus:ring-1 focus:ring-[#00D4AA]/30 font-medium rounded-xl transition-all"
+                      className="bg-[#09090F] border-white/10 h-12 text-white focus:border-[#FFD700]/50 focus:ring-1 focus:ring-[#FFD700]/30 font-medium"
                     />
                   </div>
                 )}
@@ -255,7 +255,7 @@ export default function AuthPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-[#09090F] border-white/5 h-12 text-white focus:border-[#D4AF37]/50 focus:ring-1 focus:ring-[#00D4AA]/30 font-medium rounded-xl transition-all"
+                    className="bg-[#09090F] border-white/10 h-12 text-white focus:border-[#FFD700]/50 focus:ring-1 focus:ring-[#FFD700]/30 font-medium"
                   />
                 </div>
 
@@ -268,7 +268,7 @@ export default function AuthPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-[#09090F] border-white/5 h-12 text-white focus:border-[#D4AF37]/50 focus:ring-1 focus:ring-[#00D4AA]/30 font-medium rounded-xl transition-all"
+                    className="bg-[#09090F] border-white/10 h-12 text-white focus:border-[#FFD700]/50 focus:ring-1 focus:ring-[#FFD700]/30 font-medium"
                   />
                 </div>
               </>
@@ -287,7 +287,7 @@ export default function AuthPage() {
 
             <button 
               type="submit" 
-              className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] via-white to-[#00D4AA] hover:opacity-95 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all hover:scale-[1.02] shadow-[0_0_20px_rgba(212,175,55,0.15)] flex items-center justify-center cursor-pointer border border-[#D4AF37]/10"
+              className="w-full py-3.5 bg-gradient-to-r from-[#FFD700] via-[#F59E0B] to-[#D4AF37] hover:opacity-95 text-black font-extrabold text-xs uppercase tracking-widest rounded-lg transition-all hover:scale-[1.02] shadow-[0_0_20px_rgba(255,215,0,0.25)] flex items-center justify-center cursor-pointer"
               disabled={loading}
             >
               {loading ? (
