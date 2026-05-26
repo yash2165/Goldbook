@@ -944,7 +944,7 @@ export function compileLinguisticTelemetry(trades: Trade[]): LinguisticTelemetry
   let futureFocusCount = 0
 
   closed.forEach(t => {
-    const text = extractTextFromNotes(t.notes)
+    const text = extractTextFromNotes(t.notes ?? null)
     
     // Count matches
     const selfAttackMatches = text.match(selfAttackRegex)
@@ -1008,7 +1008,7 @@ export function journalQualityGate(trades: Trade[]): { pass: boolean; wordCount:
   }
 
   const totalWords = closed.reduce((sum, e) => {
-    const text = extractTextFromNotes(e.notes)
+    const text = extractTextFromNotes(e.notes ?? null)
     if (!text) return sum
     return sum + text.split(/\s+/).length
   }, 0)

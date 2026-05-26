@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Play, Pause, Plus, Trash2, Scissors, Sparkles, TrendingUp,
   TrendingDown, Target, Clock, ShieldAlert, Award, RefreshCw,
-  X, Check, Edit2, Layers, HelpCircle, ChevronRight, Activity, FileSpreadsheet
+  X, Check, Edit2, Layers, HelpCircle, ChevronRight, Activity, FileSpreadsheet,
+  Calculator
 } from 'lucide-react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'

@@ -28,6 +28,7 @@ export async function GET() {
     // 2. Aggregate telemetry per user
     const byUser: Record<string, {
       username: string;
+      avatar_url: string;
       pnl: number;
       trades: number;
       wins: number;

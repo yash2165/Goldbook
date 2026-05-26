@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { 
   User, Bell, Shield, CheckCircle2, MonitorSmartphone, Settings as SettingsIcon, 
   Globe, Clock, TrendingUp, Edit3, Loader2, Save, Key, AlertTriangle, Trash2, 
-  Copy, ShieldAlert, Check, CopyCheck, RefreshCcw
+  Copy, ShieldAlert, Check, CopyCheck, RefreshCcw, Info
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -312,7 +312,6 @@ export default function SettingsPage() {
   // 2FA TOTP Enrollment & Activation
   const startMfaEnrollment = async () => {
     setMfaLoading(true)
-    setError(null)
     try {
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
