@@ -422,30 +422,42 @@ def provision_terminal(acc: dict) -> subprocess.Popen | None:
             if not metaeditor_path.exists():
                 metaeditor_path = find_file_case_insensitive(global_install_dir, "metaeditor.exe")
 
+            # Check if we have a precompiled EX5 sibling file next to the orchestrator script
+            precompiled_ex5 = Path(__file__).parent / "GoldBookSync.ex5"
+            if not precompiled_ex5.exists():
+                # Fallback to check if it's in the worker folder
+                precompiled_ex5 = Path(__file__).parent / "worker" / "GoldBookSync.ex5"
+
             if not dst_ex5.exists() or should_compile:
                 if dst_ex5.exists():
                     dst_ex5.unlink()
 
-                log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 EA ahead of time...")
-                comp_env = os.environ.copy()
-                comp_env["DISPLAY"] = DISPLAY
-                comp_env["WINEPREFIX"] = str(global_wineprefix)
-                comp_env["HOME"] = os.environ.get("HOME", str(Path.home()))
-                comp_env["USER"] = os.environ.get("USER", "ubuntu")
-                comp_cmd = [
-                    "/usr/bin/wine",
-                    str(metaeditor_path),
-                    "/portable",
-                    "/compile:MQL5\\Experts\\GoldBookSync.mq5",
-                    "/log"
-                ]
-                try:
-                    subprocess.run(comp_cmd, env=comp_env, timeout=25, capture_output=True, cwd=str(global_install_dir))
-                except Exception as e:
-                    log.warning(f"[{login}] AOT EA Compilation failed to execute: {e}")
+                if precompiled_ex5.exists():
+                    log.info(f"[{login}] Found precompiled GoldBookSync.ex5 at {precompiled_ex5}. Copying to global Experts folder...")
+                    shutil.copy2(precompiled_ex5, dst_ex5)
+                elif metaeditor_path.exists():
+                    log.info(f"[{login}] Pre-compiling GoldBookSync.mq5 EA ahead of time...")
+                    comp_env = os.environ.copy()
+                    comp_env["DISPLAY"] = DISPLAY
+                    comp_env["WINEPREFIX"] = str(global_wineprefix)
+                    comp_env["HOME"] = os.environ.get("HOME", str(Path.home()))
+                    comp_env["USER"] = os.environ.get("USER", "ubuntu")
+                    comp_cmd = [
+                        "/usr/bin/wine",
+                        str(metaeditor_path),
+                        "/portable",
+                        "/compile:MQL5\\Experts\\GoldBookSync.mq5",
+                        "/log"
+                    ]
+                    try:
+                        subprocess.run(comp_cmd, env=comp_env, timeout=25, capture_output=True, cwd=str(global_install_dir))
+                    except Exception as e:
+                        log.warning(f"[{login}] AOT EA Compilation failed to execute: {e}")
+                else:
+                    log.warning(f"[{login}] Compiler not found and no precompiled EX5 available.")
 
             if not dst_ex5.exists():
-                err_msg = "Failed to compile GoldBookSync.ex5 Expert Advisor natively."
+                err_msg = "Failed to compile GoldBookSync.ex5 Expert Advisor natively, and no precompiled EX5 was found."
                 log.error(f"[{login}] {err_msg}")
                 report_error(account_id, err_msg)
                 return None
