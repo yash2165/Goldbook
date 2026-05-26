@@ -9,8 +9,6 @@
 //|   4. Writes JSON to MQL5/Files/sync_result_temp.json             |
 //|   5. Atomically moves/renames to sync_result.json                |
 //+------------------------------------------------------------------+
-#property expert_show_inputs
-
 input string SyncToken   = "";
 input int    HistoryDays = 90;
 
