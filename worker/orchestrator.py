@@ -324,11 +324,16 @@ def harvest_logs(data_dir: Path, login: str) -> str:
 
 # ── Sandbox Directory Prep ─────────────────────────────────────────────────────
 def prepare_data_dir(acc: dict, acc_wineprefix: Path) -> Path:
-    data_dir = acc_wineprefix / "drive_c" / "mt5data" / str(acc["id"])
-    global_install_dir = global_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
+    # Instead of config folders, copy/replicate the entire MT5 program folder to isolated directories.
+    # This runs MT5 natively inside its own default path mapping context, which FEX-Emu emulates flawlessly!
+    data_dir = acc_wineprefix / "drive_c" / "Program Files" / f"MT5_Account_{acc['id']}"
+    global_install_dir = acc_wineprefix / "drive_c" / "Program Files" / "MetaTrader 5"
 
-    # No replication of executables inside data_dir to prevent JIT path-mapping crashes in Hangover/FEX.
-    # The global MT5 executable inside /Program Files/MetaTrader 5 will be launched directly.
+    if not data_dir.exists() and global_install_dir.exists():
+        log.info(f"[{acc['mt5_login']}] Replicating MT5 installation to isolated emulated directory: {data_dir}")
+        shutil.copytree(global_install_dir, data_dir, dirs_exist_ok=True)
+
+
 
     delete_examples_dirs(data_dir)
 
@@ -498,36 +503,35 @@ def provision_terminal(acc: dict) -> subprocess.Popen | None:
     env["HOME"] = os.environ.get("HOME", str(Path.home()))
     env["USER"] = os.environ.get("USER", "ubuntu")
 
-    # Target the global MT5 installation binary directly to prevent emulator JIT deadlocks
-    terminal_path = find_file_case_insensitive(global_install_dir, "terminal64.exe")
+    # Target the isolated program installation folder binary directly
+    terminal_path = find_file_case_insensitive(data_dir, "terminal64.exe")
     if not terminal_path.exists():
-        terminal_path = find_file_case_insensitive(global_install_dir, "terminal.exe")
+        terminal_path = find_file_case_insensitive(data_dir, "terminal.exe")
 
     if not terminal_path.exists():
-        log.error(f"[{login}] Global MT5 terminal executable not found: {global_install_dir}")
+        log.error(f"[{login}] Isolated MT5 terminal executable not found: {data_dir}")
         return None
 
-    # Use the relative filename of the binary since we are setting cwd=global_install_dir.
-    # This prevents absolute Wine-path resolution hangs in Hangover/FEX emulator.
+    # Use the relative filename of the binary inside the isolated directory
     binary_name = terminal_path.name
 
     cmd = [
         "/usr/bin/wine",
         binary_name,
         "/portable",
-        f"/config:C:\\mt5data\\{account_id}\\startup.ini",
+        "/config:startup.ini", # Point startup config directly in directory context, avoiding custom virtual mapping redirection crashes!
         "/skipupdate",
         "/nosplash",
     ]
 
-    log.info(f"▶ [{login}@{server}] Launching MT5 24/7 persistent instance...")
+    log.info(f"▶ [{login}@{server}] Launching MT5 24/7 persistent instance natively inside {data_dir.name}...")
     try:
         proc = subprocess.Popen(
             cmd, env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True, # Allow killing process tree safely
-            cwd=str(global_install_dir)
+            cwd=str(data_dir)
         )
         return proc
     except Exception as e:
@@ -718,7 +722,7 @@ def main():
 
                 # Proceed with boot
                 log.info(f"⚙️ Booting missing persistent terminal for {login}...")
-                data_dir = global_wineprefix / "drive_c" / "mt5data" / acc_id
+                data_dir = global_wineprefix / "drive_c" / "Program Files" / f"MT5_Account_{acc_id}"
                 
                 # Setup structure
                 active_processes[acc_id] = {
