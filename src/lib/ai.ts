@@ -71,6 +71,34 @@ export interface EmotionCorrelation {
   checklist_compliance_rate: number
 }
 
+// ── Custom Journal Intelligence Types ───────────────────────────────────────
+
+export interface SetupCombo {
+  keys: string[]        // e.g. ["Setup: FVG", "Confirmation: MSS"]
+  wins: number
+  losses: number
+  winRate: number       // 0-100
+  avgPnl: number
+  totalTrades: number
+}
+
+export interface DropdownPattern {
+  blockLabel: string
+  value: string
+  trades: number
+  winRate: number
+  avgPnl: number
+}
+
+export interface CustomJournalIntelligence {
+  setupCombinations: SetupCombo[]     // all combos sorted by win rate
+  highEdgeCombos: SetupCombo[]        // wr >= 60%, >= 3 trades
+  lowEdgeCombos: SetupCombo[]         // wr < 40%, >= 3 trades
+  dropdownPatterns: DropdownPattern[] // per single value analysis
+  textSentimentSummary: string        // raw paragraph text for AI sentiment
+  customTradesCount: number           // how many trades were custom-journaled
+}
+
 interface AIReportInput {
   stats: PerformanceStats
   sessionStats: Record<string, SessionStat>
@@ -84,6 +112,7 @@ interface AIReportInput {
   accountBalance?: number
   telemetry?: PsychologicalTelemetry
   linguisticTelemetry?: LinguisticTelemetry
+  customJournalIntelligence?: CustomJournalIntelligence
 }
 
 export interface AIReportOutput {
@@ -118,7 +147,7 @@ function buildPrompt(input: AIReportInput): string {
     stats, sessionStats, dayStats, topSymbols,
     emotionStats, activeRules, ruleViolations,
     revengeTradeCount = 0, period, telemetry,
-    linguisticTelemetry
+    linguisticTelemetry, customJournalIntelligence
   } = input
 
   const bestSession = Object.entries(sessionStats).sort((a, b) => b[1].pnl - a[1].pnl)[0]?.[0] ?? 'N/A'
@@ -129,6 +158,7 @@ function buildPrompt(input: AIReportInput): string {
   const hasRules = activeRules && activeRules.length > 0
   const hasEmotions = emotionStats && Object.keys(emotionStats).length > 0
   const hasTelemetry = !!telemetry
+  const hasCustomIntelligence = !!customJournalIntelligence && customJournalIntelligence.customTradesCount >= 3
 
   const telemetrySection = hasTelemetry ? `
 ═══════════════════════════════════════════
@@ -243,6 +273,26 @@ ${ruleViolations.map(v => `• ${v.label}: violated ${v.count} time(s)\n  ${v.ex
 Revenge trades detected: ${revengeTradeCount} (trades opened within 15 minutes of a loss)` : ''}
 ${telemetrySection}
 ${linguisticSection}
+${hasCustomIntelligence ? `
+═══════════════════════════════════════════
+CUSTOM JOURNAL PATTERN INTELLIGENCE
+(Extracted from user's free-form custom journal — ${customJournalIntelligence!.customTradesCount} custom-journaled trades analyzed)
+═══════════════════════════════════════════
+This trader uses their own custom journaling template. The following pattern analysis has been extracted from their setup and confirmation choices matched against trade outcomes.
+
+${customJournalIntelligence!.highEdgeCombos.length > 0 ? `HIGH EDGE COMBINATIONS (Win Rate ≥ 60%, ≥3 trades):
+${customJournalIntelligence!.highEdgeCombos.map(c => `• ${c.keys.join(' + ')}: ${c.wins}W/${c.losses}L (${c.winRate.toFixed(0)}% WR, avg P&L $${c.avgPnl.toFixed(2)})`).join('\n')}` : 'No high-edge combinations found yet (need ≥3 identical setup combos).'}
+
+${customJournalIntelligence!.lowEdgeCombos.length > 0 ? `LOW EDGE COMBINATIONS (Win Rate < 40%, ≥3 trades — these are actively bleeding capital):
+${customJournalIntelligence!.lowEdgeCombos.map(c => `• ${c.keys.join(' + ')}: ${c.wins}W/${c.losses}L (${c.winRate.toFixed(0)}% WR, avg P&L $${c.avgPnl.toFixed(2)})`).join('\n')}` : ''}
+
+${customJournalIntelligence!.dropdownPatterns.length > 0 ? `INDIVIDUAL FIELD PATTERNS:
+${customJournalIntelligence!.dropdownPatterns.slice(0, 8).map(p => `• "${p.blockLabel}" = "${p.value}": ${p.trades} trades, ${p.winRate.toFixed(0)}% WR, avg $${p.avgPnl.toFixed(2)}/trade`).join('\n')}` : ''}
+
+TRADER'S OWN REFLECTIONS (extracted from paragraph journal blocks):
+${customJournalIntelligence!.textSentimentSummary || 'No text entries found.'}
+
+INSTRUCTION: Reference these specific combination patterns BY NAME in your analysis. Tell the trader exactly which setup combos to keep and which to eliminate from their playbook. Use the exact win rates and P&L numbers shown above — these are their real edge metrics.` : ''}
 
 ═══════════════════════════════════════════
 RESPONSE FORMAT
@@ -996,6 +1046,167 @@ export function compileLinguisticTelemetry(trades: Trade[]): LinguisticTelemetry
     self_attack_score: selfAttackCount,
     temporal_orientation,
     identity_fusion_phrases: identityFusionPhrases
+  }
+}
+
+// ── Custom Journal Intelligence Engine ──────────────────────────────────────
+
+export function compileCustomJournalIntelligence(
+  trades: any[],
+  templateSchema?: any
+): CustomJournalIntelligence {
+  // 1. Filter only trades journaled in custom mode
+  const customTrades: Array<{ values: Record<string, any>; outcome: 'win' | 'loss'; pnl: number }> = []
+  const paragraphTexts: string[] = []
+
+  for (const trade of trades) {
+    if (!trade.notes) continue
+    let parsed: any = null
+    try {
+      parsed = JSON.parse(trade.notes)
+    } catch {
+      continue
+    }
+    if (!parsed || !parsed.isCustom || !parsed.values) continue
+
+    const pnl = trade.net_profit ?? 0
+    const outcome: 'win' | 'loss' = pnl >= 0 ? 'win' : 'loss'
+    customTrades.push({ values: parsed.values, outcome, pnl })
+  }
+
+  if (customTrades.length === 0) {
+    return {
+      setupCombinations: [], highEdgeCombos: [], lowEdgeCombos: [],
+      dropdownPatterns: [], textSentimentSummary: '', customTradesCount: 0
+    }
+  }
+
+  // 2. Build block label map from template schema (if available)
+  //    Maps blockId → { label, type } for dropdown/confirmations/paragraph blocks
+  const blockMeta: Record<string, { label: string; type: string }> = {}
+  if (templateSchema?.blocks && Array.isArray(templateSchema.blocks)) {
+    for (const block of templateSchema.blocks) {
+      if (['dropdown', 'confirmations', 'paragraph'].includes(block.type)) {
+        blockMeta[block.id] = { label: block.label || block.id, type: block.type }
+      }
+    }
+  }
+
+  // 3. Extract label:value pairs from each custom trade
+  const tradeFeatures: Array<{ keys: string[]; outcome: 'win' | 'loss'; pnl: number }> = []
+
+  for (const trade of customTrades) {
+    const keys: string[] = []
+
+    for (const [blockId, val] of Object.entries(trade.values)) {
+      const meta = blockMeta[blockId] || { label: blockId, type: 'unknown' }
+      const label = meta.label
+
+      if (typeof val === 'string' && val.trim()) {
+        if (meta.type === 'paragraph') {
+          paragraphTexts.push(val.trim())
+        } else {
+          // Dropdown: single selection value
+          keys.push(`${label}: ${val.trim()}`)
+        }
+      } else if (Array.isArray(val)) {
+        // Confirmations: multi-select array, or table rows
+        for (const item of val) {
+          if (typeof item === 'string' && item.trim()) {
+            keys.push(`${label}: ${item.trim()}`)
+          } else if (item && typeof item === 'object') {
+            // Table row: extract string/text cells
+            for (const [colId, cellVal] of Object.entries(item)) {
+              if (colId !== 'id' && typeof cellVal === 'string' && (cellVal as string).trim()) {
+                keys.push(`${label}/${colId}: ${(cellVal as string).trim()}`)
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (keys.length > 0) {
+      tradeFeatures.push({ keys, outcome: trade.outcome, pnl: trade.pnl })
+    }
+  }
+
+  // 4. Build per-single-value stats (dropdown pattern analysis)
+  const singleValueMap: Record<string, { wins: number; losses: number; totalPnl: number; key: string }> = {}
+  for (const tf of tradeFeatures) {
+    for (const key of tf.keys) {
+      if (!singleValueMap[key]) singleValueMap[key] = { wins: 0, losses: 0, totalPnl: 0, key }
+      if (tf.outcome === 'win') singleValueMap[key].wins++
+      else singleValueMap[key].losses++
+      singleValueMap[key].totalPnl += tf.pnl
+    }
+  }
+
+  const dropdownPatterns: DropdownPattern[] = Object.values(singleValueMap)
+    .map(v => {
+      const total = v.wins + v.losses
+      const colonIdx = v.key.indexOf(': ')
+      const blockLabel = colonIdx >= 0 ? v.key.slice(0, colonIdx) : v.key
+      const value = colonIdx >= 0 ? v.key.slice(colonIdx + 2) : ''
+      return {
+        blockLabel,
+        value,
+        trades: total,
+        winRate: total > 0 ? (v.wins / total) * 100 : 0,
+        avgPnl: total > 0 ? v.totalPnl / total : 0
+      }
+    })
+    .filter(p => p.trades >= 2)
+    .sort((a, b) => b.winRate - a.winRate)
+
+  // 5. Generate 2-key combinations for edge analysis
+  const comboMap: Record<string, { wins: number; losses: number; totalPnl: number; keys: string[] }> = {}
+
+  for (const tf of tradeFeatures) {
+    const uniqueKeys = [...new Set(tf.keys)]
+    for (let i = 0; i < uniqueKeys.length; i++) {
+      for (let j = i + 1; j < uniqueKeys.length; j++) {
+        const sortedPair = [uniqueKeys[i], uniqueKeys[j]].sort()
+        const comboKey = sortedPair.join(' | ')
+        if (!comboMap[comboKey]) {
+          comboMap[comboKey] = { wins: 0, losses: 0, totalPnl: 0, keys: sortedPair }
+        }
+        if (tf.outcome === 'win') comboMap[comboKey].wins++
+        else comboMap[comboKey].losses++
+        comboMap[comboKey].totalPnl += tf.pnl
+      }
+    }
+  }
+
+  const MIN_TRADES = 3
+  const setupCombinations: SetupCombo[] = Object.values(comboMap)
+    .map(v => {
+      const total = v.wins + v.losses
+      return {
+        keys: v.keys,
+        wins: v.wins,
+        losses: v.losses,
+        winRate: total > 0 ? (v.wins / total) * 100 : 0,
+        avgPnl: total > 0 ? v.totalPnl / total : 0,
+        totalTrades: total
+      }
+    })
+    .filter(c => c.totalTrades >= MIN_TRADES)
+    .sort((a, b) => b.winRate - a.winRate)
+
+  const highEdgeCombos = setupCombinations.filter(c => c.winRate >= 60)
+  const lowEdgeCombos = setupCombinations.filter(c => c.winRate < 40)
+
+  // 6. Build paragraph sentiment text (capped to avoid token blowup)
+  const textSentimentSummary = paragraphTexts.join(' | ').slice(0, 1500)
+
+  return {
+    setupCombinations,
+    highEdgeCombos,
+    lowEdgeCombos,
+    dropdownPatterns,
+    textSentimentSummary,
+    customTradesCount: customTrades.length
   }
 }
 

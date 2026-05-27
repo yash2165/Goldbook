@@ -13,6 +13,7 @@ import {
   compilePsychologicalTelemetry,
   compileLinguisticTelemetry,
   journalQualityGate,
+  compileCustomJournalIntelligence,
   type TradingRule,
 } from '@/lib/ai'
 import type { Trade } from '@/lib/calculations'
@@ -61,13 +62,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: quality.message }, { status: 400 })
     }
 
-    // Fetch user's trading style from profiles
+    // Fetch user's trading style and custom journal template from profiles
     const { data: profile } = await supabase
       .from('profiles')
-      .select('trading_style')
+      .select('trading_style, custom_journal_template, trading_setups')
       .eq('id', user.id)
       .single()
     const tradingStyle = profile?.trading_style || 'day_trading'
+
+    // Resolve custom journal template (with fallback to legacy trading_setups key)
+    let customJournalTemplate: any = null
+    if (profile?.custom_journal_template) {
+      customJournalTemplate = profile.custom_journal_template
+    } else if (profile?.trading_setups && typeof profile.trading_setups === 'object') {
+      const ts = profile.trading_setups as any
+      if (ts.__custom_journal_template) {
+        customJournalTemplate = ts.__custom_journal_template
+      }
+    }
 
     // ── 2. Fetch active trading rules ───────────────────────────────────────
     const { data: rulesData } = await supabase
@@ -103,6 +115,9 @@ export async function POST(req: Request) {
     // ── 6.5. Compute linguistic telemetry ───────────────────────────────────
     const linguisticTelemetry = compileLinguisticTelemetry(allTrades)
 
+    // ── 6.9. Compile custom journal intelligence ─────────────────────────────
+    const customJournalIntelligence = compileCustomJournalIntelligence(allTrades, customJournalTemplate)
+
     // ── 7. Call AI coach ────────────────────────────────────────────────────
     const { report, provider } = await generateAIReport({
       stats,
@@ -116,6 +131,7 @@ export async function POST(req: Request) {
       period: 'alltime',
       telemetry,
       linguisticTelemetry,
+      customJournalIntelligence: customJournalIntelligence.customTradesCount >= 3 ? customJournalIntelligence : undefined,
     })
 
     // ── 8. Save report to DB ────────────────────────────────────────────────

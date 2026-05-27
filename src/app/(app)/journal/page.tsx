@@ -6,7 +6,7 @@ import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
 import { getClosedTrades, fmt } from '@/lib/calculations'
 import { format } from 'date-fns'
-import { BookOpen, TrendingUp, TrendingDown, Save, CheckCircle2, Check, ChevronDown, ChevronUp, Camera, Trash2, Loader2, Settings } from 'lucide-react'
+import { BookOpen, Save, CheckCircle2, Check, ChevronDown, Camera, Loader2, Settings, Sparkles, X, LayoutTemplate } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -276,14 +276,18 @@ function TradeJournalCard({
       ? JSON.stringify({ isCustom: true, values: customValues })
       : JSON.stringify({ p1, p2, p3, p4, confirmations })
 
-    await supabase.from('trades').update({
-      notes: notesJsonString, 
-      setup_tag: setupTag, 
-      emotion_before: emotionBefore, 
-      emotion_after: emotionAfter, 
-      rating, 
-      pre_trade_checklist: tradeChecklist
-    }).eq('id', trade.id)
+    // In custom mode, skip overwriting emotion/setup/rating/checklist — they aren't visible
+    // so saving them as blank would erase any existing data from a previous default-mode session.
+    const updatePayload: Record<string, any> = { notes: notesJsonString }
+    if (!shouldRenderCustom) {
+      updatePayload.setup_tag = setupTag
+      updatePayload.emotion_before = emotionBefore
+      updatePayload.emotion_after = emotionAfter
+      updatePayload.rating = rating
+      updatePayload.pre_trade_checklist = tradeChecklist
+    }
+
+    await supabase.from('trades').update(updatePayload).eq('id', trade.id)
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -622,9 +626,15 @@ function TradeJournalCard({
             transition={{ duration: 0.4, type: "spring", bounce: 0.1 }}
             className="overflow-hidden border-t border-white/5 bg-[#060A12]/50"
           >
-            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8" onClick={(e) => e.stopPropagation()}>
+            <div className={cn(
+              "p-6 gap-8",
+              shouldRenderCustom
+                ? "grid grid-cols-1"  // Custom template: full-width single column
+                : "grid grid-cols-1 lg:grid-cols-2"  // Default: two columns
+            )} onClick={(e) => e.stopPropagation()}>
               
-              {/* Left col */}
+              {/* Left col — HIDDEN in custom template mode */}
+              {!shouldRenderCustom && (
               <div className="space-y-6">
                 <div>
                   <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Setup Tag / Strategy</label>
@@ -788,23 +798,33 @@ function TradeJournalCard({
                   )}
                 </div>
               </div>
+              )} {/* end !shouldRenderCustom left col */}
 
-              {/* Right col */}
+              {/* Right col — or full-width canvas in custom mode */}
               <div className="flex flex-col space-y-6">
                 
                 {shouldRenderCustom ? (
-                  /* RENDER CUSTOM NOTION TEMPLATE */
+                  /* RENDER CUSTOM NOTION TEMPLATE — full width, no left column */
                   <div className="flex-1 flex flex-col space-y-5">
                     <div className="flex items-center justify-between border-b border-white/5 pb-2">
                       <label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black flex items-center gap-1.5">
-                        <BookOpen className="w-3.5 h-3.5 text-primary" /> {customTemplate.name || "Custom Journal Template"}
+                        <Sparkles className="w-3.5 h-3.5 text-primary" /> {customTemplate.name || "Custom Journal Template"}
                       </label>
-                      <span className="text-[9px] px-2.5 py-0.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-black uppercase tracking-widest">
-                        Custom Template Layout
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] px-2.5 py-0.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-black uppercase tracking-widest">
+                          Custom Layout
+                        </span>
+                        <Link href="/journal/custom-template" onClick={e => e.stopPropagation()} className="text-[9px] text-[#64748B] hover:text-primary transition-colors font-bold flex items-center gap-0.5">
+                          <Settings className="w-2.5 h-2.5" /> Edit
+                        </Link>
+                      </div>
                     </div>
-                    <div className="space-y-4">
-                      {(Array.isArray(customTemplate.blocks) ? customTemplate.blocks : []).map((block: any) => renderCustomBlock(block))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {(Array.isArray(customTemplate.blocks) ? customTemplate.blocks : []).map((block: any) => (
+                        <div key={block.id} className={cn(block.type === 'table' || block.type === 'header' ? 'md:col-span-2' : '')}>
+                          {renderCustomBlock(block)}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ) : (
@@ -902,6 +922,8 @@ function TradeJournalCard({
                   </div>
                 )}
 
+                {/* Pre-Trade Checklist — only shown in default template mode */}
+                {!shouldRenderCustom && (
                 <div>
                   <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Pre-Trade Checklist</label>
                   <div className="space-y-2 bg-[#0D1421] p-4 rounded-xl border border-[#1A1A2E]">
@@ -934,6 +956,7 @@ function TradeJournalCard({
                     })()}
                   </div>
                 </div>
+                )}
               </div>
 
             </div>
@@ -969,6 +992,11 @@ function JournalPageContent() {
   const [profileChecklist, setProfileChecklist] = useState<string[]>([])
   const [profileSetups, setProfileSetups] = useState<{name: string, description: string}[]>([])
   const [profileTemplate, setProfileTemplate] = useState<any | null>(null)
+
+  // Template mode: 'custom' uses saved template, 'default' forces default prompts
+  const [templateMode, setTemplateMode] = useState<'custom' | 'default'>('custom')
+  // Whether to show the first-use banner
+  const [showBanner, setShowBanner] = useState(false)
 
   const searchParams = useSearchParams()
   const tradeId = searchParams.get('tradeId')
@@ -1026,6 +1054,20 @@ function JournalPageContent() {
         const local = localStorage.getItem('goldbook_custom_template')
         if (local) setProfileTemplate(JSON.parse(local))
       }
+
+      // Restore saved template mode preference, and show first-use banner if needed
+      const savedMode = localStorage.getItem('goldbook_template_mode') as 'custom' | 'default' | null
+      const hasTemplate = !!data?.custom_journal_template ||
+        !!((data?.trading_setups as any)?.__custom_journal_template) ||
+        !!localStorage.getItem('goldbook_custom_template')
+
+      if (savedMode) {
+        setTemplateMode(savedMode)
+      } else if (hasTemplate) {
+        // First time with a custom template — show banner
+        setShowBanner(true)
+        setTemplateMode('custom')
+      }
     }
     load()
   }, [])
@@ -1057,6 +1099,15 @@ function JournalPageContent() {
     }).length
   }, [closed])
 
+  // The effective custom template — null when mode is 'default' (forces default prompts on new trades)
+  const effectiveTemplate = templateMode === 'custom' ? profileTemplate : null
+
+  const switchMode = (mode: 'custom' | 'default') => {
+    setTemplateMode(mode)
+    setShowBanner(false)
+    localStorage.setItem('goldbook_template_mode', mode)
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto min-h-screen">
       
@@ -1064,7 +1115,7 @@ function JournalPageContent() {
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8"
+        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4"
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center border border-primary/30 shadow-[0_0_15px_rgba(245,159,11,0.15)]">
@@ -1084,13 +1135,39 @@ function JournalPageContent() {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto self-stretch md:self-auto justify-end">
+          {/* Template mode switcher pills */}
+          <div className="flex items-center bg-[#0D1421] border border-white/5 rounded-xl p-1 gap-1">
+            <button
+              onClick={() => switchMode('default')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5',
+                templateMode === 'default'
+                  ? 'bg-[#F59E0B] text-black shadow-md'
+                  : 'text-[#64748B] hover:text-white'
+              )}
+            >
+              <BookOpen className="w-3 h-3" /> Default
+            </button>
+            <button
+              onClick={() => profileTemplate ? switchMode('custom') : undefined}
+              title={!profileTemplate ? 'No custom template saved yet' : 'Switch to your custom template'}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5',
+                profileTemplate
+                  ? 'cursor-pointer ' + (templateMode === 'custom' ? 'bg-primary text-black shadow-md' : 'text-[#64748B] hover:text-white')
+                  : 'opacity-40 cursor-not-allowed text-[#64748B]'
+              )}
+            >
+              <Sparkles className="w-3 h-3" /> My Template
+            </button>
+          </div>
           <Link href="/journal/custom-template">
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               className="px-4 py-2 bg-primary/10 hover:bg-primary/25 border border-primary/30 text-primary font-black uppercase text-xs tracking-wider rounded-xl transition-all shadow-[0_0_15px_rgba(56,189,248,0.1)] shrink-0 cursor-pointer flex items-center gap-1.5"
             >
-              <Settings className="w-3.5 h-3.5 text-primary" /> Create Your Own Template
+              <Settings className="w-3.5 h-3.5 text-primary" /> {profileTemplate ? 'Edit Template' : 'Create Template'}
             </motion.button>
           </Link>
           <div className="bg-[#0D1421] border border-white/5 px-4 py-2 rounded-xl text-sm shrink-0">
@@ -1099,6 +1176,38 @@ function JournalPageContent() {
           </div>
         </div>
       </motion.div>
+
+      {/* First-use custom template banner */}
+      <AnimatePresence>
+        {showBanner && profileTemplate && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            className="mb-4 p-4 rounded-xl border border-primary/25 bg-primary/5 flex items-start gap-3"
+          >
+            <Sparkles className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <span className="font-bold text-white block text-sm">Your custom template is active!</span>
+              <span className="text-xs text-[#94A3B8] mt-0.5 block">New trades will use <strong className="text-white">{profileTemplate.name || 'your custom layout'}</strong>. You can switch back to Default Template anytime using the pills above.</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => switchMode('default')}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-[#94A3B8] text-[10px] font-bold rounded-lg transition-all cursor-pointer"
+              >
+                Use Default
+              </button>
+              <button
+                onClick={() => { setShowBanner(false); localStorage.setItem('goldbook_template_mode', 'custom') }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-[#64748B] hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {unjournaledCount > 0 && (
         <motion.div 
@@ -1133,7 +1242,7 @@ function JournalPageContent() {
                 onToggle={() => setExpandedId(expandedId === t.id ? null : t.id)}
                 profileChecklist={profileChecklist}
                 profileSetups={profileSetups}
-                customTemplate={profileTemplate}
+                customTemplate={effectiveTemplate}
               />
             ))}
           </motion.div>
