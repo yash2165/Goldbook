@@ -611,7 +611,7 @@ function TradeJournalCard({
                 <div>
                   <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Setup Tag / Strategy</label>
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {profileSetups.map(s => (
+                    {(Array.isArray(profileSetups) ? profileSetups : []).map(s => (
                       <button
                         key={s.name}
                         onClick={() => setSetupTag(s.name)}
@@ -786,7 +786,7 @@ function TradeJournalCard({
                       </span>
                     </div>
                     <div className="space-y-4">
-                      {customTemplate.blocks?.map((block: any) => renderCustomBlock(block))}
+                      {(Array.isArray(customTemplate.blocks) ? customTemplate.blocks : []).map((block: any) => renderCustomBlock(block))}
                     </div>
                   </div>
                 ) : (
@@ -887,10 +887,12 @@ function TradeJournalCard({
                 <div>
                   <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Pre-Trade Checklist</label>
                   <div className="space-y-2 bg-[#0D1421] p-4 rounded-xl border border-[#1A1A2E]">
-                    {profileChecklist.length === 0 ? (
-                      <p className="text-xs text-[#64748B]">No checklist items configured in Settings.</p>
-                    ) : (
-                      profileChecklist.map((item, idx) => {
+                    {(() => {
+                      const checklistArr = Array.isArray(profileChecklist) ? profileChecklist : []
+                      if (checklistArr.length === 0) {
+                        return <p className="text-xs text-[#64748B]">No checklist items configured in Settings.</p>
+                      }
+                      return checklistArr.map((item, idx) => {
                         const isChecked = tradeChecklist[item]
                         return (
                           <motion.button
@@ -911,7 +913,7 @@ function TradeJournalCard({
                           </motion.button>
                         )
                       })
-                    )}
+                    })()}
                   </div>
                 </div>
               </div>
@@ -977,13 +979,30 @@ function JournalPageContent() {
       if (!user) return
       
       const { data } = await supabase.from('profiles').select('pre_trade_checklist, trading_setups, custom_journal_template').eq('id', user.id).single()
-      if (data?.pre_trade_checklist) setProfileChecklist(data.pre_trade_checklist)
-      else setProfileChecklist(['Checked higher timeframe', 'Risk within limits', 'Fits my trading plan', 'Key levels identified'])
       
-      if (data?.trading_setups) setProfileSetups(data.trading_setups)
-
-      if (data?.custom_journal_template) setProfileTemplate(data.custom_journal_template)
-      else if (data?.trading_setups && (data.trading_setups as any).__custom_journal_template) {
+      if (data?.pre_trade_checklist) {
+        setProfileChecklist(Array.isArray(data.pre_trade_checklist) ? data.pre_trade_checklist : [])
+      } else {
+        setProfileChecklist(['Checked higher timeframe', 'Risk within limits', 'Fits my trading plan', 'Key levels identified'])
+      }
+      
+      if (data?.trading_setups) {
+        if (Array.isArray(data.trading_setups)) {
+          setProfileSetups(data.trading_setups)
+        } else if (typeof data.trading_setups === 'object' && data.trading_setups !== null) {
+          const parsedSetups: any[] = []
+          Object.entries(data.trading_setups).forEach(([key, val]) => {
+            if (key !== '__custom_journal_template' && val && typeof val === 'object' && 'name' in val) {
+              parsedSetups.push(val)
+            }
+          })
+          setProfileSetups(parsedSetups)
+        }
+      }
+      
+      if (data?.custom_journal_template) {
+        setProfileTemplate(data.custom_journal_template)
+      } else if (data?.trading_setups && (data.trading_setups as any).__custom_journal_template) {
         setProfileTemplate((data.trading_setups as any).__custom_journal_template)
       } else {
         const local = localStorage.getItem('goldbook_custom_template')

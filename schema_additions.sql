@@ -154,7 +154,9 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS custom_journal_template JSO
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS custom_habit_tracker JSONB;
 
 -- 15. Backtest Trades Table for permanent tracking
-CREATE TABLE IF NOT EXISTS public.backtest_trades (
+DROP TABLE IF EXISTS public.backtest_trades CASCADE;
+
+CREATE TABLE public.backtest_trades (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   symbol TEXT NOT NULL,
