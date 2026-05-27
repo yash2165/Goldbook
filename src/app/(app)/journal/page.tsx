@@ -125,6 +125,24 @@ function TradeJournalCard({
     return { p1: '', p2: '', p3: '', p4: '', isCustom: false, values: {} }
   }, [trade.notes])
 
+  const shouldRenderCustom = useMemo(() => {
+    // 1. If this specific trade was already saved as custom, render custom
+    if (parsedNotes.isCustom) return true
+    
+    // 2. If this trade has default notes filled out, preserve default template so past notes aren't lost
+    const hasDefaultNotes = !!(
+      parsedNotes.p1?.trim() || 
+      parsedNotes.p2?.trim() || 
+      parsedNotes.p3?.trim() || 
+      parsedNotes.p4?.trim() || 
+      (parsedNotes.confirmations && parsedNotes.confirmations.length > 0)
+    )
+    if (hasDefaultNotes) return false
+
+    // 3. Otherwise, if the user has an active custom template, use it exclusively (removing default prompts)
+    return !!customTemplate
+  }, [parsedNotes, customTemplate])
+
   useEffect(() => {
     if (parsedNotes.isCustom) {
       setCustomValues(parsedNotes.values || {})
@@ -254,7 +272,7 @@ function TradeJournalCard({
     setSaving(true)
     
     // Save template values or standard prompts based on choice
-    const notesJsonString = customTemplate
+    const notesJsonString = shouldRenderCustom
       ? JSON.stringify({ isCustom: true, values: customValues })
       : JSON.stringify({ p1, p2, p3, p4, confirmations })
 
@@ -774,7 +792,7 @@ function TradeJournalCard({
               {/* Right col */}
               <div className="flex flex-col space-y-6">
                 
-                {customTemplate ? (
+                {shouldRenderCustom ? (
                   /* RENDER CUSTOM NOTION TEMPLATE */
                   <div className="flex-1 flex flex-col space-y-5">
                     <div className="flex items-center justify-between border-b border-white/5 pb-2">
