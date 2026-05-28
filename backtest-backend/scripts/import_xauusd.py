@@ -25,13 +25,17 @@ try:
     print("🧹 Step 2: Cleaning and structuring dataset...")
     # Rename 'datetime' to 'ts' to match the database column
     df = df.rename(columns={"datetime": "ts"})
+    
+    # --- DEFENSIVE BUG FIX: Handle missing volume column for Forex/Gold CFD ---
+    if "volume" not in df.columns:
+        df["volume"] = 0
+    else:
+        df["volume"] = df["volume"].fillna(0).astype(int)
+        
     df["symbol"] = "XAUUSD"
     
     # Ensure correct column order matching table columns
     df = df[["symbol", "ts", "open", "high", "low", "close", "volume"]]
-    
-    # Fill in missing volume numbers and convert to integer
-    df["volume"] = df["volume"].fillna(0).astype(int)
     
     # Drop any duplicate times to prevent primary key conflicts
     df = df.drop_duplicates(subset=["ts"])
@@ -44,7 +48,7 @@ try:
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
     
-    # Use postgres COPY FROM which runs at native C speeds (millions of rows in 2 seconds)
+    # Use postgres COPY FROM which runs at native C speeds
     with open(temp_csv_path, "r") as f:
         cur.copy_from(
             f, 
