@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS backtest_sessions (
     current_balance NUMERIC(15,2) NOT NULL DEFAULT 10000.00,
     timeframe       VARCHAR(10) NOT NULL DEFAULT '1m',
     status          VARCHAR(20) NOT NULL DEFAULT 'active', -- 'active' or 'completed'
+    current_timestamp TIMESTAMPTZ,                         -- --- PERSISTENCE: last replayed candle time
+    last_accessed_at TIMESTAMPTZ DEFAULT NOW(),            -- --- PERSISTENCE: active check for 30-day archive
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 

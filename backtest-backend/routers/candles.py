@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json
 from db import get_db_connection, get_db_cursor
 from services.resampler import StreamResampler
+from typing import Optional
 
 router = APIRouter()
 
@@ -32,25 +33,34 @@ def get_available_dates(symbol: str):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @router.get("/history")
-def get_history(symbol: str, start_date: str, timeframe: str = "1m", limit: int = 500):
+def get_history(symbol: str, start_date: str, timeframe: str = "1m", limit: int = 500, session_id: Optional[int] = None):
     tf = timeframe.lower()
     if tf not in TF_INTERVALS:
         raise HTTPException(status_code=400, detail="Invalid timeframe")
         
     try:
+        boundary_time = start_date
+        
+        # --- PERSISTENCE: If resuming session, load history relative to current position ---
+        if session_id:
+            with get_db_cursor() as cur:
+                cur.execute("SELECT current_timestamp FROM backtest_sessions WHERE id = %s", (session_id,))
+                sess = cur.fetchone()
+                if sess and sess["current_timestamp"]:
+                    boundary_time = str(sess["current_timestamp"])
+                    
         interval_secs = TF_INTERVALS[tf]
-        # Bounded 1m fetch size with padding to cover weekends/holidays
         candles_needed = int(limit * (interval_secs // 60) * 1.5)
         
         with get_db_cursor() as cur:
-            # Query 1-minute candles before the start date
+            # Query 1-minute candles before the boundary date/time
             cur.execute(
                 """SELECT ts, open, high, low, close, volume
                    FROM candles_1m
                    WHERE symbol = %s AND ts < %s
                    ORDER BY ts DESC
                    LIMIT %s""",
-                (symbol.upper(), start_date, candles_needed)
+                (symbol.upper(), boundary_time, candles_needed)
             )
             rows = cur.fetchall()
             
@@ -176,6 +186,25 @@ async def replay_websocket(
     conn = None
     try:
         conn = get_db_connection()
+        # Create dedicated cursor
+        init_cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # --- PERSISTENCE: Check if session has a saved current_timestamp ---
+        init_cur.execute(
+            "SELECT current_timestamp, start_date FROM backtest_sessions WHERE id = %s", 
+            (session_id,)
+        )
+        sess_row = init_cur.fetchone()
+        
+        start_point = start_date
+        if sess_row and sess_row["current_timestamp"]:
+            start_point = str(sess_row["current_timestamp"])
+            print(f"🔄 Resuming session {session_id} from timestamp: {start_point}")
+        else:
+            print(f"🎬 Starting session {session_id} from date: {start_point}")
+            
+        init_cur.close()
+        
         # Use a server-side cursor to stream candles chunk-by-chunk without overloading RAM!
         cursor_name = f"replay_cur_{session_id}_{int(datetime.now().timestamp())}"
         cur = conn.cursor(name=cursor_name, cursor_factory=RealDictCursor)
@@ -185,7 +214,7 @@ async def replay_websocket(
                FROM candles_1m
                WHERE symbol = %s AND ts >= %s
                ORDER BY ts ASC""",
-            (symbol.upper(), start_date)
+            (symbol.upper(), start_point)
         )
         
         resampler = StreamResampler(tf)
@@ -214,9 +243,16 @@ async def replay_websocket(
             row_idx += 1
             
             # --- 1. Server-side SL/TP checking on the 1-minute sub-candle level! ---
-            # Create a separate cursor to check open positions without corrupting the main cursor
             write_cur = conn.cursor(cursor_factory=RealDictCursor)
             try:
+                # Track current playback timestamp in session (PERSISTENCE)
+                write_cur.execute(
+                    """UPDATE backtest_sessions 
+                       SET current_timestamp = %s, last_accessed_at = NOW() 
+                       WHERE id = %s""",
+                    (min_candle["ts"], session_id)
+                )
+                
                 open_trades = get_open_trades(write_cur, session_id)
                 for trade in open_trades:
                     direction = trade["direction"].lower()
@@ -262,7 +298,6 @@ async def replay_websocket(
                     if is_hit:
                         # Update DB
                         close_trade_on_target(write_cur, trade["id"], session_id, exit_price, min_candle["ts"], pnl, reason)
-                        conn.commit()
                         
                         # Send alert to Next.js
                         await websocket.send_json({
@@ -273,6 +308,7 @@ async def replay_websocket(
                             "pnl": round(pnl, 2),
                             "time": int(min_candle["ts"].timestamp())
                         })
+                conn.commit()
             except Exception as e:
                 conn.rollback()
                 print(f"Error checking SL/TP hit: {e}")
