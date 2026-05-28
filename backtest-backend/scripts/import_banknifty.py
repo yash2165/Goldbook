@@ -1,6 +1,5 @@
 import psycopg2
 import os
-import glob
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
@@ -22,16 +21,27 @@ print("🚀 Starting BankNifty Spot 1-Minute Data Importer")
 print(f"Data directory: {DATA_FOLDER}")
 print("===========================================================\n")
 
-# Find all text files in the consolidated data folder
-text_files = sorted(glob.glob(os.path.join(DATA_FOLDER, "*.txt")))
+# --- ENHANCEMENT: Scan all files robustly (regardless of hidden .txt extensions) ---
+if not os.path.exists(DATA_FOLDER):
+    print(f"❌ Error: Directory {DATA_FOLDER} does not exist.")
+    exit(1)
+
+all_files = os.listdir(DATA_FOLDER)
+text_files = sorted([
+    os.path.join(DATA_FOLDER, f) for f in all_files 
+    if os.path.isfile(os.path.join(DATA_FOLDER, f)) and not f.startswith('.')
+])
 
 if not text_files:
-    print(f"❌ Error: No text files (.txt) found in {DATA_FOLDER}")
-    print("Please download and upload the BankNifty consolidated files to your VPS first.")
+    print(f"❌ Error: No files found in {DATA_FOLDER}")
+    print("Please upload the BankNifty files to your VPS first.")
     exit(1)
+
+print(f"📂 Found {len(text_files)} data files to parse.")
 
 clean_rows = []
 total_parsed = 0
+skipped_tickers = set()
 
 for filepath in text_files:
     filename = os.path.basename(filepath)
@@ -43,13 +53,13 @@ for filepath in text_files:
             if len(parts) < 7:
                 continue
                 
-            ticker = parts[0].strip()
+            ticker = parts[0].strip().upper()
             date_str = parts[1].strip()
             time_str = parts[2].strip()
             
-            # --- BUG FIX: Filter Spot Only (skip futures BANKNIFTY F1) ---
-            # Claude's script erroneously kept futures. We only keep spot 'BANKNIFTY'
-            if ticker != "BANKNIFTY":
+            # --- DEFENSIVE BUG FIX: Allow both 'BANKNIFTY' and shorthand 'BNF' ---
+            if ticker not in ("BANKNIFTY", "BNF"):
+                skipped_tickers.add(ticker)
                 continue
                 
             # --- FEATURE: Filter trading hours (09:15 to 15:30 IST) ---
@@ -90,8 +100,11 @@ for filepath in text_files:
             except Exception:
                 continue
 
+if skipped_tickers:
+    print(f"ℹ️ Skipped other tickers in files: {list(skipped_tickers)}")
+
 if not clean_rows:
-    print("❌ No valid BankNifty spot rows found. Verify data format.")
+    print("❌ No valid BankNifty/BNF spot rows found. Verify data format inside files.")
     exit(1)
 
 # Write parsed rows to clean temp CSV for ultra-fast COPY command
