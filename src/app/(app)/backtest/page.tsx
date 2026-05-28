@@ -52,9 +52,7 @@ export default function BacktestReplayPage() {
   const [layoutMode, setLayoutMode] = useState<'single' | 'split'>('split')
   
   // VPS API Server state
-  const [apiUrl, setApiUrl] = useState('yash-backtest.duckdns.org')
-  const [isApiSettingsOpen, setIsApiSettingsOpen] = useState(false)
-  const [tempApiUrl, setTempApiUrl] = useState('')
+  const apiUrl = 'goldbook-backtest.ddnsfree.com'
   
   // Replay Session State
   const [sessionId, setSessionId] = useState<number | null>(null)
@@ -113,19 +111,9 @@ export default function BacktestReplayPage() {
   
   const wsRef = useRef<WebSocket | null>(null)
 
-  // 1. Force Client-only Mounting & Load LocalStorage Config
+  // 1. Force Client-only Mounting
   useEffect(() => {
     setIsMounted(true)
-    
-    // Load VPS API subdomain config if saved
-    const savedApi = localStorage.getItem('goldbook_backtest_api')
-    if (savedApi) {
-      setApiUrl(savedApi)
-      setTempApiUrl(savedApi)
-    } else {
-      setTempApiUrl('yash-backtest.duckdns.org')
-    }
-    
     return () => {
       if (wsRef.current) wsRef.current.close()
     }
@@ -341,13 +329,7 @@ export default function BacktestReplayPage() {
     }
   }, [activePosition, slPips, tpPips])
 
-  // 6. API Save Custom Subdomain Handler
-  const handleSaveApiSettings = () => {
-    localStorage.setItem('goldbook_backtest_api', tempApiUrl)
-    setApiUrl(tempApiUrl)
-    setIsApiSettingsOpen(false)
-    alert(`Success: API backend subdomain set to ${tempApiUrl}`)
-  }
+
 
   // 7. Start Simulation Session (REST Call)
   const handleStartSession = async () => {
@@ -718,21 +700,12 @@ export default function BacktestReplayPage() {
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
               Visual Replay Backtester <span className="text-[10px] bg-primary text-black font-black uppercase px-2 py-0.5 rounded">VPS Replay</span>
             </h1>
-            <p className="text-xs text-[#64748B] mt-0.5">Stream 1-minute historical bars from your Oracle VPS, place trades, and auto-journal.</p>
+            <p className="text-xs text-[#64748B] mt-0.5">Simulate high-fidelity trade execution, test strategy edge, and auto-journal performance in real-time.</p>
           </div>
         </div>
 
         {/* Action configs */}
         <div className="flex items-center gap-3">
-          {/* API settings button */}
-          <button
-            onClick={() => setIsApiSettingsOpen(true)}
-            className="p-2 bg-[#0D1421] border border-white/5 hover:border-white/10 text-white rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
-            title="Configure VPS sub-domain"
-          >
-            <Settings className="w-4 h-4 text-primary" /> API Config
-          </button>
-
           {sessionId && (
             <button
               onClick={() => {
@@ -752,64 +725,7 @@ export default function BacktestReplayPage() {
         </div>
       </div>
 
-      {/* API Config Settings Popup Dialog */}
-      <AnimatePresence>
-        {isApiSettingsOpen && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#0D1421] border border-white/10 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl relative"
-            >
-              <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                <h3 className="text-sm font-black uppercase text-white tracking-widest flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-primary" /> VPS Connection Config
-                </h3>
-                <button onClick={() => setIsApiSettingsOpen(false)} className="text-[#64748B] hover:text-white cursor-pointer">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
 
-              <div className="space-y-3.5">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">DuckDNS Subdomain / VPS Host</label>
-                  <div className="flex items-center bg-[#060A12] border border-white/10 rounded-xl px-3 py-2 text-xs text-white">
-                    <Globe className="w-4 h-4 text-[#334155] shrink-0 mr-2" />
-                    <input
-                      type="text"
-                      value={tempApiUrl}
-                      onChange={e => setTempApiUrl(e.target.value)}
-                      placeholder="e.g. yash-backtest.duckdns.org"
-                      className="flex-1 bg-transparent border-none outline-none text-white font-mono placeholder-[#334155]"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-3 bg-white/2 border border-white/5 rounded-xl text-[10px] text-[#64748B] leading-relaxed">
-                  <ShieldAlert className="w-4 h-4 text-primary shrink-0 inline mr-1 -mt-0.5" />
-                  Ensure Nginx and Certbot SSL configuration scripts are completed on your VPS so secure HTTPS and WebSocket streams connect without browser blocks.
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  onClick={() => setIsApiSettingsOpen(false)}
-                  className="py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveApiSettings}
-                  className="py-2.5 bg-primary hover:bg-primary/95 text-black rounded-xl text-xs font-black tracking-wide cursor-pointer"
-                >
-                  Save Settings
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* --- SESSION CONFIG PANEL (Displays if no session is active) --- */}
       <AnimatePresence mode="wait">
