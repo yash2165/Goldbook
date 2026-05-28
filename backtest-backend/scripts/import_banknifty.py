@@ -11,6 +11,47 @@ DATABASE_URL = os.getenv(
     "postgresql://backtest_user:your_strong_password_here@localhost:5432/backtest_db"
 )
 
+def parse_db_url(url):
+    """
+    Safely parses a postgresql:// URL even if the password contains special characters like '@' or ':'.
+    """
+    if not url.startswith("postgresql://") and not url.startswith("postgres://"):
+        return {"dsn": url}
+    
+    prefix = "postgresql://" if url.startswith("postgresql://") else "postgres://"
+    remaining = url[len(prefix):]
+    
+    if "@" not in remaining:
+        return {"dsn": url}
+        
+    credentials, host_info = remaining.rsplit("@", 1)
+    
+    if ":" in credentials:
+        user, password = credentials.split(":", 1)
+    else:
+        user = credentials
+        password = ""
+        
+    if "/" in host_info:
+        host_port, database = host_info.split("/", 1)
+    else:
+        host_port = host_info
+        database = ""
+        
+    if ":" in host_port:
+        host, port = host_port.split(":", 1)
+    else:
+        host = host_port
+        port = "5432"
+        
+    return {
+        "user": user,
+        "password": password,
+        "host": host,
+        "port": port,
+        "database": database
+    }
+
 DATA_FOLDER = "/home/ubuntu/backtest-data/banknifty/"
 
 # Define Indian Standard Time (IST) offset (UTC + 5:30)
@@ -117,7 +158,11 @@ with open(temp_csv_path, "w") as out:
 print("🚀 Connecting to PostgreSQL and executing bulk COPY...")
 conn = None
 try:
-    conn = psycopg2.connect(DATABASE_URL)
+    db_params = parse_db_url(DATABASE_URL)
+    if "dsn" in db_params:
+        conn = psycopg2.connect(dsn=db_params["dsn"])
+    else:
+        conn = psycopg2.connect(**db_params)
     cur = conn.cursor()
     
     with open(temp_csv_path, "r") as f:

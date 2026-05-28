@@ -11,6 +11,47 @@ DATABASE_URL = os.getenv(
     "postgresql://backtest_user:your_strong_password_here@localhost:5432/backtest_db"
 )
 
+def parse_db_url(url):
+    """
+    Safely parses a postgresql:// URL even if the password contains special characters like '@' or ':'.
+    """
+    if not url.startswith("postgresql://") and not url.startswith("postgres://"):
+        return {"dsn": url}
+    
+    prefix = "postgresql://" if url.startswith("postgresql://") else "postgres://"
+    remaining = url[len(prefix):]
+    
+    if "@" not in remaining:
+        return {"dsn": url}
+        
+    credentials, host_info = remaining.rsplit("@", 1)
+    
+    if ":" in credentials:
+        user, password = credentials.split(":", 1)
+    else:
+        user = credentials
+        password = ""
+        
+    if "/" in host_info:
+        host_port, database = host_info.split("/", 1)
+    else:
+        host_port = host_info
+        database = ""
+        
+    if ":" in host_port:
+        host, port = host_port.split(":", 1)
+    else:
+        host = host_port
+        port = "5432"
+        
+    return {
+        "user": user,
+        "password": password,
+        "host": host,
+        "port": port,
+        "database": database
+    }
+
 CSV_PATH = "/home/ubuntu/backtest-data/xauusd/xauusd_1min_5years.csv"
 
 if not os.path.exists(CSV_PATH):
@@ -45,7 +86,11 @@ try:
     df.to_csv(temp_csv_path, index=False, header=False)
     
     print("🚀 Step 3: Connecting to PostgreSQL and executing COPY command...")
-    conn = psycopg2.connect(DATABASE_URL)
+    db_params = parse_db_url(DATABASE_URL)
+    if "dsn" in db_params:
+        conn = psycopg2.connect(dsn=db_params["dsn"])
+    else:
+        conn = psycopg2.connect(**db_params)
     cur = conn.cursor()
     
     # Use postgres COPY FROM which runs at native C speeds
