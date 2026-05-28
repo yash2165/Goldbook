@@ -846,15 +846,11 @@ export default function BacktestReplayPage() {
                     🏆 GOLD (XAUUSD)
                   </button>
                   <button
-                    onClick={() => setSymbol('BANKNIFTY')}
-                    className={cn(
-                      "py-3 border text-xs font-bold rounded-xl transition-all cursor-pointer",
-                      symbol === 'BANKNIFTY' 
-                        ? "bg-primary/10 border-primary/40 text-primary shadow-lg shadow-primary/5" 
-                        : "bg-[#060A12] border-white/5 text-[#64748B] hover:border-white/10"
-                    )}
+                    disabled
+                    className="py-3 bg-[#060A12]/30 border border-white/5 text-[#334155] text-xs font-bold rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5"
+                    title="BankNifty Spot data is coming soon!"
                   >
-                    🏦 BANKNIFTY SPOT
+                    🏦 BANKNIFTY SPOT <span className="text-[8px] bg-white/5 text-[#64748B] px-1.5 py-0.5 rounded font-black uppercase">SOON</span>
                   </button>
                 </div>
               </div>
