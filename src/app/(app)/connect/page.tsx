@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { CheckCircle2, ChevronRight, Loader2, ShieldCheck, ShieldAlert, Lock, Info, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { 
+  CheckCircle2, ChevronRight, Loader2, ShieldCheck, ShieldAlert, Lock, Info, AlertTriangle,
+  Brain, Check, X
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { useEffect } from 'react'
+import { motion } from 'framer-motion'
 
 export default function ConnectPage() {
   const router = useRouter()
@@ -15,6 +18,109 @@ export default function ConnectPage() {
   const [realBalance, setRealBalance] = useState<number | null>(null)
   const [accountId, setAccountId] = useState<string | null>(null)
   const supabase = createClient()
+
+  const [userTier, setUserTier] = useState<'free' | 'paid' | 'pro' | null>(null)
+  const [loadingTier, setLoadingTier] = useState(true)
+  const [connectedCount, setConnectedCount] = useState<number>(0)
+
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script')
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      script.onload = () => resolve(true)
+      script.onerror = () => resolve(false)
+      document.body.appendChild(script)
+    })
+  }
+
+  const handleRazorpayCheckout = async (tierName: 'paid' | 'pro', amount: number) => {
+    const loaded = await loadRazorpayScript()
+    if (!loaded) {
+      alert('Failed to load Razorpay SDK. Please check your internet connection.')
+      return
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Please log in to upgrade your plan.')
+        return
+      }
+
+      const options = {
+        key: 'rzp_test_Sv9GJ0OEOAIjVO',
+        amount: amount * 100, // Amount in paise
+        currency: 'INR',
+        name: 'GoldBook',
+        description: `Upgrade to ${tierName === 'paid' ? 'The Automated Trader' : 'The Elite Professional'}`,
+        image: 'https://goldbook-roan.vercel.app/logo.png',
+        handler: async function (response: any) {
+          try {
+            // Update Supabase profile directly on success
+            const { error: dbErr } = await supabase
+              .from('profiles')
+              .update({ tier: tierName })
+              .eq('id', user.id)
+
+            if (dbErr) throw dbErr
+
+            alert(`Payment Successful! Your account has been upgraded to ${tierName === 'paid' ? 'Paid' : 'Pro'} tier.`)
+            window.location.reload()
+          } catch (err: any) {
+            alert('Payment was successful (Payment ID: ' + response.razorpay_payment_id + '), but your profile update failed. Please contact support.')
+          }
+        },
+        prefill: {
+          email: user.email || '',
+        },
+        theme: {
+          color: tierName === 'pro' ? '#F59E0B' : '#3B82F6',
+        },
+      }
+
+      const rzp = new (window as any).Razorpay(options)
+      rzp.open()
+    } catch (err: any) {
+      console.error(err)
+      alert('Error initializing checkout. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    async function loadUserTierAndAccounts() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data } = await supabase
+            .from('profiles')
+            .select('tier')
+            .eq('id', user.id)
+            .single()
+          
+          if (data && data.tier) {
+            setUserTier(data.tier as any)
+          } else {
+            setUserTier('free')
+          }
+
+          const { count, error } = await supabase
+            .from('mt5_accounts')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+          
+          if (!error && count !== null) {
+            setConnectedCount(count)
+          }
+        }
+      } catch (err) {
+        setUserTier('free')
+      } finally {
+        setLoadingTier(false)
+      }
+    }
+    loadUserTierAndAccounts()
+  }, [])
 
   useEffect(() => {
     let channel: RealtimeChannel
@@ -151,6 +257,249 @@ export default function ConnectPage() {
       setError(err.message)
       setLoading(false)
     }
+  }
+
+  if (loadingTier) {
+    return (
+      <div className="p-6 max-w-full mx-auto space-y-6 min-h-[60vh] flex flex-col items-center justify-center">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full border border-primary/20 animate-ping" />
+          <div className="absolute inset-0 rounded-full border border-primary border-t-transparent animate-spin" />
+        </div>
+        <p className="text-[#64748B] text-xs font-mono animate-pulse">Checking credentials & active connections...</p>
+      </div>
+    )
+  }
+
+  if (userTier === 'free') {
+    return (
+      <div className="p-4 md:p-6 max-w-[1200px] mx-auto space-y-12 min-h-[80vh] flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Premium Gating Card */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 opacity-30 pointer-events-none" />
+        
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full bg-[#0D1421] border border-white/5 rounded-3xl p-6 text-center space-y-4 shadow-2xl backdrop-blur-md relative z-10"
+        >
+          <div className="w-14 h-14 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center text-[#F59E0B] mx-auto shadow-[0_0_20px_rgba(245,159,11,0.15)] animate-pulse">
+            <Brain className="w-7 h-7 stroke-[1.5]" />
+          </div>
+          
+          <div className="space-y-1.5">
+            <span className="text-[9px] bg-[#F59E0B] text-black font-black uppercase px-2.5 py-0.5 rounded font-mono tracking-wider">
+              PREMIUM GATED FEATURE
+            </span>
+            <h2 className="text-lg font-black text-white uppercase tracking-wider mt-2.5">Real-Time Broker Sync</h2>
+            <p className="text-xs text-[#64748B] leading-relaxed">
+              Automated MT5 account synchronization is a premium feature. Upgrade your plan below to connect your MetaTrader 5 account and synchronize all your trades in real-time 24/7!
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Stunning 3-Tier Modern Pricing Plans Grid */}
+        <div className="w-full space-y-6 relative z-10">
+          <div className="text-center space-y-1">
+            <h2 className="text-sm font-black uppercase text-white tracking-widest">Select Your Professional Edge</h2>
+            <p className="text-xs text-[#64748B]">Unlock automated systems, deep behavioral psychology, and priority cloud execution.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[1000px] mx-auto">
+            
+            {/* Free Plan */}
+            <div className="bg-[#0D1421] border border-white/5 hover:border-white/10 rounded-3xl p-6 flex flex-col justify-between shadow-2xl transition-all relative overflow-hidden group">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[#64748B]">Free forever</h3>
+                  <h4 className="text-sm font-black text-white">The Accountable Trader</h4>
+                  <div className="text-2xl font-black text-white mt-1">$0 <span className="text-xs text-[#64748B] font-bold">/ month</span></div>
+                </div>
+                <div className="border-t border-white/5 pt-4 space-y-2 text-xs font-semibold text-[#94A3B8]">
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Unlimited manual journaling</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Full TradingView charts suite</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Complete stats & metrics grids</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Public community & leaderboards</p>
+                  <p className="flex items-center gap-2"><X className="w-4 h-4 text-red-500/60 shrink-0" /> No background MT5 auto-sync</p>
+                  <p className="flex items-center gap-2"><X className="w-4 h-4 text-red-500/60 shrink-0" /> No AI Psychology audits & chat</p>
+                </div>
+              </div>
+              <button disabled className="mt-6 w-full py-3 bg-white/5 text-[#64748B] font-black text-xs uppercase tracking-wider rounded-xl cursor-not-allowed">
+                Current Plan
+              </button>
+            </div>
+
+            {/* Paid Plan */}
+            <div className="bg-[#0D1421] border border-[#3B82F6]/10 hover:border-[#3B82F6]/30 rounded-3xl p-6 flex flex-col justify-between shadow-2xl transition-all relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[#3B82F6]/5 rounded-full blur-2xl group-hover:bg-[#3B82F6]/10 transition-all pointer-events-none" />
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[#3B82F6]">Automated Sync</h3>
+                  <h4 className="text-sm font-black text-white font-bold">The Automated Trader</h4>
+                  <div className="text-2xl font-black text-white mt-1">$9 <span className="text-xs text-[#64748B] font-bold">/ month</span></div>
+                </div>
+                <div className="border-t border-white/5 pt-4 space-y-2 text-xs font-semibold text-[#94A3B8]">
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong className="text-white font-bold">1 Active MT5 Account Sync</strong></p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Unlimited active journal history</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Standard analytical drawdowns grid</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Weekly/Monthly static AI reports</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Custom templates & habit logs</p>
+                  <p className="flex items-center gap-2"><X className="w-4 h-4 text-red-500/60 shrink-0" /> No Conversational AI coaching chat</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleRazorpayCheckout('paid', 750)} 
+                className="mt-6 w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all active:scale-95 cursor-pointer shadow-lg shadow-blue-500/10"
+              >
+                Select Plan
+              </button>
+            </div>
+
+            {/* Pro Plan */}
+            <div className="bg-[#0D1421] border border-[#F59E0B]/20 hover:border-[#F59E0B]/50 rounded-3xl p-6 flex flex-col justify-between shadow-2xl transition-all relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[#F59E0B]/10 rounded-full blur-2xl group-hover:bg-[#F59E0B]/15 transition-all pointer-events-none" />
+              <div className="absolute -right-12 -top-12 w-24 h-24 bg-[#F59E0B] text-black font-black uppercase text-[8px] flex items-center justify-center rotate-45 tracking-widest pt-12 shadow-lg animate-pulse">
+                Ultimate
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[#F59E0B]">Nirikshan Pro</h3>
+                  <h4 className="text-sm font-black text-white font-bold">The Elite Professional</h4>
+                  <div className="text-2xl font-black text-white mt-1">$29 <span className="text-xs text-[#64748B] font-bold">/ month</span></div>
+                </div>
+                <div className="border-t border-white/5 pt-4 space-y-2 text-xs font-semibold text-[#94A3B8]">
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong className="text-white font-bold">Unlimited MT5 Accounts Sync</strong></p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong className="text-white font-bold">Nirikshan Conversational AI Chat</strong></p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> AI Cognitive bias threat heatmaps</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Visual Replay Backtest (Scissors)</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Priority sandbox processing</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleRazorpayCheckout('pro', 2400)} 
+                className="mt-6 w-full py-3 bg-primary hover:bg-primary/95 text-black font-black text-xs uppercase tracking-wider rounded-xl transition-all active:scale-95 cursor-pointer shadow-lg shadow-primary/10"
+              >
+                Select Plan
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (userTier === 'paid' && connectedCount >= 1) {
+    return (
+      <div className="p-4 md:p-6 max-w-[1200px] mx-auto space-y-12 min-h-[80vh] flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Premium Gating Card */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 opacity-30 pointer-events-none" />
+        
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full bg-[#0D1421] border border-white/5 rounded-3xl p-6 text-center space-y-4 shadow-2xl backdrop-blur-md relative z-10"
+        >
+          <div className="w-14 h-14 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center text-[#F59E0B] mx-auto shadow-[0_0_20px_rgba(245,159,11,0.15)] animate-pulse">
+            <Brain className="w-7 h-7 stroke-[1.5]" />
+          </div>
+          
+          <div className="space-y-1.5">
+            <span className="text-[9px] bg-[#F59E0B] text-black font-black uppercase px-2.5 py-0.5 rounded font-mono tracking-wider">
+              CONNECTION LIMIT REACHED
+            </span>
+            <h2 className="text-lg font-black text-white uppercase tracking-wider mt-2.5">MT5 Sync Limit Reached</h2>
+            <p className="text-xs text-[#64748B] leading-relaxed">
+              Your current Paid plan supports 1 active MT5 account connection. Upgrade to Pro below to connect and manage multiple brokers and prop-firm challenge accounts simultaneously!
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Stunning 3-Tier Modern Pricing Plans Grid */}
+        <div className="w-full space-y-6 relative z-10">
+          <div className="text-center space-y-1">
+            <h2 className="text-sm font-black uppercase text-white tracking-widest">Select Your Professional Edge</h2>
+            <p className="text-xs text-[#64748B]">Unlock automated systems, deep behavioral psychology, and priority cloud execution.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[1000px] mx-auto">
+            
+            {/* Free Plan */}
+            <div className="bg-[#0D1421] border border-white/5 hover:border-white/10 rounded-3xl p-6 flex flex-col justify-between shadow-2xl transition-all relative overflow-hidden group">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[#64748B]">Free forever</h3>
+                  <h4 className="text-sm font-black text-white">The Accountable Trader</h4>
+                  <div className="text-2xl font-black text-white mt-1">$0 <span className="text-xs text-[#64748B] font-bold">/ month</span></div>
+                </div>
+                <div className="border-t border-white/5 pt-4 space-y-2 text-xs font-semibold text-[#94A3B8]">
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Unlimited manual journaling</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Full TradingView charts suite</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Complete stats & metrics grids</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Public community & leaderboards</p>
+                  <p className="flex items-center gap-2"><X className="w-4 h-4 text-red-500/60 shrink-0" /> No background MT5 auto-sync</p>
+                  <p className="flex items-center gap-2"><X className="w-4 h-4 text-red-500/60 shrink-0" /> No AI Psychology audits & chat</p>
+                </div>
+              </div>
+              <button disabled className="mt-6 w-full py-3 bg-white/5 text-[#64748B] font-black text-xs uppercase tracking-wider rounded-xl cursor-not-allowed">
+                Standard
+              </button>
+            </div>
+
+            {/* Paid Plan */}
+            <div className="bg-[#0D1421] border border-[#3B82F6]/10 hover:border-[#3B82F6]/30 rounded-3xl p-6 flex flex-col justify-between shadow-2xl transition-all relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[#3B82F6]/5 rounded-full blur-2xl group-hover:bg-[#3B82F6]/10 transition-all pointer-events-none" />
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[#3B82F6]">Automated Sync</h3>
+                  <h4 className="text-sm font-black text-white font-bold">The Automated Trader</h4>
+                  <div className="text-2xl font-black text-white mt-1">$9 <span className="text-xs text-[#64748B] font-bold">/ month</span></div>
+                </div>
+                <div className="border-t border-white/5 pt-4 space-y-2 text-xs font-semibold text-[#94A3B8]">
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong className="text-white font-bold">1 Active MT5 Account Sync</strong></p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Unlimited active journal history</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Standard analytical drawdowns grid</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Weekly/Monthly static AI reports</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Custom templates & habit logs</p>
+                  <p className="flex items-center gap-2"><X className="w-4 h-4 text-red-500/60 shrink-0" /> No Conversational AI coaching chat</p>
+                </div>
+              </div>
+              <button disabled className="mt-6 w-full py-3 bg-blue-500/20 text-[#3B82F6] font-black text-xs uppercase tracking-wider rounded-xl cursor-not-allowed">
+                Current Plan
+              </button>
+            </div>
+
+            {/* Pro Plan */}
+            <div className="bg-[#0D1421] border border-[#F59E0B]/20 hover:border-[#F59E0B]/50 rounded-3xl p-6 flex flex-col justify-between shadow-2xl transition-all relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[#F59E0B]/10 rounded-full blur-2xl group-hover:bg-[#F59E0B]/15 transition-all pointer-events-none" />
+              <div className="absolute -right-12 -top-12 w-24 h-24 bg-[#F59E0B] text-black font-black uppercase text-[8px] flex items-center justify-center rotate-45 tracking-widest pt-12 shadow-lg animate-pulse">
+                Ultimate
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[#F59E0B]">Nirikshan Pro</h3>
+                  <h4 className="text-sm font-black text-white font-bold">The Elite Professional</h4>
+                  <div className="text-2xl font-black text-white mt-1">$29 <span className="text-xs text-[#64748B] font-bold">/ month</span></div>
+                </div>
+                <div className="border-t border-white/5 pt-4 space-y-2 text-xs font-semibold text-[#94A3B8]">
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong className="text-white font-bold">Unlimited MT5 Accounts Sync</strong></p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong className="text-white font-bold">Nirikshan Conversational AI Chat</strong></p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> AI Cognitive bias threat heatmaps</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Visual Replay Backtest (Scissors)</p>
+                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Priority sandbox processing</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleRazorpayCheckout('pro', 2400)} 
+                className="mt-6 w-full py-3 bg-primary hover:bg-primary/95 text-black font-black text-xs uppercase tracking-wider rounded-xl transition-all active:scale-95 cursor-pointer shadow-lg shadow-primary/10"
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

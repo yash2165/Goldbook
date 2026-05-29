@@ -231,7 +231,6 @@ export default function AIReportPage() {
                   <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong className="text-white font-bold">Nirikshan Conversational AI Chat</strong></p>
                   <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> AI Cognitive bias threat heatmaps</p>
                   <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Visual Replay Backtest (Scissors)</p>
-                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> <strong className="text-white font-bold">VIP Signal Chat Rooms (Admin Signals)</strong></p>
                   <p className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400 shrink-0" /> Priority sandbox processing</p>
                 </div>
               </div>
