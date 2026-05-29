@@ -2,7 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 import asyncio
 from datetime import datetime, timezone
 import json
-from db import get_db_connection, get_db_cursor
+from db import get_db_connection, get_db_cursor, pool
 from services.resampler import StreamResampler
 from typing import Optional
 
@@ -185,7 +185,7 @@ async def replay_websocket(
     
     conn = None
     try:
-        conn = get_db_connection()
+        conn = pool.getconn()
         # Create dedicated cursor
         init_cur = conn.cursor(cursor_factory=RealDictCursor)
         
