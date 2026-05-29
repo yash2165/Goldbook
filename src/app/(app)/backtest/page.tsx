@@ -59,6 +59,54 @@ interface ActiveSession {
 export default function BacktestReplayPage() {
   const supabase = createClient()
   
+  const showComingSoon = true // Gated for major upgrades
+  if (showComingSoon) {
+    return (
+      <div className="p-6 max-w-full mx-auto space-y-6 min-h-[80vh] flex flex-col items-center justify-center relative overflow-hidden">
+        {/* Premium Glassmorphism Coming Soon Card */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 opacity-30 pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-primary/5 rounded-full blur-3xl opacity-20 pointer-events-none" />
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative z-10 max-w-md w-full bg-[#0D1421] border border-white/5 rounded-3xl p-8 text-center space-y-6 shadow-2xl backdrop-blur-md"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mx-auto shadow-[0_0_20px_rgba(245,159,11,0.15)] animate-pulse">
+            <PlayCircle className="w-8 h-8 stroke-[1.5]" />
+          </div>
+          
+          <div className="space-y-2">
+            <span className="text-[10px] bg-primary text-black font-black uppercase px-2.5 py-1 rounded-lg tracking-wider">
+              FEATURE GATED
+            </span>
+            <h2 className="text-xl font-black text-white uppercase tracking-wider mt-3">Visual Backtester</h2>
+            <p className="text-xs text-[#64748B] leading-relaxed">
+              The high-fidelity TradingView visual replay simulation terminal is currently undergoing core upgrades to integrate the advanced native TradingView terminal.
+            </p>
+          </div>
+
+          <div className="bg-[#060A12]/80 border border-white/5 rounded-2xl p-4 text-left">
+            <div className="flex items-center gap-2 text-xs text-white font-bold mb-1">
+              <Clock className="w-3.5 h-3.5 text-primary" /> ETA: Next Release
+            </div>
+            <p className="text-[10px] text-[#64748B] leading-normal font-medium">
+              This module will release with the fully integrated TradingView charting suite, drag-and-drop order tickets directly on charts, and automatic journal sync.
+            </p>
+          </div>
+
+          <Link 
+            href="/dashboard"
+            className="block w-full py-3.5 bg-primary hover:bg-primary/95 text-black font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 text-center cursor-pointer"
+          >
+            Return to Dashboard
+          </Link>
+        </motion.div>
+      </div>
+    )
+  }
+
   const [isMounted, setIsMounted] = useState(false)
   const [symbol, setSymbol] = useState<'XAUUSD' | 'BANKNIFTY'>('XAUUSD')
   const [timeframe, setTimeframe] = useState<string>('5m')
