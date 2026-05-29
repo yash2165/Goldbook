@@ -53,3 +53,7 @@ CREATE TABLE IF NOT EXISTS trades (
 -- Index for fast session query lookups
 CREATE INDEX IF NOT EXISTS idx_trades_session ON trades (session_id);
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades (status);
+
+-- 4. Session State migrations
+ALTER TABLE backtest_sessions ADD COLUMN IF NOT EXISTS drawings_state JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE backtest_sessions ADD COLUMN IF NOT EXISTS indicator_settings JSONB DEFAULT '{}'::jsonb;

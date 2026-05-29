@@ -6,7 +6,8 @@ import {
   Play, Pause, Plus, Trash2, Scissors, Sparkles, TrendingUp,
   TrendingDown, Target, Clock, ShieldAlert, Award, RefreshCw,
   X, Check, Edit2, Layers, HelpCircle, ChevronRight, Activity, FileSpreadsheet,
-  Calculator, Settings, Globe, PlayCircle, BarChart3, Database
+  Calculator, Settings, Globe, PlayCircle, BarChart3, Database,
+  Move, PenTool, Type, Ruler, Compass, Trash, LogOut, Calendar, DollarSign
 } from 'lucide-react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -43,6 +44,18 @@ interface BacktestTrade {
   notes?: string
 }
 
+interface ActiveSession {
+  id: number
+  symbol: string
+  start_date: string
+  initial_balance: number
+  current_balance: number
+  timeframe: string
+  status: string
+  current_timestamp: string | null
+  last_accessed_at: string
+}
+
 export default function BacktestReplayPage() {
   const supabase = createClient()
   
@@ -51,8 +64,13 @@ export default function BacktestReplayPage() {
   const [timeframe, setTimeframe] = useState<string>('5m')
   const [layoutMode, setLayoutMode] = useState<'single' | 'split'>('split')
   
-  // VPS API Server state
+  // VPS API Server host (hardcoded silently for public excellence!)
   const apiUrl = 'goldbook-backtest.ddnsfree.com'
+  
+  // Active Sessions State (TradersCasa Style)
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   
   // Replay Session State
   const [sessionId, setSessionId] = useState<number | null>(null)
@@ -71,6 +89,36 @@ export default function BacktestReplayPage() {
   const [playSpeed, setPlaySpeed] = useState<number>(5) // Candles per second
   const [isScissorsActive, setIsScissorsActive] = useState(false)
   
+  // Vertical Drawing Tools active selection
+  const [activeDrawingTool, setActiveDrawingTool] = useState<string>('cursor')
+  
+  // Custom persistent drawings & canvas state
+  const [drawings, setDrawings] = useState<any[]>([])
+  const [isDrawingActive, setIsDrawingActive] = useState(false)
+  const [activeShapeId, setActiveShapeId] = useState<string | null>(null)
+  
+  // Technical Indicator Toggles
+  const [showEma20, setShowEma20] = useState(false)
+  const [showEma50, setShowEma50] = useState(false)
+  const [showEma200, setShowEma200] = useState(false)
+  const [showRsi, setShowRsi] = useState(false)
+  const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(false)
+  
+  // DOM & Series Refs for custom overlays
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drawingsRef = useRef<any[]>([])
+  const rsiChartRef = useRef<HTMLDivElement>(null)
+  const rsiChartInstance = useRef<any>(null)
+  const rsiLineSeries = useRef<any>(null)
+  const ltfEma20Series = useRef<any>(null)
+  const ltfEma50Series = useRef<any>(null)
+  const ltfEma200Series = useRef<any>(null)
+  
+  // Keep drawingsRef synchronized with drawings state to prevent stale closures in event listeners
+  useEffect(() => {
+    drawingsRef.current = drawings
+  }, [drawings])
+
   // Broker State
   const [lots, setLots] = useState<number>(1.0)
   const [slPips, setSlPips] = useState<number>(50)
@@ -119,32 +167,52 @@ export default function BacktestReplayPage() {
     }
   }, [])
 
-  // 2. Fetch available dataset dates when symbol is changed
+  // 2. Load Active Sessions from database on mount
+  const fetchActiveSessions = async () => {
+    setIsLoadingSessions(true)
+    try {
+      const res = await fetch(`https://${apiUrl}/api/sessions/active`)
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setActiveSessions(data)
+      }
+    } catch (err) {
+      console.warn("Failed to load active backtest sessions:", err)
+    } finally {
+      setIsLoadingSessions(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isMounted) {
+      fetchActiveSessions()
+    }
+  }, [isMounted])
+
+  // 3. Fetch available dataset dates when symbol is changed
   useEffect(() => {
     if (!isMounted) return
     
     const fetchDates = async () => {
       try {
-        const cleanHost = apiUrl.replace(/^(https?:\/\/)?/, '').replace(/\/$/, '')
-        const res = await fetch(`https://${cleanHost}/api/candles/available-dates?symbol=${symbol}`)
+        const res = await fetch(`https://${apiUrl}/api/candles/available-dates?symbol=${symbol}`)
         const data = await res.json()
         if (data.from && data.to) {
           setAvailableDates({ from: data.from, to: data.to })
           setSessionStartDate(data.from)
         }
       } catch (err) {
-        console.warn("Could not fetch database available dates: ", err)
+        console.warn("Could not fetch database available dates:", err)
       }
     }
     
     fetchDates()
-  }, [symbol, apiUrl, isMounted])
+  }, [symbol, isMounted])
 
-  // 3. Synthesize Higher Timeframe (H1) candles dynamically from accumulated LTF (M5/M15) candles
+  // 4. Synthesize Higher Timeframe (H1) candles dynamically from accumulated LTF (M5/M15) candles
   useEffect(() => {
     if (ltfCandles.length === 0) return
     
-    // Synthesize H1 candles from the lower timeframe candles
     const synthesizedH1: any[] = []
     const tfInMinutes = timeframe.includes('m') ? parseInt(timeframe) : 60
     const candlesPerBar = Math.max(1, 60 / tfInMinutes)
@@ -178,7 +246,250 @@ export default function BacktestReplayPage() {
     setHtfCandles(synthesizedH1)
   }, [ltfCandles, timeframe])
 
-  // 4. Initialize Lightweight Charts (LTF & HTF)
+  // 4a. Math calculations for standard Technical Indicators (EMA & RSI)
+  const calculateEMA = (data: any[], period: number) => {
+    if (data.length < period) return [];
+    const k = 2 / (period + 1);
+    let emaVal = data[0].close;
+    const emaData = [{ time: data[0].time, value: emaVal }];
+    
+    for (let i = 1; i < data.length; i++) {
+      emaVal = data[i].close * k + emaVal * (1 - k);
+      emaData.push({ time: data[i].time, value: Number(emaVal.toFixed(4)) });
+    }
+    return emaData;
+  };
+
+  const calculateRSI = (data: any[], period: number = 14) => {
+    if (data.length < period + 1) return [];
+    let gains = 0;
+    let losses = 0;
+    
+    for (let i = 1; i <= period; i++) {
+      const diff = data[i].close - data[i - 1].close;
+      if (diff > 0) gains += diff;
+      else losses -= diff;
+    }
+    
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    const rsiData = [];
+    
+    for (let i = 0; i < period; i++) {
+      rsiData.push({ time: data[i].time, value: 50.0 });
+    }
+    
+    const firstRS = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    rsiData.push({ time: data[period].time, value: Number((100 - (100 / (1 + firstRS))).toFixed(2)) });
+    
+    for (let i = period + 1; i < data.length; i++) {
+      const diff = data[i].close - data[i - 1].close;
+      avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+      avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+      
+      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+      const rsiVal = 100 - (100 / (1 + rs));
+      rsiData.push({ time: data[i].time, value: Number(rsiVal.toFixed(2)) });
+    }
+    return rsiData;
+  };
+
+  // Debounced API call to save drawings state to PostgreSQL on the VPS
+  const saveDrawingsDebounced = useRef<any>(null);
+  const triggerAutosaveDrawings = (currentDrawings: any[], currentIndicators: any) => {
+    if (saveDrawingsDebounced.current) clearTimeout(saveDrawingsDebounced.current);
+    
+    saveDrawingsDebounced.current = setTimeout(async () => {
+      if (!sessionId) return;
+      try {
+        await fetch(`https://${apiUrl}/api/sessions/${sessionId}/drawings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            drawings_state: currentDrawings,
+            indicator_settings: currentIndicators
+          })
+        });
+        console.log("Drawings and indicator settings auto-saved to database.");
+      } catch (err) {
+        console.warn("Failed to auto-save drawings state:", err);
+      }
+    }, 1000); // 1 second debounce
+  };
+
+  // 4b. Draw drawings list onto Canvas Overlay mapped to Lightweight Charts coordinate space
+  const drawAllShapes = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !ltfChartInstance.current || !ltfCandleSeries.current) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Resize canvas dynamically to match current visible size of chart
+    if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    }
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const timeScale = ltfChartInstance.current.timeScale();
+    const series = ltfCandleSeries.current;
+    const currentDrawings = drawingsRef.current || [];
+    
+    currentDrawings.forEach(shape => {
+      if (!shape.points || shape.points.length === 0) return;
+      
+      // Convert points to screen coordinates
+      const pt1 = shape.points[0];
+      const x1 = timeScale.timeToCoordinate(pt1.time);
+      const y1 = series.priceToCoordinate(pt1.price);
+      
+      if (x1 === null || y1 === null) return;
+      
+      ctx.strokeStyle = shape.color || '#38BDF8';
+      ctx.lineWidth = shape.lineWidth || 2;
+      ctx.fillStyle = (shape.color || '#38BDF8') + '15'; // transparent fill
+      
+      if (shape.type === 'trendline' && shape.points.length > 1) {
+        const pt2 = shape.points[1];
+        const x2 = timeScale.timeToCoordinate(pt2.time);
+        const y2 = series.priceToCoordinate(pt2.price);
+        
+        if (x2 !== null && y2 !== null) {
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+      } else if (shape.type === 'horizontal') {
+        ctx.beginPath();
+        ctx.moveTo(0, y1);
+        ctx.lineTo(canvas.width, y1);
+        ctx.stroke();
+      } else if (shape.type === 'rectangle' && shape.points.length > 1) {
+        const pt2 = shape.points[1];
+        const x2 = timeScale.timeToCoordinate(pt2.time);
+        const y2 = series.priceToCoordinate(pt2.price);
+        
+        if (x2 !== null && y2 !== null) {
+          ctx.beginPath();
+          ctx.rect(x1, y1, x2 - x1, y2 - y1);
+          ctx.fill();
+          ctx.stroke();
+        }
+      } else if (shape.type === 'ruler' && shape.points.length > 1) {
+        const pt2 = shape.points[1];
+        const x2 = timeScale.timeToCoordinate(pt2.time);
+        const y2 = series.priceToCoordinate(pt2.price);
+        
+        if (x2 !== null && y2 !== null) {
+          // Shaded measurement box
+          ctx.beginPath();
+          ctx.rect(x1, y1, x2 - x1, y2 - y1);
+          ctx.fill();
+          ctx.stroke();
+          
+          const priceDiff = pt2.price - pt1.price;
+          const pips = (priceDiff * (symbol === 'XAUUSD' ? 10.0 : 1.0)).toFixed(1);
+          const pct = ((priceDiff / pt1.price) * 100).toFixed(2);
+          
+          // Shaded tooltip label
+          ctx.fillStyle = '#060A12';
+          ctx.strokeStyle = shape.color || '#38BDF8';
+          ctx.lineWidth = 1;
+          ctx.fillRect(x2 + 8, y2 - 25, 95, 34);
+          ctx.strokeRect(x2 + 8, y2 - 25, 95, 34);
+          
+          ctx.fillStyle = '#E2E8F0';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText(`Pips : ${pips}`, x2 + 14, y2 - 14);
+          ctx.fillStyle = priceDiff >= 0 ? '#34D399' : '#F87171';
+          ctx.fillText(`P&L  : ${priceDiff >= 0 ? '+' : ''}${pct}%`, x2 + 14, y2 - 3);
+        }
+      }
+    });
+  };
+
+  // 4c. Interactive drawings mouse events
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (activeDrawingTool === 'cursor' || !ltfChartInstance.current || !ltfCandleSeries.current) return;
+    
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    const time = ltfChartInstance.current.timeScale().coordinateToTime(mouseX);
+    const price = ltfCandleSeries.current.coordinateToPrice(mouseY);
+    
+    if (!time || !price) return;
+    
+    if (activeDrawingTool === 'horizontal') {
+      const newShape = {
+        id: Math.random().toString(36).substring(7),
+        type: 'horizontal',
+        points: [{ time, price }],
+        color: '#EF4444',
+        lineWidth: 1.5
+      };
+      setDrawings(prev => {
+        const next = [...prev, newShape];
+        triggerAutosaveDrawings(next, { showEma20, showEma50, showEma200, showRsi });
+        return next;
+      });
+      setActiveDrawingTool('cursor');
+    } else {
+      const newShape = {
+        id: Math.random().toString(36).substring(7),
+        type: activeDrawingTool,
+        points: [{ time, price }, { time, price }],
+        color: activeDrawingTool === 'ruler' ? '#F59E0B' : '#38BDF8',
+        lineWidth: 2
+      };
+      setIsDrawingActive(true);
+      setActiveShapeId(newShape.id);
+      setDrawings(prev => [...prev, newShape]);
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawingActive || !activeShapeId || !ltfChartInstance.current || !ltfCandleSeries.current) return;
+    
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    const time = ltfChartInstance.current.timeScale().coordinateToTime(mouseX);
+    const price = ltfCandleSeries.current.coordinateToPrice(mouseY);
+    
+    if (!time || !price) return;
+    
+    setDrawings(prev => prev.map(shape => {
+      if (shape.id === activeShapeId) {
+        return {
+          ...shape,
+          points: [shape.points[0], { time, price }]
+        };
+      }
+      return shape;
+    }));
+  };
+
+  const handleCanvasMouseUp = () => {
+    if (!isDrawingActive) return;
+    setIsDrawingActive(false);
+    setActiveShapeId(null);
+    setActiveDrawingTool('cursor');
+    triggerAutosaveDrawings(drawings, { showEma20, showEma50, showEma200, showRsi });
+  };
+
+  // 5. Initialize Lightweight Charts (LTF & HTF)
   useEffect(() => {
     if (!isMounted || !createChart || !sessionId) return
 
@@ -190,8 +501,8 @@ export default function BacktestReplayPage() {
           textColor: '#64748B',
         },
         grid: {
-          vertLines: { color: 'rgba(30, 58, 95, 0.08)' },
-          horzLines: { color: 'rgba(30, 58, 95, 0.08)' },
+          vertLines: { color: 'rgba(30, 58, 95, 0.05)' },
+          horzLines: { color: 'rgba(30, 58, 95, 0.05)' },
         },
         rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.03)' },
         timeScale: {
@@ -200,13 +511,16 @@ export default function BacktestReplayPage() {
         },
       })
       ltfCandleSeries.current = ltfChartInstance.current.addCandlestickSeries({
-        upColor: '#34D399',
-        downColor: '#F87171',
-        borderUpColor: '#34D399',
-        borderDownColor: '#F87171',
-        wickUpColor: '#34D399',
-        wickDownColor: '#F87171',
+        upColor: '#10B981',
+        downColor: '#EF4444',
+        borderUpColor: '#10B981',
+        borderDownColor: '#EF4444',
+        wickUpColor: '#10B981',
+        wickDownColor: '#EF4444',
       })
+
+      // Subscribe to visible range changes to redraw canvas drawings instantly
+      ltfChartInstance.current.timeScale().subscribeVisibleLogicalRangeChange(drawAllShapes)
     }
 
     // Build HTF Chart (1H)
@@ -217,8 +531,8 @@ export default function BacktestReplayPage() {
           textColor: '#64748B',
         },
         grid: {
-          vertLines: { color: 'rgba(30, 58, 95, 0.08)' },
-          horzLines: { color: 'rgba(30, 58, 95, 0.08)' },
+          vertLines: { color: 'rgba(30, 58, 95, 0.05)' },
+          horzLines: { color: 'rgba(30, 58, 95, 0.05)' },
         },
         rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.03)' },
         timeScale: {
@@ -227,12 +541,12 @@ export default function BacktestReplayPage() {
         },
       })
       htfCandleSeries.current = htfChartInstance.current.addCandlestickSeries({
-        upColor: 'rgba(52, 211, 153, 0.55)',
-        downColor: 'rgba(248, 113, 113, 0.55)',
-        borderUpColor: 'rgba(52, 211, 153, 0.55)',
-        borderDownColor: 'rgba(248, 113, 113, 0.55)',
-        wickUpColor: 'rgba(52, 211, 153, 0.55)',
-        wickDownColor: 'rgba(248, 113, 113, 0.55)',
+        upColor: 'rgba(16, 185, 129, 0.5)',
+        downColor: 'rgba(239, 68, 68, 0.5)',
+        borderUpColor: 'rgba(16, 185, 129, 0.5)',
+        borderDownColor: 'rgba(239, 68, 68, 0.5)',
+        wickUpColor: 'rgba(16, 185, 129, 0.5)',
+        wickDownColor: 'rgba(239, 68, 68, 0.5)',
       })
     }
 
@@ -244,13 +558,127 @@ export default function BacktestReplayPage() {
     if (htfCandleSeries.current && layoutMode === 'split' && htfCandles.length > 0) {
       htfCandleSeries.current.setData(htfCandles)
     }
-  }, [isMounted, ltfCandles, htfCandles, layoutMode, sessionId])
+
+    // --- Dynamic Technical Indicator Overlays ---
+    if (ltfChartInstance.current) {
+      // EMA 20 Overlay
+      if (showEma20 && ltfCandles.length > 20) {
+        if (!ltfEma20Series.current) {
+          ltfEma20Series.current = ltfChartInstance.current.addLineSeries({
+            color: '#38BDF8', // Cyan
+            lineWidth: 1.5,
+            title: 'EMA 20'
+          })
+        }
+        ltfEma20Series.current.setData(calculateEMA(ltfCandles, 20))
+      } else if (!showEma20 && ltfEma20Series.current) {
+        ltfChartInstance.current.removeSeries(ltfEma20Series.current)
+        ltfEma20Series.current = null
+      }
+
+      // EMA 50 Overlay
+      if (showEma50 && ltfCandles.length > 50) {
+        if (!ltfEma50Series.current) {
+          ltfEma50Series.current = ltfChartInstance.current.addLineSeries({
+            color: '#F59E0B', // Amber
+            lineWidth: 1.5,
+            title: 'EMA 50'
+          })
+        }
+        ltfEma50Series.current.setData(calculateEMA(ltfCandles, 50))
+      } else if (!showEma50 && ltfEma50Series.current) {
+        ltfChartInstance.current.removeSeries(ltfEma50Series.current)
+        ltfEma50Series.current = null
+      }
+
+      // EMA 200 Overlay
+      if (showEma200 && ltfCandles.length > 200) {
+        if (!ltfEma200Series.current) {
+          ltfEma200Series.current = ltfChartInstance.current.addLineSeries({
+            color: '#EC4899', // Pink
+            lineWidth: 1.5,
+            title: 'EMA 200'
+          })
+        }
+        ltfEma200Series.current.setData(calculateEMA(ltfCandles, 200))
+      } else if (!showEma200 && ltfEma200Series.current) {
+        ltfChartInstance.current.removeSeries(ltfEma200Series.current)
+        ltfEma200Series.current = null
+      }
+    }
+
+    // --- Dynamic RSI Sub-Pane Chart ---
+    if (showRsi && rsiChartRef.current && ltfChartInstance.current) {
+      if (!rsiChartInstance.current) {
+        rsiChartInstance.current = createChart(rsiChartRef.current, {
+          layout: {
+            background: { color: '#060A12' },
+            textColor: '#64748B',
+          },
+          grid: {
+            vertLines: { color: 'rgba(30, 58, 95, 0.03)' },
+            horzLines: { color: 'rgba(30, 58, 95, 0.03)' },
+          },
+          rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.03)' },
+          timeScale: {
+            borderColor: 'rgba(255, 255, 255, 0.03)',
+            timeVisible: true,
+          },
+          height: 120
+        })
+
+        // Constant oversold/overbought lines (30/70)
+        const rsiOversold = rsiChartInstance.current.addLineSeries({
+          color: 'rgba(239, 68, 68, 0.25)', // red
+          lineWidth: 1,
+          lineStyle: 2,
+        })
+        const rsiOverbought = rsiChartInstance.current.addLineSeries({
+          color: 'rgba(16, 185, 129, 0.25)', // green
+          lineWidth: 1,
+          lineStyle: 2,
+        })
+
+        const rsiBounds = ltfCandles.map(c => ({ time: c.time, value: 30 }))
+        const rsiOverboughtBounds = ltfCandles.map(c => ({ time: c.time, value: 70 }))
+        
+        rsiOversold.setData(rsiBounds)
+        rsiOverbought.setData(rsiOverboughtBounds)
+
+        rsiLineSeries.current = rsiChartInstance.current.addLineSeries({
+          color: '#A855F7', // Purple
+          lineWidth: 1.5,
+          title: 'RSI (14)'
+        })
+
+        // Sync timescale scrolling between LTF chart and RSI sub-pane
+        ltfChartInstance.current.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
+          if (rsiChartInstance.current && range) {
+            rsiChartInstance.current.timeScale().setVisibleLogicalRange(range)
+          }
+        })
+      }
+
+      if (rsiLineSeries.current && ltfCandles.length > 14) {
+        rsiLineSeries.current.setData(calculateRSI(ltfCandles, 14))
+      }
+    } else if (!showRsi && rsiChartInstance.current) {
+      rsiChartInstance.current.remove()
+      rsiChartInstance.current = null
+      rsiLineSeries.current = null
+    }
+
+    // Trigger canvas redraw on initial render / load
+    setTimeout(drawAllShapes, 100)
+
+  }, [isMounted, ltfCandles, htfCandles, layoutMode, sessionId, showEma20, showEma50, showEma200, showRsi])
 
   // Chart Resize syncing
   useEffect(() => {
+    const width = ltfChartRef.current?.clientWidth || 600
     if (ltfChartInstance.current) {
       ltfChartInstance.current.resize(
-        ltfChartRef.current?.clientWidth || 600,
+        width,
         layoutMode === 'split' ? 320 : 450
       )
     }
@@ -260,7 +688,15 @@ export default function BacktestReplayPage() {
         320
       )
     }
-  }, [layoutMode, ltfCandles])
+    if (rsiChartInstance.current) {
+      rsiChartInstance.current.resize(
+        width,
+        120
+      )
+    }
+    // Redraw canvas drawings to match new bounding boxes
+    setTimeout(drawAllShapes, 50)
+  }, [layoutMode, ltfCandles, showRsi])
 
   // Synchronize Split Crosshairs
   useEffect(() => {
@@ -283,7 +719,7 @@ export default function BacktestReplayPage() {
     syncCrosshair(htfChartInstance.current, ltfChartInstance.current)
   }, [layoutMode])
 
-  // 5. Draw Stop Loss (SL) & Take Profit (TP) lines on the chart
+  // 6. Draw Stop Loss (SL) & Take Profit (TP) lines on the chart
   useEffect(() => {
     if (!ltfCandleSeries.current) return
 
@@ -329,16 +765,13 @@ export default function BacktestReplayPage() {
     }
   }, [activePosition, slPips, tpPips])
 
-
-
   // 7. Start Simulation Session (REST Call)
   const handleStartSession = async () => {
     setIsStartingSession(true)
-    const cleanHost = apiUrl.replace(/^(https?:\/\/)?/, '').replace(/\/$/, '')
     
     try {
       // 1. Create Session in VPS database
-      const startRes = await fetch(`https://${cleanHost}/api/sessions/start`, {
+      const startRes = await fetch(`https://${apiUrl}/api/sessions/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -357,10 +790,11 @@ export default function BacktestReplayPage() {
       const activeSessId = sessionData.session_id
       setSessionId(activeSessId)
       setAccountBalance(initialBalance)
+      setIsCreateModalOpen(false)
 
       // 2. Fetch Historical candles preceding start date (Initial render)
       const histRes = await fetch(
-        `https://${cleanHost}/api/candles/history?symbol=${symbol}&start_date=${sessionStartDate}&timeframe=${timeframe}&limit=200`
+        `https://${apiUrl}/api/candles/history?symbol=${symbol}&start_date=${sessionStartDate}&timeframe=${timeframe}&limit=200`
       )
       const historicalCandles = await histRes.json()
       
@@ -370,21 +804,96 @@ export default function BacktestReplayPage() {
       }
 
       // 3. Establish WebSocket connection for real-time candle streaming
-      startWebSocket(activeSessId, cleanHost)
+      startWebSocket(activeSessId)
       
     } catch (err: any) {
-      alert(`Connection Error: Make sure your VPS setup script is completed and the API URL is correct.\n\nDetail: ${err.message}`)
+      alert(`Connection Error: Make sure your VPS setup script is completed.\n\nDetail: ${err.message}`)
     } finally {
       setIsStartingSession(false)
     }
   }
 
+  // --- PERSISTENCE: Resume Active Session in one-click ---
+  const handleResumeSession = async (session: ActiveSession) => {
+    setSessionId(session.id)
+    setSymbol(session.symbol as 'XAUUSD' | 'BANKNIFTY')
+    setTimeframe(session.timeframe)
+    setInitialBalance(session.initial_balance)
+    setAccountBalance(session.current_balance)
+    
+    try {
+      // 1. Fetch full session details (restores drawings & indicator workspace state)
+      const detailsRes = await fetch(`https://${apiUrl}/api/sessions/${session.id}`)
+      const details = await detailsRes.json()
+      if (details.drawings_state) {
+        setDrawings(details.drawings_state)
+      }
+      if (details.indicator_settings) {
+        const ind = details.indicator_settings
+        setShowEma20(!!ind.showEma20)
+        setShowEma50(!!ind.showEma50)
+        setShowEma200(!!ind.showEma200)
+        setShowRsi(!!ind.showRsi)
+      }
+
+      // Fetch history leading up to the session's current timestamp (restores workspace state!)
+      const histRes = await fetch(
+        `https://${apiUrl}/api/candles/history?symbol=${session.symbol}&start_date=${session.start_date}&timeframe=${session.timeframe}&limit=200&session_id=${session.id}`
+      )
+      const historicalCandles = await histRes.json()
+      
+      if (historicalCandles && historicalCandles.length > 0) {
+        setLtfCandles(historicalCandles)
+        setCurrentCandle(historicalCandles[historicalCandles.length - 1])
+      }
+
+      // Open WebSocket starting from the saved progress
+      startWebSocket(session.id)
+    } catch (err) {
+      alert("Failed to resume session. Verify your VPS server is online.")
+    }
+  }
+
+  // --- PERSISTENCE: Terminate Session (Complete/Archive) ---
+  const handleTerminateSession = async (id: number) => {
+    if (!confirm("Are you sure you want to permanently close and archive this session? Your balance and trades will be finalized.")) return
+    
+    try {
+      const res = await fetch(`https://${apiUrl}/api/sessions/close/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+      if (res.ok) {
+        fetchActiveSessions()
+      }
+    } catch (err) {
+      alert("Failed to close session.")
+    }
+  }
+
+  // --- PERSISTENCE: Delete Session (Delete completely) ---
+  const handleDeleteSession = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this session? This will wipe all its trades and history.")) return
+    
+    try {
+      const res = await fetch(`https://${apiUrl}/api/sessions/${id}`, {
+        method: 'DELETE'
+      })
+      if (res.ok) {
+        fetchActiveSessions()
+      }
+    } catch (err) {
+      alert("Failed to delete session.")
+    }
+  }
+
   // 8. WebSocket stream connector
-  const startWebSocket = (activeSessId: number, cleanHost: string) => {
+  const startWebSocket = (activeSessId: number) => {
     if (wsRef.current) wsRef.current.close()
 
     const ws = new WebSocket(
-      `wss://${cleanHost}/api/candles/replay?symbol=${symbol}&start_date=${sessionStartDate}&timeframe=${timeframe}&session_id=${activeSessId}&speed=${playSpeed}`
+      `wss://${apiUrl}/api/candles/replay?symbol=${symbol}&start_date=${sessionStartDate}&timeframe=${timeframe}&session_id=${activeSessId}&speed=${playSpeed}`
     )
 
     ws.onopen = () => {
@@ -411,7 +920,6 @@ export default function BacktestReplayPage() {
         }
         
         setLtfCandles(prev => {
-          // If candle exists at this timestamp, update it, else append
           const exists = prev.findIndex(c => c.time === newBar.time)
           if (exists !== -1) {
             const copy = [...prev]
@@ -426,11 +934,9 @@ export default function BacktestReplayPage() {
       // Handle SL/TP auto hit triggered by server
       if (data.type === "trade_closed") {
         setIsPlaying(false) // Pause replay for user focus
-        
-        // Clean active UI elements
         setActivePosition(null)
         
-        // Show confetti for wins!
+        // Confetti for wins!
         if (data.pnl > 0) {
           confetti({
             particleCount: 150,
@@ -440,16 +946,14 @@ export default function BacktestReplayPage() {
           })
         }
         
-        // Sync trade row up to Supabase Cloud Journal
+        // Sync trade log to Supabase Cloud
         syncClosedTradeToCloud(data.trade_id, data.exit_price, data.pnl, data.reason, new Date(data.time * 1000).toISOString())
-        
-        // Reload journal tab
         fetchJournalLogs(activeSessId)
       }
 
       if (data.type === "end") {
         setIsPlaying(false)
-        alert("Replay dataset completed! No more 1-minute historical data exists past this range.")
+        alert("Replay dataset completed! No more 1-minute historical data past this range.")
       }
     }
 
@@ -473,8 +977,7 @@ export default function BacktestReplayPage() {
   // 9. Fetch journal log records from VPS database
   const fetchJournalLogs = async (activeSessId: number) => {
     try {
-      const cleanHost = apiUrl.replace(/^(https?:\/\/)?/, '').replace(/\/$/, '')
-      const res = await fetch(`https://${cleanHost}/api/trades/journal/${activeSessId}`)
+      const res = await fetch(`https://${apiUrl}/api/trades/journal/${activeSessId}`)
       const data = await res.json()
       
       if (data.trades) {
@@ -483,7 +986,7 @@ export default function BacktestReplayPage() {
       }
       
       // Update running account balance
-      const sessRes = await fetch(`https://${cleanHost}/api/sessions/${activeSessId}`)
+      const sessRes = await fetch(`https://${apiUrl}/api/sessions/${activeSessId}`)
       const sessData = await sessRes.json()
       if (sessData.current_balance) {
         setAccountBalance(sessData.current_balance)
@@ -518,10 +1021,8 @@ export default function BacktestReplayPage() {
     const tpPrice = direction === 'buy' ? currentPrice + tpDist : currentPrice - tpDist
     const entryTimeIso = new Date(currentCandle.time * 1000).toISOString()
 
-    const cleanHost = apiUrl.replace(/^(https?:\/\/)?/, '').replace(/\/$/, '')
-    
     try {
-      const res = await fetch(`https://${cleanHost}/api/trades/open`, {
+      const res = await fetch(`https://${apiUrl}/api/trades/open`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -559,10 +1060,9 @@ export default function BacktestReplayPage() {
 
     const currentPrice = currentCandle.close
     const exitTimeIso = new Date(currentCandle.time * 1000).toISOString()
-    const cleanHost = apiUrl.replace(/^(https?:\/\/)?/, '').replace(/\/$/, '')
 
     try {
-      const res = await fetch(`https://${cleanHost}/api/trades/close`, {
+      const res = await fetch(`https://${apiUrl}/api/trades/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -602,7 +1102,6 @@ export default function BacktestReplayPage() {
       
       if (!activePosition) return
 
-      // Formulate sync payload matching Supabase Schema
       const dbPayload = {
         user_id: user.id,
         symbol: symbol,
@@ -647,6 +1146,23 @@ export default function BacktestReplayPage() {
     }
   }
 
+  // Exit Session (Graceful disconnect back to dashboard)
+  const handleExitSession = () => {
+    if (wsRef.current) wsRef.current.close()
+    
+    // Clear memory states to return to dashboard
+    setSessionId(null)
+    setLtfCandles([])
+    setHtfCandles([])
+    setCurrentCandle(null)
+    setTradesHistory([])
+    setActivePosition(null)
+    setIsPlaying(false)
+    
+    // Reload active sessions list
+    fetchActiveSessions()
+  }
+
   // Inline notes update handler
   const saveNotesEdit = (tId: string) => {
     setTradesHistory(prev => prev.map(t => t.id === tId ? { ...t, notes: editingTradeNotes } : t))
@@ -688,7 +1204,7 @@ export default function BacktestReplayPage() {
   }, [tradesHistory, initialBalance])
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-6">
+    <div className="p-6 max-w-full mx-auto space-y-6">
       
       {/* 1. Header Row */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-white/5 pb-4 gap-4">
@@ -698,210 +1214,502 @@ export default function BacktestReplayPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              Visual Replay Backtester <span className="text-[10px] bg-primary text-black font-black uppercase px-2 py-0.5 rounded">VPS Replay</span>
+              Visual Replay Backtester <span className="text-[10px] bg-primary text-black font-black uppercase px-2 py-0.5 rounded">SIMULATOR</span>
             </h1>
             <p className="text-xs text-[#64748B] mt-0.5">Simulate high-fidelity trade execution, test strategy edge, and auto-journal performance in real-time.</p>
           </div>
         </div>
-
-        {/* Action configs */}
-        <div className="flex items-center gap-3">
-          {sessionId && (
-            <button
-              onClick={() => {
-                if (wsRef.current) wsRef.current.close()
-                setSessionId(null)
-                setLtfCandles([])
-                setHtfCandles([])
-                setCurrentCandle(null)
-                setTradesHistory([])
-                setActivePosition(null)
-              }}
-              className="p-2 bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-500 text-red-400 hover:text-black rounded-xl transition-all text-xs font-bold cursor-pointer"
-            >
-              Close Session
-            </button>
-          )}
-        </div>
       </div>
 
-
-
-      {/* --- SESSION CONFIG PANEL (Displays if no session is active) --- */}
+      {/* --- DASHBOARD VIEW (Active Sessions Grid) --- */}
       <AnimatePresence mode="wait">
         {!sessionId ? (
           <motion.div
-            key="setup-panel"
+            key="dashboard-view"
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="max-w-xl mx-auto bg-[#0D1421] border border-white/5 rounded-3xl p-6 shadow-2xl relative overflow-hidden"
+            className="space-y-6"
           >
-            <div className="absolute top-0 right-0 w-[200px] h-[200px] bg-primary/5 blur-[80px] rounded-full pointer-events-none -z-10" />
-
-            <div className="text-center space-y-2 border-b border-white/5 pb-4 mb-6">
-              <PlayCircle className="w-10 h-10 text-primary mx-auto animate-pulse" />
-              <h2 className="text-md font-black uppercase text-white tracking-widest">Configure Replay Session</h2>
-              <p className="text-xs text-[#64748B]">Set parameters to fetch actual historical candles from your PostgreSQL DB.</p>
+            {/* Top metrics bar */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-inner flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest">Active Workspace Sessions</p>
+                  <h3 className="text-2xl font-black text-white mt-1">{activeSessions.length}</h3>
+                </div>
+                <Database className="w-8 h-8 text-primary/40" />
+              </div>
+              <div className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-inner flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest">Selected Asset</p>
+                  <h3 className="text-2xl font-black text-white mt-1">XAUUSD Gold</h3>
+                </div>
+                <Target className="w-8 h-8 text-emerald-500/40" />
+              </div>
+              <div className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-inner flex items-center justify-between">
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="w-full py-4.5 bg-primary hover:bg-primary/95 text-black font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md hover:shadow-primary/5 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4 stroke-[3px]" /> Create New Session
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {/* Asset Select */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">Instrument Spot Asset</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setSymbol('XAUUSD')}
-                    className={cn(
-                      "py-3 border text-xs font-bold rounded-xl transition-all cursor-pointer",
-                      symbol === 'XAUUSD' 
-                        ? "bg-primary/10 border-primary/40 text-primary shadow-lg shadow-primary/5" 
-                        : "bg-[#060A12] border-white/5 text-[#64748B] hover:border-white/10"
-                    )}
-                  >
-                    🏆 GOLD (XAUUSD)
-                  </button>
-                  <button
-                    disabled
-                    className="py-3 bg-[#060A12]/30 border border-white/5 text-[#334155] text-xs font-bold rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5"
-                    title="BankNifty Spot data is coming soon!"
-                  >
-                    🏦 BANKNIFTY SPOT <span className="text-[8px] bg-white/5 text-[#64748B] px-1.5 py-0.5 rounded font-black uppercase">SOON</span>
-                  </button>
+            {/* Sessions Title */}
+            <div className="border-t border-white/5 pt-6 space-y-4">
+              <h2 className="text-sm font-black uppercase text-white tracking-widest">My Active Replay Workspaces</h2>
+              
+              {isLoadingSessions ? (
+                <div className="py-12 text-center text-xs text-[#64748B] flex flex-col items-center gap-2">
+                  <RefreshCw className="w-6 h-6 animate-spin text-primary" /> Loading saved sessions...
                 </div>
-              </div>
-
-              {/* Grid 2x2 for timeframe and initial balance */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">Replay Timeframe</label>
-                  <select
-                    value={timeframe}
-                    onChange={e => setTimeframe(e.target.value)}
-                    className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3.5 py-3 text-xs text-white font-bold focus:outline-none focus:border-primary/50"
-                  >
-                    <option value="1m">1 Minute (Base)</option>
-                    <option value="5m">5 Minutes</option>
-                    <option value="15m">15 Minutes</option>
-                    <option value="30m">30 Minutes</option>
-                    <option value="1h">1 Hour</option>
-                    <option value="1d">1 Day</option>
-                  </select>
+              ) : activeSessions.length === 0 ? (
+                <div className="py-16 text-center border border-dashed border-white/5 rounded-3xl text-xs text-[#64748B] bg-[#0D1421]/20">
+                  <PlayCircle className="w-10 h-10 text-[#334155] mx-auto mb-2" />
+                  No active backtesting workspaces found. Click <strong className="text-primary cursor-pointer hover:underline" onClick={() => setIsCreateModalOpen(true)}>Create New Session</strong> above to start!
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {activeSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className="bg-[#0D1421] border border-white/5 hover:border-white/10 rounded-3xl p-5 shadow-2xl space-y-4 flex flex-col justify-between relative transition-all"
+                    >
+                      <div className="space-y-3">
+                        {/* Session header */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] bg-primary/10 border border-primary/20 text-primary font-black px-2.5 py-0.5 rounded-lg uppercase tracking-wider font-mono">
+                            {session.symbol}
+                          </span>
+                          <span className="text-[9px] text-[#64748B] flex items-center gap-1 font-semibold">
+                            <Clock className="w-3.5 h-3.5" /> TF: {session.timeframe.toUpperCase()}
+                          </span>
+                        </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">Replay Starting Balance ($)</label>
-                  <input
-                    type="number"
-                    value={initialBalance}
-                    onChange={e => setInitialBalance(Math.max(100, parseInt(e.target.value) || 100))}
-                    className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-white focus:outline-none focus:border-primary/50"
-                  />
+                        {/* Middle Info */}
+                        <div className="space-y-2 pt-1 font-semibold text-xs text-[#64748B]">
+                          <div className="flex justify-between items-center">
+                            <span>Started:</span>
+                            <span className="text-white font-mono">{session.start_date}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Virtual Balance:</span>
+                            <span className="text-white font-mono font-bold">${session.current_balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          {session.current_timestamp && (
+                            <div className="flex justify-between items-center">
+                              <span>Saved Progress:</span>
+                              <span className="text-[#38BDF8] font-mono font-bold">{new Date(session.current_timestamp).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer buttons */}
+                      <div className="grid grid-cols-2 gap-2.5 pt-4 border-t border-white/5">
+                        <button
+                          onClick={() => handleTerminateSession(session.id)}
+                          className="py-2.5 bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-500 text-red-400 hover:text-black rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+                          title="Lock final balance and archive"
+                        >
+                          Archive
+                        </button>
+                        <button
+                          onClick={() => handleResumeSession(session)}
+                          className="py-2.5 bg-primary hover:bg-primary/95 text-black font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          Resume ▶
+                        </button>
+                      </div>
+                      
+                      {/* Delete button (Trash bin) */}
+                      <button
+                        onClick={() => handleDeleteSession(session.id)}
+                        className="absolute top-4 right-4 p-1.5 bg-white/0 hover:bg-red-500/10 text-[#334155] hover:text-red-400 rounded-lg transition-all cursor-pointer opacity-0 hover:opacity-100 group-hover:opacity-100"
+                        title="Delete Session"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              </div>
-
-              {/* Start Date */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">Replay Start Date</label>
-                <input
-                  type="date"
-                  value={sessionStartDate}
-                  min={availableDates?.from || "2008-01-01"}
-                  max={availableDates?.to || "2026-05-01"}
-                  onChange={e => setSessionStartDate(e.target.value)}
-                  className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-bold focus:outline-none focus:border-primary/50"
-                />
-                {availableDates ? (
-                  <p className="text-[9px] text-[#64748B] italic">
-                    💡 Database bounds: {availableDates.from} to {availableDates.to}
-                  </p>
-                ) : (
-                  <p className="text-[9px] text-amber-500/80 italic">
-                    ⚠️ Fetching database availability... Check VPS Nginx is started.
-                  </p>
-                )}
-              </div>
-
-              {/* Start Button */}
-              <button
-                onClick={handleStartSession}
-                disabled={isStartingSession}
-                className="w-full py-3.5 bg-primary hover:bg-primary/95 disabled:bg-primary/20 text-black disabled:text-black/40 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 mt-4"
-              >
-                {isStartingSession ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" /> Establishing Session & Fetching history...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5 fill-black" /> Begin Replay Backtest
-                  </>
-                )}
-              </button>
+              )}
             </div>
+
+            {/* Create Session Dialog Modal Popup */}
+            <AnimatePresence>
+              {isCreateModalOpen && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    className="bg-[#0D1421] border border-white/10 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl relative"
+                  >
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <h3 className="text-sm font-black uppercase text-white tracking-widest flex items-center gap-2">
+                        <PlayCircle className="w-5 h-5 text-primary" /> Create Backtest Session
+                      </h3>
+                      <button onClick={() => setIsCreateModalOpen(false)} className="text-[#64748B] hover:text-white cursor-pointer">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Symbol Select */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">Instrument Spot Asset</label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            onClick={() => setSymbol('XAUUSD')}
+                            className={cn(
+                              "py-3 border text-xs font-bold rounded-xl transition-all cursor-pointer",
+                              symbol === 'XAUUSD' 
+                                ? "bg-primary/10 border-primary/40 text-primary shadow-lg shadow-primary/5" 
+                                : "bg-[#060A12] border-white/5 text-[#64748B] hover:border-white/10"
+                            )}
+                          >
+                            🏆 GOLD (XAUUSD)
+                          </button>
+                          <button
+                            disabled
+                            className="py-3 bg-[#060A12]/30 border border-white/5 text-[#334155] text-xs font-bold rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5"
+                            title="BankNifty Spot data is coming soon!"
+                          >
+                            🏦 BANKNIFTY SPOT <span className="text-[8px] bg-white/5 text-[#64748B] px-1.5 py-0.5 rounded font-black uppercase">SOON</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Timeframe & balance */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">Replay Timeframe</label>
+                          <select
+                            value={timeframe}
+                            onChange={e => setTimeframe(e.target.value)}
+                            className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3.5 py-3 text-xs text-white font-bold focus:outline-none focus:border-primary/50"
+                          >
+                            <option value="1m">1 Minute (Base)</option>
+                            <option value="5m">5 Minutes</option>
+                            <option value="15m">15 Minutes</option>
+                            <option value="30m">30 Minutes</option>
+                            <option value="1h">1 Hour</option>
+                            <option value="1d">1 Day</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">Starting Balance ($)</label>
+                          <input
+                            type="number"
+                            value={initialBalance}
+                            onChange={e => setInitialBalance(Math.max(100, parseInt(e.target.value) || 100))}
+                            className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-white focus:outline-none focus:border-primary/50"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Start Date */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest block">Replay Start Date</label>
+                        <input
+                          type="date"
+                          value={sessionStartDate}
+                          min={availableDates?.from || "2008-01-01"}
+                          max={availableDates?.to || "2026-05-01"}
+                          onChange={e => setSessionStartDate(e.target.value)}
+                          className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-bold focus:outline-none focus:border-primary/50"
+                        />
+                        {availableDates ? (
+                          <p className="text-[9px] text-[#64748B] italic">
+                            💡 Database bounds: {availableDates.from} to {availableDates.to}
+                          </p>
+                        ) : (
+                          <p className="text-[9px] text-amber-500/80 italic">
+                            ⚠️ Connecting to database boundaries...
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <button
+                        onClick={() => setIsCreateModalOpen(false)}
+                        className="py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleStartSession}
+                        disabled={isStartingSession}
+                        className="py-2.5 bg-primary hover:bg-primary/95 text-black font-black text-xs uppercase tracking-wide cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        {isStartingSession ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Launching...
+                          </>
+                        ) : (
+                          <>
+                            <PlayCircle className="w-3.5 h-3.5" /> Start Workspace
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ) : (
-          /* --- MAIN INTERACTIVE REPLAY SIMULATOR PANEL --- */
+          /* --- FULL SCREEN INTERACTIVE WORKSPACE VIEW (TradersCasa Style) --- */
           <motion.div
             key="replay-workspace"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="grid grid-cols-1 xl:grid-cols-4 gap-6"
+            className="space-y-4"
           >
-            {/* Left Charts Columns (3 Cols) */}
-            <div className="xl:col-span-3 space-y-4">
-              <div className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl space-y-4 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-primary/5 blur-[100px] rounded-full pointer-events-none -z-10" />
+            {/* Top Workspace controls bar */}
+            <div className="bg-[#0D1421] border border-white/5 rounded-2xl px-5 py-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xs bg-primary/10 border border-primary/20 text-primary font-black px-2.5 py-1 rounded-lg uppercase font-mono tracking-wider">
+                  {symbol}
+                </span>
+                <span className="text-[10px] text-[#64748B] font-bold bg-[#060A12] border border-white/5 px-2.5 py-1 rounded-lg">
+                  TIMEFRAME: {timeframe.toUpperCase()}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-3 relative">
+                {/* Technical Indicators Dropdown */}
+                <button
+                  onClick={() => setIsIndicatorsOpen(!isIndicatorsOpen)}
+                  className="px-3.5 py-2 bg-white/5 hover:bg-white/10 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border border-white/5"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-primary" /> Indicators
+                </button>
+                
+                {isIndicatorsOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setIsIndicatorsOpen(false)} />
+                    <div className="absolute right-0 top-10 z-40 bg-[#0D1421] border border-white/10 rounded-2xl p-3 w-52 shadow-2xl flex flex-col gap-2 font-bold text-xs">
+                      <p className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest border-b border-white/5 pb-2 mb-1">Overlay Indicators</p>
+                      <label className="flex items-center justify-between text-white hover:bg-white/5 p-1.5 rounded-lg cursor-pointer transition-all">
+                        <span>EMA 20</span>
+                        <input
+                          type="checkbox"
+                          checked={showEma20}
+                          onChange={() => {
+                            setShowEma20(!showEma20)
+                            triggerAutosaveDrawings(drawings, { showEma20: !showEma20, showEma50, showEma200, showRsi })
+                          }}
+                          className="accent-primary"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between text-white hover:bg-white/5 p-1.5 rounded-lg cursor-pointer transition-all">
+                        <span>EMA 50</span>
+                        <input
+                          type="checkbox"
+                          checked={showEma50}
+                          onChange={() => {
+                            setShowEma50(!showEma50)
+                            triggerAutosaveDrawings(drawings, { showEma20, showEma50: !showEma50, showEma200, showRsi })
+                          }}
+                          className="accent-primary"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between text-white hover:bg-white/5 p-1.5 rounded-lg cursor-pointer transition-all">
+                        <span>EMA 200</span>
+                        <input
+                          type="checkbox"
+                          checked={showEma200}
+                          onChange={() => {
+                            setShowEma200(!showEma200)
+                            triggerAutosaveDrawings(drawings, { showEma20, showEma50, showEma200: !showEma200, showRsi })
+                          }}
+                          className="accent-primary"
+                        />
+                      </label>
+                      <p className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest border-b border-white/5 pb-2 mt-2 mb-1">Oscillators</p>
+                      <label className="flex items-center justify-between text-white hover:bg-white/5 p-1.5 rounded-lg cursor-pointer transition-all">
+                        <span>RSI 14</span>
+                        <input
+                          type="checkbox"
+                          checked={showRsi}
+                          onChange={() => {
+                            setShowRsi(!showRsi)
+                            triggerAutosaveDrawings(drawings, { showEma20, showEma50, showEma200, showRsi: !showRsi })
+                          }}
+                          className="accent-primary"
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
 
-                {/* Grid Split Multi Chart Display */}
-                <div className={cn("grid gap-4", layoutMode === 'split' ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
-                  
-                  {/* HTF Trend aggregate (1H) */}
-                  {layoutMode === 'split' && (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px] font-bold uppercase text-[#64748B]">
-                        <span className="flex items-center gap-1.5 text-[#94A3B8]">
-                          <Layers className="w-3.5 h-3.5" /> 1-Hour Trend Structure (HTF)
+            {/* Left Toolbar + Interactive Replay Chart Split */}
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 relative">
+              
+              {/* Left Drawing Tools panel (TradingView Style Left Sidebar) */}
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-[#060A12]/85 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col gap-3 shadow-2xl">
+                <button
+                  onClick={() => setActiveDrawingTool('cursor')}
+                  className={cn(
+                    "p-2 rounded-xl transition-all cursor-pointer hover:bg-white/5",
+                    activeDrawingTool === 'cursor' ? "bg-primary/15 text-primary border border-primary/20" : "text-[#64748B]"
+                  )}
+                  title="Cursor Selector"
+                >
+                  <Move className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setActiveDrawingTool('trendline')}
+                  className={cn(
+                    "p-2 rounded-xl transition-all cursor-pointer hover:bg-white/5",
+                    activeDrawingTool === 'trendline' ? "bg-primary/15 text-primary border border-primary/20" : "text-[#64748B]"
+                  )}
+                  title="Draw Trendlines"
+                >
+                  <PenTool className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setActiveDrawingTool('rectangle')}
+                  className={cn(
+                    "p-2 rounded-xl transition-all cursor-pointer hover:bg-white/5",
+                    activeDrawingTool === 'rectangle' ? "bg-primary/15 text-primary border border-primary/20" : "text-[#64748B]"
+                  )}
+                  title="Draw Rectangle Boxes"
+                >
+                  <Compass className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setActiveDrawingTool('ruler')}
+                  className={cn(
+                    "p-2 rounded-xl transition-all cursor-pointer hover:bg-white/5",
+                    activeDrawingTool === 'ruler' ? "bg-primary/15 text-primary border border-primary/20" : "text-[#64748B]"
+                  )}
+                  title="Measure pips / distance (Ruler)"
+                >
+                  <Ruler className="w-4 h-4" />
+                </button>
+                <div className="h-[1px] bg-white/10 mx-1" />
+                <button
+                  onClick={() => {
+                    if (confirm("Are you sure you want to permanently clear all drawings from this workspace?")) {
+                      setDrawings([])
+                      triggerAutosaveDrawings([], { showEma20, showEma50, showEma200, showRsi })
+                    }
+                  }}
+                  className="p-2 rounded-xl text-[#64748B] hover:text-red-400 transition-all cursor-pointer hover:bg-red-500/10"
+                  title="Clear Drawings"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Main Replay Chart Area (3 Cols) */}
+              <div className="xl:col-span-3 space-y-4">
+                <div className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl space-y-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-primary/5 blur-[100px] rounded-full pointer-events-none -z-10" />
+
+                  {/* Split Display Grid */}
+                  <div className={cn("grid gap-4 pl-12", layoutMode === 'split' ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
+                    
+                    {/* HTF Trend (1H) */}
+                    {layoutMode === 'split' && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase text-[#64748B]">
+                          <span className="flex items-center gap-1.5 text-[#94A3B8]">
+                            <Layers className="w-3.5 h-3.5" /> 1-Hour Trend Structure (HTF)
+                          </span>
+                          <span className="text-[9px] bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white font-mono uppercase font-bold">
+                            1H Resampled
+                          </span>
+                        </div>
+                        <div ref={htfChartRef} className="border border-white/5 rounded-2xl overflow-hidden bg-[#060A12] shadow-inner" />
+                      </div>
+                    )}
+
+                    {/* LTF Execution Chart */}
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase text-[#64748B] pb-1">
+                        <span className="flex items-center gap-1.5 text-primary">
+                          <Target className="w-3.5 h-3.5 animate-pulse" /> Replay Execution Chart (LTF)
                         </span>
-                        <span className="text-[9px] bg-white/5 border border-white/10 px-2 py-0.5 rounded text-white font-mono uppercase font-bold">
-                          1H Resampled
+                        <span className="text-white font-mono uppercase font-bold text-[9px] bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">
+                          {symbol} ({timeframe.toUpperCase()}) Live Replay
                         </span>
                       </div>
-                      <div ref={htfChartRef} className="border border-white/5 rounded-2xl overflow-hidden bg-[#060A12] shadow-inner" />
+                      <div className="relative border border-white/5 rounded-2xl overflow-hidden bg-[#060A12] shadow-inner">
+                        <div ref={ltfChartRef} />
+                        <canvas
+                          ref={canvasRef}
+                          className={cn(
+                            "absolute inset-0 z-10 w-full h-full",
+                            activeDrawingTool === 'cursor' ? "pointer-events-none cursor-default" : "pointer-events-auto cursor-crosshair"
+                          )}
+                          onMouseDown={handleCanvasMouseDown}
+                          onMouseMove={handleCanvasMouseMove}
+                          onMouseUp={handleCanvasMouseUp}
+                        />
+                      </div>
+                      
+                      {showRsi && (
+                        <div className="space-y-1.5 pt-2">
+                          <div className="text-[9px] font-bold uppercase text-[#64748B] flex items-center gap-1.5">
+                            <BarChart3 className="w-3.5 h-3.5 text-[#A855F7]" /> Relative Strength Index (RSI 14)
+                          </div>
+                          <div ref={rsiChartRef} className="border border-white/5 rounded-2xl overflow-hidden bg-[#060A12] shadow-inner" style={{ height: '120px' }} />
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  {/* LTF Execution Chart */}
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center justify-between text-[10px] font-bold uppercase text-[#64748B]">
-                      <span className="flex items-center gap-1.5 text-primary">
-                        <Target className="w-3.5 h-3.5 animate-pulse" /> Replay Execution Chart (LTF)
-                      </span>
-                      <span className="text-white font-mono uppercase font-bold text-[9px] bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">
-                        {symbol} ({timeframe.toUpperCase()}) Live Replay
-                      </span>
-                    </div>
-                    <div ref={ltfChartRef} className="border border-white/5 rounded-2xl overflow-hidden bg-[#060A12] shadow-inner" />
                   </div>
-                </div>
 
-                {/* Synced Control Bar */}
-                <div className="bg-[#060A12] border border-white/5 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
+                  {/* --- PERSISTENCE: Floating Replay Controller (TradersCasa Style!) --- */}
+                  <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 bg-[#060A12]/90 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-2.5 flex items-center gap-4 shadow-2xl">
+                    {/* Scissors Tool */}
                     <button
                       onClick={() => {
                         setIsScissorsActive(!isScissorsActive)
                         if (!isScissorsActive) {
-                          alert("Scissors Tool Active: Click a historical timestamp on the Lightweight chart timeline to crop the replay boundary!")
                           if (ltfChartInstance.current) {
-                            const handler = (param: any) => {
-                              if (param.time) {
+                            const handler = async (param: any) => {
+                              if (param.time && sessionId) {
                                 const clickedTime = param.time
-                                // Seek candle list
-                                const idx = ltfCandles.findIndex(c => c.time === clickedTime)
-                                if (idx !== -1) {
-                                  setLtfCandles(prev => prev.slice(0, idx + 1))
+                                const clickedIsoString = new Date(clickedTime * 1000).toISOString()
+                                
+                                if (!confirm(`Are you sure you want to cut the timeline at ${new Date(clickedTime * 1000).toLocaleString()}? This will permanently delete all trades opened after this point and roll back your balance.`)) {
+                                  setIsScissorsActive(false)
+                                  ltfChartInstance.current.unsubscribeClick(handler)
+                                  return
+                                }
+                                
+                                try {
+                                  const res = await fetch(`https://${apiUrl}/api/sessions/${sessionId}/re-cut`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ cut_timestamp: clickedIsoString })
+                                  })
+                                  const data = await res.json()
+                                  
+                                  if (data.status === 'success') {
+                                    const idx = ltfCandles.findIndex(c => c.time === clickedTime)
+                                    if (idx !== -1) {
+                                      setLtfCandles(prev => prev.slice(0, idx + 1))
+                                      setCurrentCandle(ltfCandles[idx])
+                                    }
+                                    setAccountBalance(data.current_balance)
+                                    startWebSocket(sessionId)
+                                    fetchJournalLogs(sessionId)
+                                  }
+                                } catch (err) {
+                                  console.error("Timeline cut failed:", err)
+                                } finally {
                                   setIsScissorsActive(false)
                                   ltfChartInstance.current.unsubscribeClick(handler)
                                 }
@@ -912,21 +1720,21 @@ export default function BacktestReplayPage() {
                         }
                       }}
                       className={cn(
-                        "p-2.5 rounded-xl border transition-all cursor-pointer",
+                        "p-1.5 rounded-lg border transition-all cursor-pointer",
                         isScissorsActive 
                           ? "bg-amber-500 border-amber-500 text-black shadow-lg shadow-amber-500/20" 
                           : "bg-[#0D1421] border-white/5 hover:border-white/10 text-white"
                       )}
                       title="Scissors: Cut timeline at clicked candle point"
                     >
-                      <Scissors className="w-4 h-4" />
+                      <Scissors className="w-3.5 h-3.5" />
                     </button>
 
-                    <div className="w-[1px] h-6 bg-white/10 mx-1" />
+                    <div className="w-[1px] h-4 bg-white/10" />
 
+                    {/* Step back */}
                     <button
                       onClick={() => {
-                        // Truncate last candle for stepping backward locally
                         if (ltfCandles.length > 5) {
                           setIsPlaying(false)
                           setLtfCandles(prev => prev.slice(0, -1))
@@ -935,375 +1743,408 @@ export default function BacktestReplayPage() {
                           }
                         }
                       }}
-                      className="p-2.5 bg-[#0D1421] border border-white/5 hover:border-white/10 rounded-xl text-white transition-all active:scale-95 cursor-pointer text-xs font-bold"
-                      title="Step candle backward (Local view)"
+                      className="p-1.5 bg-[#0D1421] border border-white/5 hover:border-white/10 rounded-lg text-white transition-all active:scale-95 cursor-pointer text-[10px] font-bold uppercase tracking-wider"
+                      title="Step candle backward"
                     >
                       ◀ Step
                     </button>
                     
+                    {/* Play/Pause */}
                     <button
                       onClick={handlePlayToggle}
-                      className="p-2.5 bg-primary text-black rounded-xl hover:bg-primary/95 transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center"
+                      className="p-2 bg-primary text-black rounded-lg hover:bg-primary/95 transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center"
                       title={isPlaying ? "Pause Stream" : "Start Live Stream"}
                     >
-                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-black" />}
+                      {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-black" />}
                     </button>
 
+                    {/* Step forward */}
                     <button
                       onClick={handleStepForward}
-                      className="p-2.5 bg-[#0D1421] border border-white/5 hover:border-white/10 rounded-xl text-white transition-all active:scale-95 cursor-pointer text-xs font-bold"
-                      title="Step candle forward (VPS DB check)"
+                      className="p-1.5 bg-[#0D1421] border border-white/5 hover:border-white/10 rounded-lg text-white transition-all active:scale-95 cursor-pointer text-[10px] font-bold uppercase tracking-wider"
+                      title="Step candle forward"
                     >
                       Step ▶
                     </button>
-                  </div>
 
-                  {/* speed slider */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-[#64748B] uppercase font-bold tracking-widest">Replay Speed</span>
-                    <input
-                      type="range"
-                      min="1"
-                      max="40"
-                      step="1"
+                    <div className="w-[1px] h-4 bg-white/10" />
+
+                    {/* Speed selection dropdown (TradersCasa Style) */}
+                    <select
                       value={playSpeed}
                       onChange={e => handleSpeedChange(Number(e.target.value))}
-                      className="w-32 bg-[#0D1421] accent-primary rounded-lg cursor-pointer h-1.5 border border-white/5"
-                    />
-                    <span className="text-[9px] font-mono text-white bg-white/5 px-2 py-0.5 rounded font-bold">
-                      {playSpeed}x/s
-                    </span>
+                      className="bg-[#0D1421] border border-white/5 rounded-lg px-2 py-1 text-[9px] font-mono text-white focus:outline-none"
+                    >
+                      <option value="1">1x/s</option>
+                      <option value="3">3x/s</option>
+                      <option value="5">5x/s</option>
+                      <option value="10">10x/s</option>
+                      <option value="20">20x/s</option>
+                      <option value="40">40x/s</option>
+                    </select>
+
+                    <div className="text-[9px] font-mono text-white bg-white/5 px-2 py-1 rounded">
+                      Candles: {ltfCandles.length}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Broker Execution Panel (1 Col) */}
+              <div className="xl:col-span-1 space-y-6">
+                <div className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl space-y-5 relative">
+                  <h2 className="text-sm font-black text-white uppercase tracking-wider border-b border-white/5 pb-2.5 flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-primary" /> Replay Broker
+                  </h2>
+
+                  {/* Active P&L card */}
+                  <div className="bg-[#060A12] border border-white/5 rounded-2xl p-4 text-center shadow-inner">
+                    <p className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest">Selected Spot Asset</p>
+                    <h3 className="text-xl font-black text-white mt-1 font-mono uppercase">
+                      {symbol}
+                    </h3>
+                    <div className="flex items-center justify-between text-[10px] mt-3 pt-3 border-t border-white/5 text-[#64748B]">
+                      <span>Live Asset Price:</span>
+                      <span className="font-bold font-mono text-white">
+                        ${currentAssetPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Price info */}
-                  <div className="text-right text-[10px] font-medium leading-normal text-[#64748B]">
-                    <div className="font-bold text-white uppercase flex items-center gap-1.5 justify-end">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#34D399] animate-pulse" />
-                      Price: ${currentAssetPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {/* Position execution buttons */}
+                  <div className="space-y-4 pt-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => executePlaceOrder('buy')}
+                        disabled={!!activePosition}
+                        className="py-3 bg-emerald-500/10 hover:bg-emerald-500 disabled:bg-[#060A12] border border-emerald-500/20 disabled:border-white/5 text-emerald-400 hover:text-black disabled:text-[#334155] font-bold text-xs rounded-xl tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                      >
+                        <TrendingUp className="w-3.5 h-3.5 shrink-0" /> BUY / LONG
+                      </button>
+                      <button
+                        onClick={() => executePlaceOrder('sell')}
+                        disabled={!!activePosition}
+                        className="py-3 bg-red-500/10 hover:bg-red-500 disabled:bg-[#060A12] border border-red-500/20 disabled:border-white/5 text-red-400 hover:text-black disabled:text-[#334155] font-bold text-xs rounded-xl tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                      >
+                        <TrendingDown className="w-3.5 h-3.5 shrink-0" /> SELL / SHORT
+                      </button>
                     </div>
-                    <div>Candles replayed: {ltfCandles.length}</div>
+
+                    {activePosition && (
+                      <button
+                        onClick={executeCloseTrade}
+                        className="w-full py-3 bg-red-500/15 hover:bg-red-500 border border-red-500/30 text-red-400 hover:text-black text-xs font-black rounded-xl tracking-wider transition-all active:scale-95 cursor-pointer"
+                      >
+                        MANUALLY CLOSE POSITION
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Inputs */}
+                  <div className="space-y-3.5 border-t border-white/5 pt-4">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest block">Position Size (Lots)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={lots}
+                        onChange={e => setLots(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                        className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white font-bold focus:outline-none focus:border-primary/50 text-right"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3.5">
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest block">Stop Loss (pips)</label>
+                        <input
+                          type="number"
+                          min="5"
+                          value={slPips}
+                          onChange={e => setSlPips(Math.max(5, parseInt(e.target.value) || 5))}
+                          className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white font-bold focus:outline-none focus:border-primary/50 text-right"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest block">Take Profit (pips)</label>
+                        <input
+                          type="number"
+                          min="5"
+                          value={tpPips}
+                          onChange={e => setTpPips(Math.max(5, parseInt(e.target.value) || 5))}
+                          className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white font-bold focus:outline-none focus:border-primary/50 text-right"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Broker Execution Panel (1 Col) */}
-            <div className="xl:col-span-1 space-y-6">
-              <div className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl space-y-5 relative">
-                <h2 className="text-sm font-black text-white uppercase tracking-wider border-b border-white/5 pb-2.5 flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-primary" /> Replay Broker
-                </h2>
-
-                {/* Account details card */}
-                <div className="bg-[#060A12] border border-white/5 rounded-2xl p-4 text-center shadow-inner">
-                  <p className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest">Virtual Account Balance</p>
-                  <h3 className="text-xl font-black text-white mt-1 font-mono">
-                    ${accountBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </h3>
-                  <div className="flex items-center justify-between text-[10px] mt-3 pt-3 border-t border-white/5 text-[#64748B]">
-                    <span>Floating P&L:</span>
-                    <span className={cn("font-bold font-mono", runningPnl >= 0 ? "text-[#10B981]" : "text-[#EF4444]")}>
-                      {activePosition ? (runningPnl >= 0 ? `+$${runningPnl.toFixed(2)}` : `-$${Math.abs(runningPnl).toFixed(2)}`) : "$0.00"}
-                    </span>
-                  </div>
+            {/* --- PERSISTENCE: Horizontal bottom status bar (TradersCasa Style!) --- */}
+            <div className="bg-[#060A12] border border-white/10 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 font-bold text-xs shadow-inner">
+              <div className="flex flex-wrap items-center gap-6 text-[#64748B]">
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-[#64748B]" /> Balance: 
+                  <span className="text-white font-mono font-bold">${accountBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
-
-                {/* Position toggles */}
-                <div className="space-y-4 pt-1">
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => executePlaceOrder('buy')}
-                      disabled={!!activePosition}
-                      className="py-3 bg-emerald-500/10 hover:bg-emerald-500 disabled:bg-[#060A12] border border-emerald-500/20 disabled:border-white/5 text-emerald-400 hover:text-black disabled:text-[#334155] font-bold text-xs rounded-xl tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
-                    >
-                      <TrendingUp className="w-3.5 h-3.5 shrink-0" /> BUY / LONG
-                    </button>
-                    <button
-                      onClick={() => executePlaceOrder('sell')}
-                      disabled={!!activePosition}
-                      className="py-3 bg-red-500/10 hover:bg-red-500 disabled:bg-[#060A12] border border-red-500/20 disabled:border-white/5 text-red-400 hover:text-black disabled:text-[#334155] font-bold text-xs rounded-xl tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
-                    >
-                      <TrendingDown className="w-3.5 h-3.5 shrink-0" /> SELL / SHORT
-                    </button>
-                  </div>
-
-                  {activePosition && (
-                    <button
-                      onClick={executeCloseTrade}
-                      className="w-full py-3 bg-red-500/15 hover:bg-red-500 border border-red-500/30 text-red-400 hover:text-black text-xs font-black rounded-xl tracking-wider transition-all active:scale-95 cursor-pointer"
-                    >
-                      MANUALLY CLOSE POSITION
-                    </button>
-                  )}
+                <div className="flex items-center gap-1.5">
+                  <BarChart3 className="w-4 h-4 text-[#64748B]" /> Open Floating Profit: 
+                  <span className={cn("font-mono font-bold", runningPnl >= 0 ? "text-[#10B981]" : "text-[#EF4444]")}>
+                    {activePosition ? (runningPnl >= 0 ? `+$${runningPnl.toFixed(2)}` : `-$${Math.abs(runningPnl).toFixed(2)}`) : "$0.00"}
+                  </span>
                 </div>
-
-                {/* Inputs block */}
-                <div className="space-y-3.5 border-t border-white/5 pt-4">
-                  <div className="space-y-1">
-                    <label className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest block">Position Size (Lots)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={lots}
-                      onChange={e => setLots(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
-                      className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white font-bold focus:outline-none focus:border-primary/50 text-right"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3.5">
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest block">Stop Loss (pips)</label>
-                      <input
-                        type="number"
-                        min="5"
-                        value={slPips}
-                        onChange={e => setSlPips(Math.max(5, parseInt(e.target.value) || 5))}
-                        className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white font-bold focus:outline-none focus:border-primary/50 text-right"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest block">Take Profit (pips)</label>
-                      <input
-                        type="number"
-                        min="5"
-                        value={tpPips}
-                        onChange={e => setTpPips(Math.max(5, parseInt(e.target.value) || 5))}
-                        className="w-full bg-[#060A12] border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white font-bold focus:outline-none focus:border-primary/50 text-right"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {!activePosition && (
-                  <div className="p-3 bg-white/2 border border-white/5 rounded-xl flex gap-2.5 items-start text-[10px] text-[#64748B] leading-relaxed">
-                    <ShieldAlert className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span>
-                      <strong>Replay Protection:</strong> SL and TP targets are simulated in 1-minute real-time on your VPS, closing trades automatically on key triggers.
-                    </span>
-                  </div>
-                )}
               </div>
+
+              <div className="flex items-center gap-3">
+                {/* Layout Switcher */}
+                <div className="flex bg-[#0D1421] border border-white/5 p-1 rounded-xl">
+                  <button
+                    onClick={() => setLayoutMode('single')}
+                    className={cn(
+                      "px-3 py-1.5 text-[9px] font-black rounded-lg transition-all uppercase tracking-wider",
+                      layoutMode === 'single' ? "bg-white/5 text-white" : "text-[#64748B]"
+                    )}
+                  >
+                    Single
+                  </button>
+                  <button
+                    onClick={() => setLayoutMode('split')}
+                    className={cn(
+                      "px-3 py-1.5 text-[9px] font-black rounded-lg transition-all uppercase tracking-wider",
+                      layoutMode === 'split' ? "bg-white/5 text-white" : "text-[#64748B]"
+                    )}
+                  >
+                    Split
+                  </button>
+                </div>
+
+                {/* Exit button */}
+                <button
+                  onClick={handleExitSession}
+                  className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-500 text-red-400 hover:text-black rounded-xl transition-all font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Exit Session
+                </button>
+              </div>
+            </div>
+
+            {/* Replay Trade logs underneath */}
+            <div className="space-y-4 border-t border-white/5 pt-6">
+              <div className="flex bg-[#060A12] border border-white/5 p-1 rounded-xl max-w-sm">
+                <button
+                  onClick={() => setActiveTab('journal')}
+                  className={cn(
+                    "flex-1 py-2 text-[10px] font-black rounded-lg transition-all uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer",
+                    activeTab === 'journal' ? "bg-primary/10 border border-primary/20 text-primary" : "text-[#64748B]"
+                  )}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Replay Trades Journal
+                </button>
+                <button
+                  onClick={() => setActiveTab('performance')}
+                  className={cn(
+                    "flex-1 py-2 text-[10px] font-black rounded-lg transition-all uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer",
+                    activeTab === 'performance' ? "bg-primary/10 border border-primary/20 text-primary" : "text-[#64748B]"
+                  )}
+                >
+                  <Award className="w-3.5 h-3.5" /> Strategy Edge Analytics
+                </button>
+              </div>
+
+              <AnimatePresence mode="wait">
+                {activeTab === 'journal' ? (
+                  <motion.div
+                    key="journal"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3.5 mb-4">
+                      <h3 className="text-xs font-black uppercase text-white tracking-widest flex items-center gap-1.5">
+                        <Database className="w-4 h-4 text-primary" /> Active Session Replay Logs (VPS Journal)
+                      </h3>
+                    </div>
+
+                    <div className="overflow-x-auto border border-white/5 rounded-2xl bg-[#060A12]/30">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/5 bg-white/2 text-[9px] text-[#64748B] uppercase tracking-wider font-bold">
+                            <th className="py-3 px-4">Trade ID</th>
+                            <th className="py-3 px-3">Direction</th>
+                            <th className="py-3 px-3">Lots</th>
+                            <th className="py-3 px-3">Entry Price</th>
+                            <th className="py-3 px-3">Exit Price</th>
+                            <th className="py-3 px-3">Realized P&L</th>
+                            <th className="py-3 px-3">Return (%)</th>
+                            <th className="py-3 px-4">Journal Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/4">
+                          {tradesHistory.map((t, index) => {
+                            const isEditing = editingTradeId === t.id
+                            return (
+                              <tr key={t.id} className="group hover:bg-white/[0.01] transition-all">
+                                <td className="py-3.5 px-4 font-mono font-bold text-[#64748B]">#{tradesHistory.length - index}</td>
+                                <td className="py-3.5 px-3">
+                                  <span className={cn(
+                                    "text-[9px] px-2 py-0.5 rounded font-black uppercase border tracking-wider",
+                                    t.direction === 'buy' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border-red-500/20 text-red-400"
+                                  )}>
+                                    {t.direction}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-3 font-mono font-bold text-white">{t.lots}</td>
+                                <td className="py-3.5 px-3 font-mono font-bold text-[#94A3B8]">{t.entryPrice.toFixed(2)}</td>
+                                <td className="py-3.5 px-3 font-mono font-bold text-[#94A3B8]">
+                                  {t.exitPrice ? t.exitPrice.toFixed(2) : "—"}
+                                </td>
+                                <td className={cn("py-3.5 px-3 font-mono font-black", t.pnl >= 0 ? "text-[#34D399]" : "text-[#F87171]")}>
+                                  {t.pnl >= 0 ? `+$${t.pnl.toLocaleString()}` : `-$${Math.abs(t.pnl).toLocaleString()}`}
+                                </td>
+                                <td className={cn("py-3.5 px-3 font-mono font-bold", t.pctReturn >= 0 ? "text-[#34D399]" : "text-[#F87171]")}>
+                                  {t.pctReturn >= 0 ? `+${t.pctReturn}%` : `${t.pctReturn}%`}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-2 max-w-full">
+                                      <input
+                                        type="text"
+                                        value={editingTradeNotes}
+                                        onChange={e => setEditingTradeNotes(e.target.value)}
+                                        className="flex-1 min-w-0 bg-[#060A12] border border-primary/30 rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') saveNotesEdit(t.id)
+                                          if (e.key === 'Escape') setEditingTradeId(null)
+                                        }}
+                                        autoFocus
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => saveNotesEdit(t.id)}
+                                        className="p-1 rounded bg-primary/10 border border-primary/20 text-primary cursor-pointer shrink-0"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingTradeId(null)}
+                                        className="p-1 rounded bg-white/5 border border-white/10 text-[#64748B] cursor-pointer shrink-0"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-between gap-3 text-white font-medium">
+                                      <span className="truncate">{t.notes || '—'}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingTradeId(t.id)
+                                          setEditingTradeNotes(t.notes || '')
+                                        }}
+                                        className="p-1 rounded bg-white/0 hover:bg-white/5 text-[#334155] hover:text-primary transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                                        title="Edit notes inline"
+                                      >
+                                        <Edit2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                          {tradesHistory.length === 0 && (
+                            <tr>
+                              <td colSpan={8} className="py-8 text-center text-[#64748B] italic">
+                                No trades simulated in this workspace yet. Click BUY or SELL above to trade!
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="performance"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+                  >
+                    {/* Stats cards */}
+                    <div className="lg:col-span-1 bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-xs font-black uppercase text-[#64748B] tracking-wider border-b border-white/5 pb-2 mb-4">Edge analytics parameters</h3>
+                        
+                        <div className="space-y-4 text-xs font-semibold">
+                          <div className="flex justify-between">
+                            <span className="text-[#64748B]">Total Executions:</span>
+                            <span className="text-white font-bold">{stats.total_trades}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#64748B]">Win Rate %:</span>
+                            <span className="text-emerald-400 font-bold font-mono">{stats.win_rate.toFixed(1)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#64748B]">Wins count:</span>
+                            <span className="text-emerald-400 font-bold font-mono">{stats.wins} W</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#64748B]">Losses count:</span>
+                            <span className="text-red-400 font-bold font-mono">{stats.losses} L</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#64748B]">Average Profit R:R:</span>
+                            <span className="text-primary font-black font-mono">{stats.avg_rr.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 p-3.5 bg-[#060A12] border border-white/5 rounded-2xl text-center">
+                        <p className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest">Net Realized P&L</p>
+                        <h4 className={cn("text-xl font-black mt-1 font-mono", stats.total_pnl >= 0 ? "text-[#34D399]" : "text-[#F87171]")}>
+                          {stats.total_pnl >= 0 ? `+$${stats.total_pnl.toFixed(2)}` : `-$${Math.abs(stats.total_pnl).toFixed(2)}`}
+                        </h4>
+                      </div>
+                    </div>
+
+                    {/* Equity Curve Chart */}
+                    <div className="lg:col-span-2 bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl space-y-4">
+                      <h3 className="text-xs font-black uppercase text-[#64748B] tracking-wider border-b border-white/5 pb-2">Compounding Equity growth curve</h3>
+                      
+                      {tradesHistory.length === 0 ? (
+                        <div className="h-48 border border-dashed border-white/5 rounded-2xl flex items-center justify-center text-xs text-[#334155] italic">
+                          Simulate trades first to plot compounding account balance curves.
+                        </div>
+                      ) : (
+                        <div className="h-56 w-full text-[9px] font-mono">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={equityCurveData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="equityGlow" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#38BDF8" stopOpacity={0.25} />
+                                  <stop offset="95%" stopColor="#38BDF8" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <XAxis dataKey="tradeIndex" stroke="#334155" />
+                              <YAxis stroke="#334155" domain={['dataMin - 100', 'dataMax + 100']} />
+                              <Tooltip contentStyle={{ backgroundColor: '#0D1421', borderColor: 'rgba(255,255,255,0.05)', color: '#fff' }} />
+                              <Area type="monotone" dataKey="balance" stroke="#38BDF8" strokeWidth={2.5} fillOpacity={1} fill="url(#equityGlow)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* --- JOURNAL LOGS & PERFORMANCE STATS (Only displays if session is active) --- */}
-      {sessionId && (
-        <div className="space-y-4 border-t border-white/5 pt-6">
-          <div className="flex bg-[#060A12] border border-white/5 p-1 rounded-xl max-w-sm">
-            <button
-              onClick={() => setActiveTab('journal')}
-              className={cn(
-                "flex-1 py-2 text-[10px] font-black rounded-lg transition-all uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer",
-                activeTab === 'journal' ? "bg-primary/10 border border-primary/20 text-primary" : "text-[#64748B]"
-              )}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" /> Replay Trades Journal
-            </button>
-            <button
-              onClick={() => setActiveTab('performance')}
-              className={cn(
-                "flex-1 py-2 text-[10px] font-black rounded-lg transition-all uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer",
-                activeTab === 'performance' ? "bg-primary/10 border border-primary/20 text-primary" : "text-[#64748B]"
-              )}
-            >
-              <Award className="w-3.5 h-3.5" /> Strategy Edge Analytics
-            </button>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {activeTab === 'journal' ? (
-              <motion.div
-                key="journal"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl overflow-hidden"
-              >
-                <div className="flex items-center justify-between border-b border-white/5 pb-3.5 mb-4">
-                  <h3 className="text-xs font-black uppercase text-white tracking-widest flex items-center gap-1.5">
-                    <Database className="w-4 h-4 text-primary" /> Active Session Replay Logs (VPS Journal)
-                  </h3>
-                </div>
-
-                <div className="overflow-x-auto border border-white/5 rounded-2xl bg-[#060A12]/30">
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-white/5 bg-white/2 text-[9px] text-[#64748B] uppercase tracking-wider font-bold">
-                        <th className="py-3 px-4">Trade ID</th>
-                        <th className="py-3 px-3">Direction</th>
-                        <th className="py-3 px-3">Lots</th>
-                        <th className="py-3 px-3">Entry Price</th>
-                        <th className="py-3 px-3">Exit Price</th>
-                        <th className="py-3 px-3">Realized P&L</th>
-                        <th className="py-3 px-3">Return (%)</th>
-                        <th className="py-3 px-4">Journal Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/4">
-                      {tradesHistory.map((t, index) => {
-                        const isEditing = editingTradeId === t.id
-                        return (
-                          <tr key={t.id} className="group hover:bg-white/[0.01] transition-all">
-                            <td className="py-3.5 px-4 font-mono font-bold text-[#64748B]">#{tradesHistory.length - index}</td>
-                            <td className="py-3.5 px-3">
-                              <span className={cn(
-                                "text-[9px] px-2 py-0.5 rounded font-black uppercase border tracking-wider",
-                                t.direction === 'buy' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border-red-500/20 text-red-400"
-                              )}>
-                                {t.direction}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-3 font-mono font-bold text-white">{t.lots}</td>
-                            <td className="py-3.5 px-3 font-mono font-bold text-[#94A3B8]">{t.entryPrice.toFixed(2)}</td>
-                            <td className="py-3.5 px-3 font-mono font-bold text-[#94A3B8]">
-                              {t.exitPrice ? t.exitPrice.toFixed(2) : "—"}
-                            </td>
-                            <td className={cn("py-3.5 px-3 font-mono font-black", t.pnl >= 0 ? "text-[#34D399]" : "text-[#F87171]")}>
-                              {t.pnl >= 0 ? `+$${t.pnl.toLocaleString()}` : `-$${Math.abs(t.pnl).toLocaleString()}`}
-                            </td>
-                            <td className={cn("py-3.5 px-3 font-mono font-bold", t.pctReturn >= 0 ? "text-[#34D399]" : "text-[#F87171]")}>
-                              {t.pctReturn >= 0 ? `+${t.pctReturn}%` : `${t.pctReturn}%`}
-                            </td>
-                            <td className="py-3.5 px-4">
-                              {isEditing ? (
-                                <div className="flex items-center gap-2 max-w-full">
-                                  <input
-                                    type="text"
-                                    value={editingTradeNotes}
-                                    onChange={e => setEditingTradeNotes(e.target.value)}
-                                    className="flex-1 min-w-0 bg-[#060A12] border border-primary/30 rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter') saveNotesEdit(t.id)
-                                      if (e.key === 'Escape') setEditingTradeId(null)
-                                    }}
-                                    autoFocus
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => saveNotesEdit(t.id)}
-                                    className="p-1 rounded bg-primary/10 border border-primary/20 text-primary cursor-pointer shrink-0"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingTradeId(null)}
-                                    className="p-1 rounded bg-white/5 border border-white/10 text-[#64748B] cursor-pointer shrink-0"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-between gap-3 text-white font-medium">
-                                  <span className="truncate">{t.notes || '—'}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingTradeId(t.id)
-                                      setEditingTradeNotes(t.notes || '')
-                                    }}
-                                    className="p-1 rounded bg-white/0 hover:bg-white/5 text-[#334155] hover:text-primary transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                                    title="Edit notes inline"
-                                  >
-                                    <Edit2 className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                      {tradesHistory.length === 0 && (
-                        <tr>
-                          <td colSpan={8} className="py-8 text-center text-[#64748B] italic">
-                            No trades backtested in this session yet. Take long or short positions above to simulate trades!
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="performance"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-              >
-                {/* Stats cards */}
-                <div className="lg:col-span-1 bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-xs font-black uppercase text-[#64748B] tracking-wider border-b border-white/5 pb-2 mb-4">Edge analytics parameters</h3>
-                    
-                    <div className="space-y-4 text-xs font-semibold">
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B]">Total Executions:</span>
-                        <span className="text-white font-bold">{stats.total_trades}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B]">Win Rate %:</span>
-                        <span className="text-emerald-400 font-bold font-mono">{stats.win_rate.toFixed(1)}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B]">Wins count:</span>
-                        <span className="text-emerald-400 font-bold font-mono">{stats.wins} W</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B]">Losses count:</span>
-                        <span className="text-red-400 font-bold font-mono">{stats.losses} L</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#64748B]">Profit Factor:</span>
-                        <span className="text-primary font-black font-mono">{stats.avg_rr.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 p-3.5 bg-[#060A12] border border-white/5 rounded-2xl text-center">
-                    <p className="text-[9px] text-[#64748B] uppercase font-bold tracking-widest">Net Realized P&L</p>
-                    <h4 className={cn("text-xl font-black mt-1 font-mono", stats.total_pnl >= 0 ? "text-[#34D399]" : "text-[#F87171]")}>
-                      {stats.total_pnl >= 0 ? `+$${stats.total_pnl.toFixed(2)}` : `-$${Math.abs(stats.total_pnl).toFixed(2)}`}
-                    </h4>
-                  </div>
-                </div>
-
-                {/* Equity Curve Chart */}
-                <div className="lg:col-span-2 bg-[#0D1421] border border-white/5 rounded-3xl p-5 shadow-2xl space-y-4">
-                  <h3 className="text-xs font-black uppercase text-[#64748B] tracking-wider border-b border-white/5 pb-2">Compounding Equity growth curve</h3>
-                  
-                  {tradesHistory.length === 0 ? (
-                    <div className="h-48 border border-dashed border-white/5 rounded-2xl flex items-center justify-center text-xs text-[#334155] italic">
-                      Backtest trades first to plot compounding account balance curves.
-                    </div>
-                  ) : (
-                    <div className="h-56 w-full text-[9px] font-mono">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={equityCurveData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="equityGlow" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#38BDF8" stopOpacity={0.25} />
-                              <stop offset="95%" stopColor="#38BDF8" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <XAxis dataKey="tradeIndex" stroke="#334155" />
-                          <YAxis stroke="#334155" domain={['dataMin - 100', 'dataMax + 100']} />
-                          <Tooltip contentStyle={{ backgroundColor: '#0D1421', borderColor: 'rgba(255,255,255,0.05)', color: '#fff' }} />
-                          <Area type="monotone" dataKey="balance" stroke="#38BDF8" strokeWidth={2.5} fillOpacity={1} fill="url(#equityGlow)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
 
     </div>
   )

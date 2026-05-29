@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from db import get_db_cursor
-from typing import Optional
+from typing import Optional, List, Dict, Any
+import json
 
 router = APIRouter()
 
@@ -13,6 +14,13 @@ class StartSessionRequest(BaseModel):
 
 class CloseSessionRequest(BaseModel):
     final_balance: Optional[float] = None
+
+class SaveDrawingsRequest(BaseModel):
+    drawings_state: List[Any]
+    indicator_settings: Optional[Dict[str, Any]] = None
+
+class ReCutSessionRequest(BaseModel):
+    cut_timestamp: str
 
 @router.post("/start")
 def start_session(req: StartSessionRequest):
@@ -125,7 +133,9 @@ def get_session(session_id: int):
                 "timeframe": session["timeframe"],
                 "status": session["status"],
                 "current_timestamp": str(session["current_timestamp"]) if session["current_timestamp"] else None,
-                "last_accessed_at": str(session["last_accessed_at"])
+                "last_accessed_at": str(session["last_accessed_at"]),
+                "drawings_state": session["drawings_state"] if session.get("drawings_state") is not None else [],
+                "indicator_settings": session["indicator_settings"] if session.get("indicator_settings") is not None else {}
             }
     except HTTPException as he:
         raise he
@@ -145,3 +155,90 @@ def delete_session(session_id: int):
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete session: {str(e)}")
+
+@router.put("/{session_id}/drawings")
+def save_session_drawings(session_id: int, req: SaveDrawingsRequest):
+    try:
+        with get_db_cursor(commit=True) as cur:
+            # Check if session exists
+            cur.execute("SELECT id FROM backtest_sessions WHERE id = %s", (session_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Session not found")
+            
+            # Save drawings (native psycopg2 handles python list/dict -> postgres jsonb mapping directly!)
+            if req.indicator_settings is not None:
+                cur.execute(
+                    """UPDATE backtest_sessions 
+                       SET drawings_state = %s, indicator_settings = %s, last_accessed_at = NOW() 
+                       WHERE id = %s""",
+                    (json.dumps(req.drawings_state), json.dumps(req.indicator_settings), session_id)
+                )
+            else:
+                cur.execute(
+                    """UPDATE backtest_sessions 
+                       SET drawings_state = %s, last_accessed_at = NOW() 
+                       WHERE id = %s""",
+                    (json.dumps(req.drawings_state), session_id)
+                )
+            return {"status": "success", "session_id": session_id}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save drawings: {str(e)}")
+
+@router.post("/{session_id}/re-cut")
+def re_cut_session(session_id: int, req: ReCutSessionRequest):
+    try:
+        with get_db_cursor(commit=True) as cur:
+            # 1. Fetch the session
+            cur.execute("SELECT * FROM backtest_sessions WHERE id = %s", (session_id,))
+            session = cur.fetchone()
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+                
+            cut_time = req.cut_timestamp
+            initial_bal = float(session["initial_balance"])
+            
+            # 2. Delete trades opened strictly AFTER the cut timestamp
+            cur.execute(
+                "DELETE FROM trades WHERE session_id = %s AND entry_time > %s",
+                (session_id, cut_time)
+            )
+            
+            # 3. Restore trades that were opened BEFORE but closed AFTER the cut timestamp back to open
+            cur.execute(
+                """UPDATE trades 
+                   SET exit_price = NULL, exit_time = NULL, pnl = NULL, pnl_pct = NULL, status = 'open'
+                   WHERE session_id = %s AND entry_time <= %s AND (exit_time > %s OR (exit_time IS NULL AND status != 'open'))""",
+                (session_id, cut_time, cut_time)
+            )
+            
+            # 4. Calculate the new current balance based on remaining completed trades
+            cur.execute(
+                """SELECT COALESCE(SUM(pnl), 0) as total_pnl 
+                   FROM trades 
+                   WHERE session_id = %s AND status IN ('manual', 'sl_hit', 'tp_hit') AND exit_time <= %s""",
+                (session_id, cut_time)
+            )
+            res = cur.fetchone()
+            total_pnl = float(res["total_pnl"]) if res and res["total_pnl"] is not None else 0.0
+            new_balance = initial_bal + total_pnl
+            
+            # 5. Update session record
+            cur.execute(
+                """UPDATE backtest_sessions 
+                   SET current_timestamp = %s, current_balance = %s, last_accessed_at = NOW() 
+                   WHERE id = %s""",
+                (cut_time, new_balance, session_id)
+            )
+            
+            return {
+                "status": "success",
+                "session_id": session_id,
+                "current_timestamp": cut_time,
+                "current_balance": new_balance
+            }
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to re-cut session timeline: {str(e)}")
