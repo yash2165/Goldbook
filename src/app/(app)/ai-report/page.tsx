@@ -182,6 +182,68 @@ export default function AIReportPage() {
     }
   }, [trades])
 
+  // ── 1. Fetch saved report on load/activeAccount change ───────────────────
+  useEffect(() => {
+    async function loadSavedReport() {
+      if (!activeAccount?.id) {
+        setReport(null)
+        setPastReports([])
+        setFetchingSaved(false)
+        return
+      }
+      setFetchingSaved(true)
+      try {
+        const supabase = createClient()
+        const { data, error: dbErr } = await supabase
+          .from('ai_reports')
+          .select('*')
+          .eq('account_id', activeAccount.id)
+          .order('created_at', { ascending: false })
+
+        if (dbErr) throw dbErr
+        if (data && data.length > 0) {
+          const dbRow = data[0]
+          setReport({
+            id: dbRow.id,
+            grade: dbRow.grade,
+            grade_reason: dbRow.grade_reason,
+            strengths: dbRow.strengths,
+            weaknesses: dbRow.weaknesses,
+            blind_spots: dbRow.blind_spots,
+            revenge_trading_detected: dbRow.revenge_trading_detected,
+            best_session: dbRow.best_session,
+            worst_session: dbRow.worst_session,
+            best_day: dbRow.best_day,
+            worst_day: dbRow.worst_day,
+            risk_score: dbRow.risk_score,
+            consistency_score: dbRow.consistency_score,
+            discipline_score: dbRow.discipline_score,
+            action_plan: dbRow.action_plan,
+            summary: dbRow.summary,
+            trades_analyzed: dbRow.trades_analyzed,
+            rules_compliance_score: dbRow.rules_compliance_score,
+            rules_analysis: dbRow.rules_analysis?.observations ?? [],
+            emotion_insights: dbRow.rules_analysis?.emotion_insights ?? [],
+            cognitive_biases: dbRow.rules_analysis?.cognitive_biases ?? [],
+            emotion_correlations: dbRow.rules_analysis?.emotion_correlations ?? [],
+            discipline_breaches_correlation: dbRow.rules_analysis?.discipline_breaches_correlation ?? '',
+          })
+          setProvider(dbRow.provider ?? 'gemini')
+          setPastReports(data)
+        } else {
+          setReport(null)
+          setPastReports([])
+        }
+      } catch (err: any) {
+        console.error('Failed to load saved report:', err)
+      } finally {
+        setFetchingSaved(false)
+      }
+    }
+
+    loadSavedReport()
+  }, [activeAccount?.id])
+
   if (loadingTier) {
     return (
       <div className="p-6 max-w-full mx-auto space-y-6 min-h-[60vh] flex flex-col items-center justify-center">
@@ -407,67 +469,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
     }
   }
 
-  // ── 1. Fetch saved report on load/activeAccount change ───────────────────
-  useEffect(() => {
-    async function loadSavedReport() {
-      if (!activeAccount?.id) {
-        setReport(null)
-        setPastReports([])
-        setFetchingSaved(false)
-        return
-      }
-      setFetchingSaved(true)
-      try {
-        const supabase = createClient()
-        const { data, error: dbErr } = await supabase
-          .from('ai_reports')
-          .select('*')
-          .eq('account_id', activeAccount.id)
-          .order('created_at', { ascending: false })
 
-        if (dbErr) throw dbErr
-        if (data && data.length > 0) {
-          const dbRow = data[0]
-          setReport({
-            id: dbRow.id,
-            grade: dbRow.grade,
-            grade_reason: dbRow.grade_reason,
-            strengths: dbRow.strengths,
-            weaknesses: dbRow.weaknesses,
-            blind_spots: dbRow.blind_spots,
-            revenge_trading_detected: dbRow.revenge_trading_detected,
-            best_session: dbRow.best_session,
-            worst_session: dbRow.worst_session,
-            best_day: dbRow.best_day,
-            worst_day: dbRow.worst_day,
-            risk_score: dbRow.risk_score,
-            consistency_score: dbRow.consistency_score,
-            discipline_score: dbRow.discipline_score,
-            action_plan: dbRow.action_plan,
-            summary: dbRow.summary,
-            trades_analyzed: dbRow.trades_analyzed,
-            rules_compliance_score: dbRow.rules_compliance_score,
-            rules_analysis: dbRow.rules_analysis?.observations ?? [],
-            emotion_insights: dbRow.rules_analysis?.emotion_insights ?? [],
-            cognitive_biases: dbRow.rules_analysis?.cognitive_biases ?? [],
-            emotion_correlations: dbRow.rules_analysis?.emotion_correlations ?? [],
-            discipline_breaches_correlation: dbRow.rules_analysis?.discipline_breaches_correlation ?? '',
-          })
-          setProvider(dbRow.provider ?? 'gemini')
-          setPastReports(data)
-        } else {
-          setReport(null)
-          setPastReports([])
-        }
-      } catch (err: any) {
-        console.error('Failed to load saved report:', err)
-      } finally {
-        setFetchingSaved(false)
-      }
-    }
-
-    loadSavedReport()
-  }, [activeAccount?.id])
 
   const generate = async () => {
     if (!activeAccount?.id) return
