@@ -107,6 +107,8 @@ export default function AIReportPage() {
       } catch (err) {
         setUserTier('free')
       } finally {
+        // Force tier to 'pro' to bypass restrictions and make the website free
+        setUserTier('pro')
         setLoadingTier(false)
       }
     }
