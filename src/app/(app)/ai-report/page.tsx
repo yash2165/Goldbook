@@ -120,6 +120,67 @@ export default function AIReportPage() {
   const [loading, setLoading] = useState(false)
   const [report, setReport] = useState<any>(null)
   const [provider, setProvider] = useState<'gemini' | 'groq' | null>(null)
+  const [loadingMsg, setLoadingMsg] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [fetchingSaved, setFetchingSaved] = useState(true)
+  const [expandedBias, setExpandedBias] = useState<string | null>(null)
+  const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null)
+  const [skipAnimation, setSkipAnimation] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  // Past reports history state
+  const [pastReports, setPastReports] = useState<any[]>([])
+  
+  // Cinematic progressive loading state
+  const [loadingStage, setLoadingStage] = useState(0)
+
+  // Client-Side Telemetry Compilation for loading steps
+  const clientTelemetry = useMemo(() => {
+    if (!trades || trades.length === 0) {
+      return { journalCount: 0, selfAttacks: 0, regrets: 0, revengeTriggers: 0 }
+    }
+
+    const closed = trades.filter((t: any) => t.status === 'closed' && t.notes)
+    
+    const selfAttackRegex = /\b(?:idiot|stupid|loser|fail|mess|worthless|pathetic|fool|dumb|screw|screwup|horrible|terrible)\w*\b|what\s+was\s+i\s+thinking|why\s+do\s+i\s+always|how\s+could\s+i|what\s+am\s+i\s+doing/gi
+    const regretRegex = /\b(?:should|regret|could|if\s+only|wish|mistake|why\s+did\b)\w*\b/gi
+    
+    let selfAttackCount = 0
+    let regretCount = 0
+
+    closed.forEach((t: any) => {
+      const text = t.notes || ''
+      const saMatches = text.match(selfAttackRegex)
+      if (saMatches) selfAttackCount += saMatches.length
+      
+      const rMatches = text.match(regretRegex)
+      if (rMatches) regretCount += rMatches.length
+    })
+
+    let revengeCount = 0
+    const sorted = [...trades].filter((t: any) => t.open_time).sort(
+      (a: any, b: any) => new Date(a.open_time!).getTime() - new Date(b.open_time!).getTime()
+    )
+    const losses = trades.filter((t: any) => t.close_time && (t.net_profit ?? 0) < 0)
+
+    for (const loss of losses) {
+      const lossClose = new Date(loss.close_time!).getTime()
+      const next = sorted.find((t: any) => {
+        const o = new Date(t.open_time!).getTime()
+        if (o <= lossClose) return false
+        const delta = (o - lossClose) / (60 * 1000)
+        return delta > 0 && delta <= 45
+      })
+      if (next) revengeCount++
+    }
+
+    return {
+      journalCount: closed.length,
+      selfAttacks: selfAttackCount,
+      regrets: regretCount,
+      revengeTriggers: revengeCount
+    }
+  }, [trades])
 
   if (loadingTier) {
     return (
@@ -249,67 +310,7 @@ export default function AIReportPage() {
       </div>
     )
   }
-  const [loadingMsg, setLoadingMsg] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [fetchingSaved, setFetchingSaved] = useState(true)
-  const [expandedBias, setExpandedBias] = useState<string | null>(null)
-  const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null)
-  const [skipAnimation, setSkipAnimation] = useState(false)
-  const [copied, setCopied] = useState(false)
 
-  // Past reports history state
-  const [pastReports, setPastReports] = useState<any[]>([])
-  
-  // Cinematic progressive loading state
-  const [loadingStage, setLoadingStage] = useState(0)
-
-  // Client-Side Telemetry Compilation for loading steps
-  const clientTelemetry = useMemo(() => {
-    if (!trades || trades.length === 0) {
-      return { journalCount: 0, selfAttacks: 0, regrets: 0, revengeTriggers: 0 }
-    }
-
-    const closed = trades.filter((t: any) => t.status === 'closed' && t.notes)
-    
-    const selfAttackRegex = /\b(?:idiot|stupid|loser|fail|mess|worthless|pathetic|fool|dumb|screw|screwup|horrible|terrible)\w*\b|what\s+was\s+i\s+thinking|why\s+do\s+i\s+always|how\s+could\s+i|what\s+am\s+i\s+doing/gi
-    const regretRegex = /\b(?:should|regret|could|if\s+only|wish|mistake|why\s+did\b)\w*\b/gi
-    
-    let selfAttackCount = 0
-    let regretCount = 0
-
-    closed.forEach((t: any) => {
-      const text = t.notes || ''
-      const saMatches = text.match(selfAttackRegex)
-      if (saMatches) selfAttackCount += saMatches.length
-      
-      const rMatches = text.match(regretRegex)
-      if (rMatches) regretCount += rMatches.length
-    })
-
-    let revengeCount = 0
-    const sorted = [...trades].filter((t: any) => t.open_time).sort(
-      (a: any, b: any) => new Date(a.open_time!).getTime() - new Date(b.open_time!).getTime()
-    )
-    const losses = trades.filter((t: any) => t.close_time && (t.net_profit ?? 0) < 0)
-
-    for (const loss of losses) {
-      const lossClose = new Date(loss.close_time!).getTime()
-      const next = sorted.find((t: any) => {
-        const o = new Date(t.open_time!).getTime()
-        if (o <= lossClose) return false
-        const delta = (o - lossClose) / (60 * 1000)
-        return delta > 0 && delta <= 45
-      })
-      if (next) revengeCount++
-    }
-
-    return {
-      journalCount: closed.length,
-      selfAttacks: selfAttackCount,
-      regrets: regretCount,
-      revengeTriggers: revengeCount
-    }
-  }, [trades])
 
   const messages = [
     'Running Deep Psychological Telemetry calculations...',

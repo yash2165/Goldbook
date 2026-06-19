@@ -63,6 +63,114 @@ export default function BacktestReplayPage() {
   const [userTier, setUserTier] = useState<'free' | 'paid' | 'pro' | null>(null)
   const [loadingTier, setLoadingTier] = useState(true)
 
+  const [isMounted, setIsMounted] = useState(false)
+  const [symbol, setSymbol] = useState<'XAUUSD' | 'BANKNIFTY'>('XAUUSD')
+  const [timeframe, setTimeframe] = useState<string>('5m')
+  const [layoutMode, setLayoutMode] = useState<'single' | 'split'>('split')
+  
+  // VPS API Server host (hardcoded silently for public excellence!)
+  const apiUrl = 'goldbook-backtest.ddnsfree.com'
+  
+  // Active Sessions State (TradersCasa Style)
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  
+  // Replay Session State
+  const [sessionId, setSessionId] = useState<number | null>(null)
+  const [sessionStartDate, setSessionStartDate] = useState('2023-01-02')
+  const [availableDates, setAvailableDates] = useState<{ from: string; to: string } | null>(null)
+  const [isStartingSession, setIsStartingSession] = useState(false)
+  const [initialBalance, setInitialBalance] = useState<number>(10000)
+  const [accountBalance, setAccountBalance] = useState<number>(10000)
+  
+  // Playback & Candlestick states
+  const [ltfCandles, setLtfCandles] = useState<any[]>([])
+  const [htfCandles, setHtfCandles] = useState<any[]>([])
+  const [currentCandle, setCurrentCandle] = useState<any>(null)
+  
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [playSpeed, setPlaySpeed] = useState<number>(5) // Candles per second
+  const [isScissorsActive, setIsScissorsActive] = useState(false)
+  
+  // Vertical Drawing Tools active selection
+  const [activeDrawingTool, setActiveDrawingTool] = useState<string>('cursor')
+  
+  // Custom persistent drawings & canvas state
+  const [drawings, setDrawings] = useState<any[]>([])
+  const [isDrawingActive, setIsDrawingActive] = useState(false)
+  const [activeShapeId, setActiveShapeId] = useState<string | null>(null)
+  
+  // Technical Indicator Toggles
+  const [showEma20, setShowEma20] = useState(false)
+  const [showEma50, setShowEma50] = useState(false)
+  const [showEma200, setShowEma200] = useState(false)
+  const [showRsi, setShowRsi] = useState(false)
+  const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(false)
+  
+  // DOM & Series Refs for custom overlays
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drawingsRef = useRef<any[]>([])
+  const rsiChartRef = useRef<HTMLDivElement>(null)
+  const rsiChartInstance = useRef<any>(null)
+  const rsiLineSeries = useRef<any>(null)
+  const ltfEma20Series = useRef<any>(null)
+  const ltfEma50Series = useRef<any>(null)
+  const ltfEma200Series = useRef<any>(null)
+  
+  // Keep drawingsRef synchronized with drawings state to prevent stale closures in event listeners
+  useEffect(() => {
+    drawingsRef.current = drawings
+  }, [drawings])
+
+  // Broker State
+  const [lots, setLots] = useState<number>(1.0)
+  const [slPips, setSlPips] = useState<number>(50)
+  const [tpPips, setTpPips] = useState<number>(150)
+  const [activePosition, setActivePosition] = useState<{
+    id: string
+    direction: 'buy' | 'sell'
+    entryPrice: number
+    slPrice: number | null
+    tpPrice: number | null
+    lots: number
+  } | null>(null)
+  
+  const [tradesHistory, setTradesHistory] = useState<BacktestTrade[]>([])
+  const [stats, setStats] = useState({
+    total_trades: 0,
+    wins: 0,
+    losses: 0,
+    win_rate: 0,
+    total_pnl: 0,
+    avg_rr: 0
+  })
+  
+  const [activeTab, setActiveTab] = useState<'journal' | 'performance'>('journal')
+  const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
+  const [editingTradeNotes, setEditingTradeNotes] = useState('')
+
+  // DOM Refs
+  const ltfChartRef = useRef<HTMLDivElement>(null)
+  const htfChartRef = useRef<HTMLDivElement>(null)
+  const ltfChartInstance = useRef<any>(null)
+  const htfChartInstance = useRef<any>(null)
+  const ltfCandleSeries = useRef<any>(null)
+  const htfCandleSeries = useRef<any>(null)
+  const ltfEntryLine = useRef<any>(null)
+  const ltfSlLine = useRef<any>(null)
+  const ltfTpLine = useRef<any>(null)
+  
+  const wsRef = useRef<WebSocket | null>(null)
+
+  // 1. Force Client-only Mounting
+  useEffect(() => {
+    setIsMounted(true)
+    return () => {
+      if (wsRef.current) wsRef.current.close()
+    }
+  }, [])
+
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
       const script = document.createElement('script')
@@ -337,113 +445,7 @@ export default function BacktestReplayPage() {
     )
   }
 
-  const [isMounted, setIsMounted] = useState(false)
-  const [symbol, setSymbol] = useState<'XAUUSD' | 'BANKNIFTY'>('XAUUSD')
-  const [timeframe, setTimeframe] = useState<string>('5m')
-  const [layoutMode, setLayoutMode] = useState<'single' | 'split'>('split')
-  
-  // VPS API Server host (hardcoded silently for public excellence!)
-  const apiUrl = 'goldbook-backtest.ddnsfree.com'
-  
-  // Active Sessions State (TradersCasa Style)
-  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([])
-  const [isLoadingSessions, setIsLoadingSessions] = useState(true)
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  
-  // Replay Session State
-  const [sessionId, setSessionId] = useState<number | null>(null)
-  const [sessionStartDate, setSessionStartDate] = useState('2023-01-02')
-  const [availableDates, setAvailableDates] = useState<{ from: string; to: string } | null>(null)
-  const [isStartingSession, setIsStartingSession] = useState(false)
-  const [initialBalance, setInitialBalance] = useState<number>(10000)
-  const [accountBalance, setAccountBalance] = useState<number>(10000)
-  
-  // Playback & Candlestick states
-  const [ltfCandles, setLtfCandles] = useState<any[]>([])
-  const [htfCandles, setHtfCandles] = useState<any[]>([])
-  const [currentCandle, setCurrentCandle] = useState<any>(null)
-  
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [playSpeed, setPlaySpeed] = useState<number>(5) // Candles per second
-  const [isScissorsActive, setIsScissorsActive] = useState(false)
-  
-  // Vertical Drawing Tools active selection
-  const [activeDrawingTool, setActiveDrawingTool] = useState<string>('cursor')
-  
-  // Custom persistent drawings & canvas state
-  const [drawings, setDrawings] = useState<any[]>([])
-  const [isDrawingActive, setIsDrawingActive] = useState(false)
-  const [activeShapeId, setActiveShapeId] = useState<string | null>(null)
-  
-  // Technical Indicator Toggles
-  const [showEma20, setShowEma20] = useState(false)
-  const [showEma50, setShowEma50] = useState(false)
-  const [showEma200, setShowEma200] = useState(false)
-  const [showRsi, setShowRsi] = useState(false)
-  const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(false)
-  
-  // DOM & Series Refs for custom overlays
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const drawingsRef = useRef<any[]>([])
-  const rsiChartRef = useRef<HTMLDivElement>(null)
-  const rsiChartInstance = useRef<any>(null)
-  const rsiLineSeries = useRef<any>(null)
-  const ltfEma20Series = useRef<any>(null)
-  const ltfEma50Series = useRef<any>(null)
-  const ltfEma200Series = useRef<any>(null)
-  
-  // Keep drawingsRef synchronized with drawings state to prevent stale closures in event listeners
-  useEffect(() => {
-    drawingsRef.current = drawings
-  }, [drawings])
 
-  // Broker State
-  const [lots, setLots] = useState<number>(1.0)
-  const [slPips, setSlPips] = useState<number>(50)
-  const [tpPips, setTpPips] = useState<number>(150)
-  const [activePosition, setActivePosition] = useState<{
-    id: string
-    direction: 'buy' | 'sell'
-    entryPrice: number
-    slPrice: number | null
-    tpPrice: number | null
-    lots: number
-  } | null>(null)
-  
-  const [tradesHistory, setTradesHistory] = useState<BacktestTrade[]>([])
-  const [stats, setStats] = useState({
-    total_trades: 0,
-    wins: 0,
-    losses: 0,
-    win_rate: 0,
-    total_pnl: 0,
-    avg_rr: 0
-  })
-  
-  const [activeTab, setActiveTab] = useState<'journal' | 'performance'>('journal')
-  const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
-  const [editingTradeNotes, setEditingTradeNotes] = useState('')
-
-  // DOM Refs
-  const ltfChartRef = useRef<HTMLDivElement>(null)
-  const htfChartRef = useRef<HTMLDivElement>(null)
-  const ltfChartInstance = useRef<any>(null)
-  const htfChartInstance = useRef<any>(null)
-  const ltfCandleSeries = useRef<any>(null)
-  const htfCandleSeries = useRef<any>(null)
-  const ltfEntryLine = useRef<any>(null)
-  const ltfSlLine = useRef<any>(null)
-  const ltfTpLine = useRef<any>(null)
-  
-  const wsRef = useRef<WebSocket | null>(null)
-
-  // 1. Force Client-only Mounting
-  useEffect(() => {
-    setIsMounted(true)
-    return () => {
-      if (wsRef.current) wsRef.current.close()
-    }
-  }, [])
 
   // 2. Load Active Sessions from database on mount
   const fetchActiveSessions = async () => {
