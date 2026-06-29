@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { useToast } from '@/context/ToastContext'
+import { useMarketMode, MarketMode } from '@/context/MarketModeContext'
 
 type Tab = 'profile' | 'security'
 
@@ -41,6 +42,8 @@ const COUNTRIES = [
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('profile')
   const [user, setUser] = useState<any>(null)
+  const { setMarketMode } = useMarketMode()
+
   const [profile, setProfile] = useState({ 
     username: '', 
     display_name: '', 
@@ -50,8 +53,10 @@ export default function SettingsPage() {
     bio: '',
     timezone: 'UTC',
     pre_trade_checklist: DEFAULT_CHECKLIST,
-    trading_setups: [] as { name: string, description: string }[]
+    trading_setups: [] as { name: string, description: string }[],
+    market_mode: 'forex' as MarketMode
   })
+
   const [rules, setRules] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -107,8 +112,10 @@ export default function SettingsPage() {
           bio: data.bio ?? '',
           timezone: data.timezone ?? 'UTC',
           pre_trade_checklist: data.pre_trade_checklist || DEFAULT_CHECKLIST,
-          trading_setups: data.trading_setups || []
+          trading_setups: data.trading_setups || [],
+          market_mode: (data.market_mode as MarketMode) || 'forex'
         })
+
       }
 
       // Load active rules
@@ -222,9 +229,16 @@ export default function SettingsPage() {
         timezone: profile.timezone,
         pre_trade_checklist: profile.pre_trade_checklist,
         trading_setups: profile.trading_setups,
+        market_mode: profile.market_mode,
         updated_at: new Date().toISOString()
       })
       .eq('id', user.id)
+      
+    // Update active market context
+    if (!error) {
+      await setMarketMode(profile.market_mode)
+    }
+
       
     setSaving(false)
     if (!error) {
@@ -552,6 +566,19 @@ export default function SettingsPage() {
                       ))}
                     </select>
                   </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-black">Active Market Segment</Label>
+                    <select
+                      value={profile.market_mode}
+                      onChange={e => setProfile(p => ({ ...p, market_mode: e.target.value as MarketMode }))}
+                      className="w-full bg-[#060A12] border border-[#1E3A5F]/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#38BDF8]/50 transition-colors [color-scheme:dark] text-white appearance-none cursor-pointer"
+                    >
+                      <option value="forex">Forex Markets (USD / Lot-based)</option>
+                      <option value="indian">Indian Stock Markets (INR / Option CE-PE / Equity)</option>
+                    </select>
+                  </div>
+
                 </div>
               </div>
 

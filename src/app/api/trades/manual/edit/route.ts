@@ -10,7 +10,7 @@ const LOT_SIZES: Record<string, number> = {
   SENSEX: 20
 }
 
-export async function POST(req: Request) {
+export async function PUT(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -18,29 +18,56 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const {
-      account_id, symbol, direction, lot_size,
-      entry_price, exit_price, open_time, close_time,
-      sl, tp, notes, pre_trade_checklist,
-      emotion_before, emotion_after, rating,
-      // Indian Specific
-      instrument_type, option_type, strike_price, expiry_date,
-      spot_price_entry, spot_price_exit, india_vix,
-      brokerage, stt, other_charges, manual_pnl, currency
+      tradeId,
+      symbol,
+      direction,
+      lot_size,
+      entry_price,
+      exit_price,
+      open_time,
+      close_time,
+      sl,
+      tp,
+      notes,
+      pre_trade_checklist,
+      emotion_before,
+      emotion_after,
+      rating,
+      instrument_type,
+      option_type,
+      strike_price,
+      expiry_date,
+      brokerage,
+      stt,
+      other_charges,
+      manual_pnl,
+      currency
     } = body
 
-    // Verify that the account belongs to the authenticated user to prevent parameter injection
-    if (account_id) {
-      const { data: acc } = await supabase
-        .from('mt5_accounts')
-        .select('user_id')
-        .eq('id', account_id)
-        .single()
-
-      if (!acc || acc.user_id !== user.id) {
-        return NextResponse.json({ error: 'Forbidden: Account does not belong to user.' }, { status: 403 })
-      }
+    if (!tradeId) {
+      return NextResponse.json({ error: 'Trade ID is required' }, { status: 400 })
     }
 
+    // 1. Load the trade and verify ownership + manual source
+    const { data: trade, error: fetchError } = await supabase
+      .from('trades')
+      .select('id, user_id, source')
+      .eq('id', tradeId)
+      .single()
+
+    if (fetchError || !trade) {
+      return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
+    }
+
+    if (trade.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (trade.source !== 'manual') {
+      return NextResponse.json({ error: 'Only manually logged trades can be edited' }, { status: 400 })
+    }
+
+    // 2. Perform recalculations
     const cleanSymbol = symbol ? symbol.toUpperCase() : ''
     const cleanDirection = direction === 'buy' ? 'buy' : 'sell'
     const cleanQty = lot_size ? parseFloat(lot_size) : 0
@@ -89,18 +116,15 @@ export async function POST(req: Request) {
       }
     }
 
-    // Force manual trades to be closed only if exit price is provided
-    const final_close_time = isClosed ? (close_time ?? open_time) : null
-
     // Duration in seconds
     let duration_seconds: number | null = null
-    if (isClosed && open_time && final_close_time) {
+    if (isClosed && open_time && close_time) {
       duration_seconds = Math.max(0, Math.floor(
-        (new Date(final_close_time).getTime() - new Date(open_time).getTime()) / 1000
+        (new Date(close_time).getTime() - new Date(open_time).getTime()) / 1000
       ))
     }
 
-    // RR ratio
+    // R:R Ratio
     let rr_ratio: number | null = null
     if (sl && tp && cleanEntry) {
       const risk = Math.abs(cleanEntry - parseFloat(sl))
@@ -108,54 +132,49 @@ export async function POST(req: Request) {
       if (risk > 0) rr_ratio = parseFloat((reward / risk).toFixed(2))
     }
 
-    // Generate a synthetic position ID for manual trades to satisfy unique checks
-    const syntheticPositionId = -Math.floor(Date.now() + Math.random() * 100000)
-    const mt5_ticket = Date.now()
+    // 3. Update the database record
+    const { data: updatedTrade, error: updateError } = await supabase
+      .from('trades')
+      .update({
+        symbol: cleanSymbol,
+        direction: cleanDirection,
+        lot_size: cleanQty,
+        entry_price: cleanEntry,
+        exit_price: isClosed ? cleanExit : null,
+        sl: sl ? parseFloat(sl) : null,
+        tp: tp ? parseFloat(tp) : null,
+        open_time: open_time ? new Date(open_time).toISOString() : null,
+        close_time: isClosed && close_time ? new Date(close_time).toISOString() : null,
+        duration_seconds,
+        net_profit: isClosed ? net_profit : null,
+        gross_profit: isClosed ? gross_profit : null,
+        pips,
+        rr_ratio,
+        status: isClosed ? 'closed' : 'open',
+        notes: notes ?? null,
+        pre_trade_checklist: pre_trade_checklist ?? null,
+        emotion_before: emotion_before ?? null,
+        emotion_after: emotion_after ?? null,
+        rating: rating ? parseInt(rating) : null,
+        instrument_type: instrument_type || 'spot',
+        option_type: option_type ?? null,
+        strike_price: strike_price ? parseFloat(strike_price) : null,
+        expiry_date: expiry_date || null,
+        brokerage: brokerage ? parseFloat(brokerage) : 0,
+        stt: stt ? parseFloat(stt) : 0,
+        other_charges: other_charges ? parseFloat(other_charges) : 0,
+        currency: currency || 'USD'
+      })
+      .eq('id', tradeId)
+      .select()
+      .single()
 
-    const { data, error } = await supabase.from('trades').insert({
-      account_id: account_id ?? null,
-      user_id: user.id,
-      position_id: syntheticPositionId,
-      mt5_ticket,
-      symbol: cleanSymbol,
-      direction: cleanDirection,
-      lot_size: cleanQty,
-      entry_price: cleanEntry,
-      exit_price: isClosed ? cleanExit : null,
-      sl: sl ? parseFloat(sl) : null,
-      tp: tp ? parseFloat(tp) : null,
-      open_time: open_time ? new Date(open_time).toISOString() : null,
-      close_time: isClosed && final_close_time ? new Date(final_close_time).toISOString() : null,
-      duration_seconds,
-      net_profit: isClosed ? net_profit : null,
-      gross_profit: isClosed ? gross_profit : null,
-      commission: 0,
-      swap: 0,
-      pips,
-      rr_ratio,
-      status: isClosed ? 'closed' : 'open',
-      source: 'manual',
-      notes: notes ?? null,
-      pre_trade_checklist: pre_trade_checklist ?? null,
-      emotion_before: emotion_before ?? null,
-      emotion_after: emotion_after ?? null,
-      rating: rating ? parseInt(rating) : null,
-      instrument_type: instrument_type || 'spot',
-      option_type: option_type ?? null,
-      strike_price: strike_price ? parseFloat(strike_price) : null,
-      expiry_date: expiry_date || null,
-      brokerage: brokerage ? parseFloat(brokerage) : 0,
-      stt: stt ? parseFloat(stt) : 0,
-      other_charges: other_charges ? parseFloat(other_charges) : 0,
-      currency: currency || 'USD'
-    }).select().single()
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, trade: data })
+    return NextResponse.json({ success: true, trade: updatedTrade })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'An error occurred during submission.' }, { status: 500 })
+    return NextResponse.json({ error: err.message || 'An error occurred during update.' }, { status: 500 })
   }
 }

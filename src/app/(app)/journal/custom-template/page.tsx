@@ -161,7 +161,7 @@ export default function CustomTemplatePage() {
   }
 
   // Pre-designed templates quick-loader
-  const loadPreset = (type: 'technical' | 'psychology' | 'smc') => {
+  const loadPreset = (type: 'technical' | 'psychology' | 'smc' | 'nse_options' | 'equity_swing') => {
     if (type === 'technical') {
       setTemplateName('Technical Strategy Journal')
       setBlocks([
@@ -190,7 +190,7 @@ export default function CustomTemplatePage() {
           { id: 'col3', label: 'Respected', type: 'checkbox' }
         ] }
       ])
-    } else {
+    } else if (type === 'smc') {
       setTemplateName('SMC Execution Journal')
       setBlocks([
         { id: 'b1', type: 'header', label: '1. Smart Money Confirmations' },
@@ -203,9 +203,45 @@ export default function CustomTemplatePage() {
           { id: 'col4', label: 'Structure Respected', type: 'checkbox' }
         ] }
       ])
+    } else if (type === 'nse_options') {
+      setTemplateName('NSE Options Scalper')
+      setBlocks([
+        { id: 'b1', type: 'header', label: '1. Option Setup & Technical Triggers' },
+        { id: 'b2', type: 'confirmations', label: 'Entry Confirmations', options: ['OI Buildup', 'PCR Shift', 'VIX Drop', 'S/R Breakout', 'EMA Crossover', 'Price Action Shift'] },
+        { id: 'b3', type: 'dropdown', label: 'Option Trade Type', options: ['Naked Buy', 'Naked Sell', 'Bull Call Spread', 'Bear Put Spread', 'Straddle/Strangle', 'Iron Condor'] },
+        { id: 'b4', type: 'header', label: '2. Execution Leg Diagnostics' },
+        { id: 'b5', type: 'table', label: 'Leg Details Grid', columns: [
+          { id: 'col1', label: 'Option (CE/PE)', type: 'dropdown', options: ['CE', 'PE'] },
+          { id: 'col2', label: 'Strike Price', type: 'number' },
+          { id: 'col3', label: 'Entry Premium', type: 'number' },
+          { id: 'col4', label: 'Exit Premium', type: 'number' },
+          { id: 'col5', label: 'Lots', type: 'number' }
+        ] },
+        { id: 'b6', type: 'header', label: '3. Risk & Discipline Audit' },
+        { id: 'b7', type: 'dropdown', label: 'Stop Loss Outcome', options: ['SL Respected', 'SL Moved (Violated)', 'Target Hit', 'Manual Exit', 'Expired Worthless'] },
+        { id: 'b8', type: 'paragraph', label: 'Trade Reflection Notes', placeholder: 'Why did you enter this strike/expiry, and what lessons were learned?' }
+      ])
+    } else if (type === 'equity_swing') {
+      setTemplateName('Indian Equity Swing')
+      setBlocks([
+        { id: 'b1', type: 'header', label: '1. Stock Setup & sector Analysis' },
+        { id: 'b2', type: 'confirmations', label: 'Entry Signals', options: ['Trend Breakout', 'Pullback to Support', 'Volume Spike', 'Sector Strength', 'Corporate Earnings', 'Delivery % High'] },
+        { id: 'b3', type: 'dropdown', label: 'Holding Period Intent', options: ['Intraday / Scalp', 'BTST (Buy Today Sell Tomorrow)', 'Short-Term Swing (2-5 Days)', 'Positional (1-4 Weeks)', 'Investment'] },
+        { id: 'b4', type: 'header', label: '2. Swing Trade Position Tracker' },
+        { id: 'b5', type: 'table', label: 'Leg Breakdown', columns: [
+          { id: 'col1', label: 'Stock Symbol', type: 'text' },
+          { id: 'col2', label: 'Entry Price', type: 'number' },
+          { id: 'col3', label: 'Target Price', type: 'number' },
+          { id: 'col4', label: 'Stop Loss', type: 'number' },
+          { id: 'col5', label: 'Quantity', type: 'number' },
+          { id: 'col6', label: 'Status', type: 'dropdown', options: ['Open', 'Target Hit', 'SL Hit', 'Manual Exit'] }
+        ] },
+        { id: 'b6', type: 'paragraph', label: 'Sector Context & Target Reasoning', placeholder: 'Describe the structural tailwinds or fundamental thesis...' }
+      ])
     }
     setActiveTableColEdit(null)
   }
+
 
   // Block management
   const addBlock = (type: TemplateBlock['type']) => {
@@ -416,7 +452,9 @@ export default function CustomTemplatePage() {
           {[
             { id: 'technical', label: 'Technical Setup Review', desc: 'Confirmations list & dynamic structure grid' },
             { id: 'psychology', label: 'Mindset & Psychology', desc: 'Emotion selectors & scorecard checklist' },
-            { id: 'smc', label: 'SMC Execution', desc: 'MSS/CHoCH confirmations & POI statistics' }
+            { id: 'smc', label: 'SMC Execution', desc: 'MSS/CHoCH confirmations & POI statistics' },
+            { id: 'nse_options', label: 'NSE Options Scalper', desc: 'OI, strike details & option trade log' },
+            { id: 'equity_swing', label: 'Indian Equity Swing', desc: 'Sector bias, targets & position logger' }
           ].map(p => (
             <button
               key={p.id}
@@ -428,6 +466,7 @@ export default function CustomTemplatePage() {
             </button>
           ))}
         </div>
+
       </div>
 
       {errorMsg && (

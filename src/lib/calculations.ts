@@ -20,7 +20,7 @@ export interface Trade {
   pips: number | null
   rr_ratio: number | null
   status: 'open' | 'closed'
-  source: 'mt5' | 'manual'
+  source: 'mt5' | 'manual' | 'csv_import'
   emotion_before?: string | null
   emotion_after?: string | null
   rating?: number | null
@@ -29,7 +29,19 @@ export interface Trade {
   followed_plan?: boolean | null
   pre_trade_checklist?: Record<string, boolean> | null
   duration_seconds?: number | null
+  instrument_type?: 'spot' | 'equity' | 'options' | 'futures' | null
+  option_type?: 'CE' | 'PE' | null
+  strike_price?: number | null
+  expiry_date?: string | null
+  spot_price_entry?: number | null
+  spot_price_exit?: number | null
+  india_vix?: number | null
+  brokerage?: number | null
+  stt?: number | null
+  other_charges?: number | null
+  currency?: string | null
 }
+
 
 export interface PerformanceStats {
   totalPnl: number
@@ -222,22 +234,45 @@ export function computeMaxDrawdown(trades: Trade[]): { maxDrawdown: number; maxD
 }
 
 /** Determine trading session from UTC open time */
-export function getSession(utcHour: number): 'Asian' | 'London' | 'New York' {
+export function getSession(utcHour: number, openTimeStr?: string | null, isIndian = false): 'Asian' | 'London' | 'New York' {
+  if (isIndian && openTimeStr) {
+    try {
+      const date = new Date(openTimeStr)
+      // Indian Market Hours (IST: UTC + 5:30)
+      const istMinutes = (date.getUTCHours() * 60 + date.getUTCMinutes() + 330) % 1440
+      const istHour = Math.floor(istMinutes / 60)
+      
+      // 9:00 - 10:30 IST -> Map to Asian
+      if (istHour === 9 || (istHour === 10 && date.getUTCMinutes() < 30)) {
+        return 'Asian'
+      }
+      // 10:30 - 14:00 IST -> Map to London
+      if (istHour >= 11 && istHour < 14) {
+        return 'London'
+      }
+      // 14:00 - 15:30 IST -> Map to New York
+      return 'New York'
+    } catch {}
+  }
   if (utcHour >= 0 && utcHour < 8) return 'Asian'
   if (utcHour >= 8 && utcHour < 13) return 'London'
   return 'New York'
 }
 
+
 export function computeSessionStats(trades: Trade[]): Record<string, SessionStat> {
   const closed = getClosedTrades(trades)
+  const firstTrade = closed[0]
+  const isIndian = firstTrade ? firstTrade.currency === 'INR' : false
   const sessions: Record<string, Trade[]> = { Asian: [], London: [], 'New York': [] }
 
   for (const t of closed) {
     if (!t.open_time) continue
     const hour = new Date(t.open_time).getUTCHours()
-    const sess = getSession(hour)
+    const sess = getSession(hour, t.open_time, isIndian)
     sessions[sess].push(t)
   }
+
 
   const result: Record<string, SessionStat> = {}
   for (const [name, ts] of Object.entries(sessions)) {
@@ -312,10 +347,11 @@ export function computeTopSymbols(trades: Trade[]): { symbol: string; pnl: numbe
     .sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl))
 }
 
-export function fmt(val: number, showSign = true): string {
+export function fmt(val: number, showSign = true, symbol = '$'): string {
   const sign = val >= 0 ? '+' : ''
-  return `${showSign ? sign : ''}$${Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return `${showSign ? sign : ''}${symbol}${Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
+
 
 export function fmtPct(val: number): string {
   const sign = val >= 0 ? '+' : ''
@@ -346,6 +382,8 @@ export function computeSetupSessionStats(trades: Trade[]): SetupSessionStat[] {
 
   for (const [setupName, setupTrades] of Object.entries(groups)) {
     // For this setup, categorize by session
+    const firstTrade = setupTrades[0]
+    const isIndian = firstTrade ? firstTrade.currency === 'INR' : false
     const sessions: Record<'Asian' | 'London' | 'New York', Trade[]> = {
       Asian: [],
       London: [],
@@ -355,9 +393,10 @@ export function computeSetupSessionStats(trades: Trade[]): SetupSessionStat[] {
     for (const t of setupTrades) {
       if (!t.open_time) continue
       const hour = new Date(t.open_time).getUTCHours()
-      const sess = getSession(hour)
+      const sess = getSession(hour, t.open_time, isIndian)
       sessions[sess].push(t)
     }
+
 
     const computeSubStat = (ts: Trade[]) => {
       const wins = ts.filter(t => (t.net_profit ?? 0) > 0)

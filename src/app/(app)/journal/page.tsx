@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import CountUp from 'react-countup'
 import Link from 'next/link'
 
-function PnlBadge({ value }: { value: number }) {
+function PnlBadge({ value, symbol = '$' }: { value: number, symbol?: string }) {
   const isWin = value >= 0
   const [flash, setFlash] = useState(false)
 
@@ -29,7 +29,7 @@ function PnlBadge({ value }: { value: number }) {
           : flash ? 'bg-[#EF4444] text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-[#EF4444]/10 text-[#EF4444]'
       )}
     >
-      {isWin ? '+' : '-'}$
+      {isWin ? '+' : '-'}{symbol}
       <CountUp
         end={Math.abs(value)}
         decimals={2}
@@ -201,10 +201,21 @@ function TradeJournalCard({
   }, [isUnjournaled, trade.close_time])
 
   const [setupTag, setSetupTag] = useState(trade.setup_tag || '')
+  
+  // Custom emotions checking
+  const isCustomBefore = trade.emotion_before && !BEFORE_EMOTIONS.some(e => e.value === trade.emotion_before)
   const [emotionBefore, setEmotionBefore] = useState(trade.emotion_before || '')
+  const [customEmotionBefore, setCustomEmotionBefore] = useState(isCustomBefore ? trade.emotion_before : '')
+  const [showCustomBefore, setShowCustomBefore] = useState(!!isCustomBefore)
+
+  const isCustomAfter = trade.emotion_after && !AFTER_EMOTIONS.some(e => e.value === trade.emotion_after)
   const [emotionAfter, setEmotionAfter] = useState(trade.emotion_after || '')
+  const [customEmotionAfter, setCustomEmotionAfter] = useState(isCustomAfter ? trade.emotion_after : '')
+  const [showCustomAfter, setShowCustomAfter] = useState(!!isCustomAfter)
+
   const [rating, setRating] = useState<number>(trade.rating || 0)
   const [tradeChecklist, setTradeChecklist] = useState<Record<string, boolean>>(trade.pre_trade_checklist || {})
+
   
   const [screenshotUrl, setScreenshotUrl] = useState(trade.screenshot_url || '')
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false)
@@ -582,6 +593,14 @@ function TradeJournalCard({
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className="text-lg font-black text-[#F1F5F9] tracking-tight">{trade.symbol}</span>
+              {trade.instrument_type === 'options' && (
+                <span className={cn(
+                  'text-[9px] px-1.5 py-0.5 rounded font-black',
+                  trade.option_type === 'CE' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15' : 'bg-red-500/10 text-red-400 border border-red-500/15'
+                )}>
+                  {trade.strike_price}{trade.option_type}
+                </span>
+              )}
               {isOldEmpty && (
                 <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 font-bold uppercase tracking-wider animate-pulse shrink-0 flex items-center gap-1">
                   <span>⚠</span> Unjournaled
@@ -606,7 +625,7 @@ function TradeJournalCard({
         </div>
 
         <div className="flex items-center gap-4">
-          <PnlBadge value={trade.net_profit ?? 0} />
+          <PnlBadge value={trade.net_profit ?? 0} symbol={trade.currency === 'INR' ? '₹' : '$'} />
           <motion.div
             animate={{ rotate: expanded ? 180 : 0 }}
             transition={{ type: "spring", stiffness: 300 }}
@@ -671,10 +690,10 @@ function TradeJournalCard({
                           <button
                             key={em.value}
                             type="button"
-                            onClick={() => setEmotionBefore(em.value)}
+                            onClick={() => { setEmotionBefore(em.value); setShowCustomBefore(false) }}
                             className={cn(
                               'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer',
-                              isSelected
+                              isSelected && !showCustomBefore
                                 ? em.activeClass
                                 : 'bg-[#0D1421]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
                             )}
@@ -684,7 +703,28 @@ function TradeJournalCard({
                           </button>
                         )
                       })}
+                      <button
+                        type="button"
+                        onClick={() => { setShowCustomBefore(true); setEmotionBefore(customEmotionBefore) }}
+                        className={cn(
+                          'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer',
+                          showCustomBefore
+                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                            : 'bg-[#0D1421]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
+                        )}
+                      >
+                        <span className="text-base">💭</span>
+                        <span>{customEmotionBefore ? 'Other: ' + customEmotionBefore : 'Other...'}</span>
+                      </button>
                     </div>
+                    {showCustomBefore && (
+                      <input
+                        value={customEmotionBefore}
+                        onChange={e => { setCustomEmotionBefore(e.target.value); setEmotionBefore(e.target.value) }}
+                        placeholder="Type custom emotion..."
+                        className="w-full bg-[#0D1421] border border-[#1A1A2E] rounded-lg px-3 py-2 mt-2 text-xs focus:outline-none focus:border-[#F59E0B]/50 transition-colors text-white"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Emotion After Trade</label>
@@ -695,10 +735,10 @@ function TradeJournalCard({
                           <button
                             key={em.value}
                             type="button"
-                            onClick={() => setEmotionAfter(em.value)}
+                            onClick={() => { setEmotionAfter(em.value); setShowCustomAfter(false) }}
                             className={cn(
                               'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer',
-                              isSelected
+                              isSelected && !showCustomAfter
                                 ? em.activeClass
                                 : 'bg-[#0D1421]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
                             )}
@@ -708,9 +748,31 @@ function TradeJournalCard({
                           </button>
                         )
                       })}
+                      <button
+                        type="button"
+                        onClick={() => { setShowCustomAfter(true); setEmotionAfter(customEmotionAfter) }}
+                        className={cn(
+                          'px-2 py-2.5 rounded-xl border text-[11px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all duration-300 cursor-pointer',
+                          showCustomAfter
+                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                            : 'bg-[#0D1421]/50 border-white/5 text-[#64748B] hover:bg-white/5 hover:text-white hover:border-white/10'
+                        )}
+                      >
+                        <span className="text-base">💭</span>
+                        <span>{customEmotionAfter ? 'Other: ' + customEmotionAfter : 'Other...'}</span>
+                      </button>
                     </div>
+                    {showCustomAfter && (
+                      <input
+                        value={customEmotionAfter}
+                        onChange={e => { setCustomEmotionAfter(e.target.value); setEmotionAfter(e.target.value) }}
+                        placeholder="Type custom emotion..."
+                        className="w-full bg-[#0D1421] border border-[#1A1A2E] rounded-lg px-3 py-2 mt-2 text-xs focus:outline-none focus:border-[#F59E0B]/50 transition-colors text-white"
+                      />
+                    )}
                   </div>
                 </div>
+
 
                 <div>
                   <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">Trade Rating (1-5)</label>
