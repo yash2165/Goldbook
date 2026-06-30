@@ -24,6 +24,7 @@ import { Track } from 'livekit-client'
 
 // Import LiveKit's default themes and layout styling
 import '@livekit/components-styles'
+import { format } from 'date-fns'
 import { useToast } from '@/context/ToastContext'
 import { SocialFeed } from '@/components/community/SocialFeed'
 import { DirectMessages } from '@/components/community/DirectMessages'
@@ -353,17 +354,13 @@ export default function CommunityPage() {
           publishDefaults: {
             screenShareEncoding: {
               maxBitrate: 3000000, // 3 Mbps
-              frameRate: 30,
+              maxFramerate: 30,
             },
             videoEncoding: {
               maxBitrate: 1500000,
-              frameRate: 30,
+              maxFramerate: 30,
             }
           }
-        }}
-        screenShareOptions={{
-          resolution: { width: 1920, height: 1080 },
-          frameRate: 30,
         }}
         data-lk-theme="default"
         style={{ 
