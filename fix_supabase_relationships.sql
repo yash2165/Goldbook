@@ -49,11 +49,56 @@ VALUES ('chat_images', 'chat_images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
 
--- SECTION 3: Profiles Table Add Missing Columns
+-- SECTION 3: Storage Access Policies (Fix Upload 500 Errors)
+DROP POLICY IF EXISTS "Allow public select on storage objects" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated inserts on avatars bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated inserts on screenshots bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated inserts on chat_images bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow owner updates on avatars bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow owner updates on screenshots bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow owner updates on chat_images bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow owner deletes on avatars bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow owner deletes on screenshots bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Allow owner deletes on chat_images bucket" ON storage.objects;
+
+CREATE POLICY "Allow public select on storage objects" ON storage.objects FOR SELECT USING (true);
+
+CREATE POLICY "Allow authenticated inserts on avatars bucket" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'avatars' AND auth.role() = 'authenticated'
+);
+CREATE POLICY "Allow authenticated inserts on screenshots bucket" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'screenshots' AND auth.role() = 'authenticated'
+);
+CREATE POLICY "Allow authenticated inserts on chat_images bucket" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'chat_images' AND auth.role() = 'authenticated'
+);
+
+CREATE POLICY "Allow owner updates on avatars bucket" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'avatars' AND auth.uid()::text = owner
+);
+CREATE POLICY "Allow owner updates on screenshots bucket" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'screenshots' AND auth.uid()::text = owner
+);
+CREATE POLICY "Allow owner updates on chat_images bucket" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'chat_images' AND auth.uid()::text = owner
+);
+
+CREATE POLICY "Allow owner deletes on avatars bucket" ON storage.objects FOR DELETE USING (
+  bucket_id = 'avatars' AND auth.uid()::text = owner
+);
+CREATE POLICY "Allow owner deletes on screenshots bucket" ON storage.objects FOR DELETE USING (
+  bucket_id = 'screenshots' AND auth.uid()::text = owner
+);
+CREATE POLICY "Allow owner deletes on chat_images bucket" ON storage.objects FOR DELETE USING (
+  bucket_id = 'chat_images' AND auth.uid()::text = owner
+);
+
+
+-- SECTION 4: Profiles Table Add Missing Columns
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'free';
 
 
--- SECTION 4: Private Voice Rooms system
+-- SECTION 5: Private Voice Rooms system
 CREATE TABLE IF NOT EXISTS voice_rooms (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL UNIQUE,
@@ -96,7 +141,7 @@ DO $$ BEGIN
 END $$;
 
 
--- SECTION 5: Global Chat Messages Table
+-- SECTION 6: Global Chat Messages Table
 CREATE TABLE IF NOT EXISTS global_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -115,5 +160,40 @@ DO $$ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'global_messages' AND policyname = 'Users can send global messages') THEN
     CREATE POLICY "Users can send global messages" ON global_messages FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+
+-- SECTION 7: Real-time Publications Setup (Enable Realtime Broadcasts)
+DO $$
+DECLARE
+  pub_exists BOOLEAN;
+BEGIN
+  SELECT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') INTO pub_exists;
+  
+  IF pub_exists THEN
+    BEGIN
+      ALTER PUBLICATION supabase_realtime ADD TABLE global_messages;
+    EXCEPTION WHEN duplicate_object THEN
+      RAISE NOTICE 'global_messages already in publication';
+    END;
+
+    BEGIN
+      ALTER PUBLICATION supabase_realtime ADD TABLE voice_room_requests;
+    EXCEPTION WHEN duplicate_object THEN
+      RAISE NOTICE 'voice_room_requests already in publication';
+    END;
+
+    BEGIN
+      ALTER PUBLICATION supabase_realtime ADD TABLE voice_rooms;
+    EXCEPTION WHEN duplicate_object THEN
+      RAISE NOTICE 'voice_rooms already in publication';
+    END;
+
+    BEGIN
+      ALTER PUBLICATION supabase_realtime ADD TABLE direct_messages;
+    EXCEPTION WHEN duplicate_object THEN
+      RAISE NOTICE 'direct_messages already in publication';
+    END;
   END IF;
 END $$;
