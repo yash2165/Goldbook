@@ -77,8 +77,6 @@ export function GlobalChat({ user, onOpenProfile }: { user: any, onOpenProfile: 
           filter: `channel=eq.${activeChannel}`
         },
         async (payload) => {
-          if (messages.some(m => m.id === payload.new.id)) return
-
           const { data: senderProfile } = await supabase
             .from('profiles')
             .select('username, display_name, avatar_url')
@@ -113,7 +111,7 @@ export function GlobalChat({ user, onOpenProfile }: { user: any, onOpenProfile: 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [activeChannel, messages])
+  }, [activeChannel])
 
   // Handle send message
   const handleSendMessage = async (e: React.FormEvent) => {

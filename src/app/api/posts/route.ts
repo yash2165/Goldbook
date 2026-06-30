@@ -48,6 +48,12 @@ export async function GET(req: Request) {
     if (tab === 'trending') {
       // Sort by engagement metric (likes + comments)
       query = query.order('likes_count', { ascending: false }).order('created_at', { ascending: false })
+    } else if (tab === 'foryou') {
+      // engagement-based algorithm
+      query = query
+        .order('likes_count', { ascending: false })
+        .order('comments_count', { ascending: false })
+        .order('created_at', { ascending: false })
     } else {
       // Default: chronological
       query = query.order('created_at', { ascending: false })

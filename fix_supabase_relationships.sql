@@ -35,7 +35,7 @@ ALTER TABLE trade_screenshots DROP CONSTRAINT IF EXISTS trade_screenshots_user_i
 ALTER TABLE trade_screenshots ADD CONSTRAINT trade_screenshots_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
--- SECTION 2: Ensure storage buckets are public
+-- SECTION 2: Ensure storage buckets are public and configured
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
@@ -44,11 +44,19 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('screenshots', 'screenshots', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('chat_images', 'chat_images', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
 
--- SECTION 3: Private Voice Rooms system
+
+-- SECTION 3: Profiles Table Add Missing Columns
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'free';
+
+
+-- SECTION 4: Private Voice Rooms system
 CREATE TABLE IF NOT EXISTS voice_rooms (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
+  name TEXT NOT NULL UNIQUE,
   created_by UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   type TEXT DEFAULT 'public' CHECK (type IN ('public', 'private')),
   created_at TIMESTAMPTZ DEFAULT now()
@@ -88,7 +96,7 @@ DO $$ BEGIN
 END $$;
 
 
--- SECTION 4: Global Chat Messages Table
+-- SECTION 5: Global Chat Messages Table
 CREATE TABLE IF NOT EXISTS global_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,

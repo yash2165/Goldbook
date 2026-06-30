@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useMarketMode } from '@/context/MarketModeContext'
 import {
-  Globe, Award, Calendar, MessageSquare, Loader2, ArrowLeft, Heart, Sparkles
+  Globe, Award, Calendar, MessageSquare, Loader2, ArrowLeft, Heart, Sparkles,
+  Target, TrendingUp, Clock
 } from 'lucide-react'
+import { computeStats, fmt } from '@/lib/calculations'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +29,8 @@ export default function TraderProfilePage() {
   // Friend status state
   const [friendship, setFriendship] = useState<any | null>(null)
   const [submittingFriend, setSubmittingFriend] = useState(false)
+  const [traderTrades, setTraderTrades] = useState<any[]>([])
+  const [loadingTrades, setLoadingTrades] = useState(true)
 
   const supabase = createClient()
   const { currencySymbol, formatCurrency } = useMarketMode()
@@ -82,6 +86,22 @@ export default function TraderProfilePage() {
             .maybeSingle()
 
           setFriendship(friendCheck)
+
+          const isFriendsLocal = friendCheck?.status === 'accepted'
+          const isSelfLocal = user.id === prof.id
+          const canViewTradesLocal = isSelfLocal || (prof.allow_trade_visibility === 'everyone') || (prof.allow_trade_visibility === 'friends_only' && isFriendsLocal)
+
+          if (canViewTradesLocal) {
+            const { data: tradesData } = await supabase
+              .from('trades')
+              .select('*')
+              .eq('user_id', prof.id)
+              .eq('status', 'closed')
+
+            if (tradesData) {
+              setTraderTrades(tradesData)
+            }
+          }
         }
 
         // Fetch trader's posts
@@ -119,6 +139,7 @@ export default function TraderProfilePage() {
       } finally {
         setLoading(false)
         setLoadingPosts(false)
+        setLoadingTrades(false)
       }
     }
     loadData()
@@ -234,6 +255,10 @@ export default function TraderProfilePage() {
   const canViewContent = isSelf || profile.is_public || isFriends
   const canSendMessage = isSelf || (profile.allow_messages === 'everyone') || (profile.allow_messages === 'friends_only' && isFriends)
   const canViewTrades = isSelf || (profile.allow_trade_visibility === 'everyone') || (profile.allow_trade_visibility === 'friends_only' && isFriends)
+
+  const stats = traderTrades.length > 0 ? computeStats(traderTrades) : null
+  const hasTrades = traderTrades.length > 0
+  const pf = stats ? (stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)) : '—'
 
   return (
     <div className="min-h-screen bg-[#060A12] text-white">
@@ -357,8 +382,94 @@ export default function TraderProfilePage() {
             </div>
           </div>
         ) : (
-          /* Authored trade ideas */
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Live Performance Statistics */}
+            {canViewTrades && (
+              <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 shadow-xl relative text-left">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-6">
+                  <Target className="w-4 h-4 text-primary" /> Live Performance Statistics
+                </h3>
+
+                {loadingTrades ? (
+                  <div className="py-12 text-center">
+                    <Loader2 className="w-6 h-6 text-primary animate-spin inline-block" />
+                    <p className="text-xs text-[#64748B] mt-2">Loading performance statistics...</p>
+                  </div>
+                ) : !hasTrades ? (
+                  <div className="py-12 text-center text-[#64748B] text-xs font-bold uppercase tracking-wider bg-white/[0.01] border border-dashed border-white/5 rounded-xl">
+                    No closed trades to display
+                  </div>
+                ) : stats && (
+                  <div className="space-y-6">
+                    {/* 4 Core metrics */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="bg-[#060A12] border border-white/5 p-4 rounded-xl">
+                        <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Total P&L</p>
+                        <p className={cn(
+                          'text-xl font-bold mt-1.5 tabular-nums',
+                          !profile.show_pnl_amounts
+                            ? 'text-primary'
+                            : stats.totalPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'
+                        )}>
+                          {!profile.show_pnl_amounts ? '🔒 Protected' : fmt(stats.totalPnl)}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#060A12] border border-white/5 p-4 rounded-xl">
+                        <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Win Rate</p>
+                        <p className="text-xl font-bold mt-1.5 tabular-nums">
+                          {stats.winRate.toFixed(1)}%
+                        </p>
+                      </div>
+
+                      <div className="bg-[#060A12] border border-white/5 p-4 rounded-xl">
+                        <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Profit Factor</p>
+                        <p className="text-xl font-bold mt-1.5 tabular-nums">
+                          {pf}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#060A12] border border-white/5 p-4 rounded-xl">
+                        <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Expectancy</p>
+                        <p className={cn(
+                          'text-xl font-bold mt-1.5 tabular-nums',
+                          !profile.show_pnl_amounts
+                            ? 'text-primary'
+                            : stats.expectancy >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'
+                        )}>
+                          {!profile.show_pnl_amounts ? '🔒 Protected' : fmt(stats.expectancy)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Performance Details Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-white/5">
+                      {[
+                        { label: 'Avg Winner', value: !profile.show_pnl_amounts ? '🔒 Protected' : fmt(stats.avgWin), color: !profile.show_pnl_amounts ? 'text-primary' : 'text-[#22C55E]' },
+                        { label: 'Avg Loser', value: !profile.show_pnl_amounts ? '🔒 Protected' : `-${fmt(stats.avgLoss, false)}`, color: !profile.show_pnl_amounts ? 'text-primary' : 'text-[#EF4444]' },
+                        { label: 'Avg Risk:Reward', value: `1:${stats.avgRR.toFixed(2)}` },
+                        { label: 'Best Trade', value: !profile.show_pnl_amounts ? '🔒 Protected' : fmt(stats.bestTrade), color: !profile.show_pnl_amounts ? 'text-primary' : 'text-[#22C55E]' },
+                        { label: 'Worst Trade', value: !profile.show_pnl_amounts ? '🔒 Protected' : fmt(stats.worstTrade), color: !profile.show_pnl_amounts ? 'text-primary' : 'text-[#EF4444]' },
+                        { label: 'Total Trades', value: `${stats.closedTrades} closed` },
+                        { label: 'Long Win Rate', value: `${stats.longWinRate.toFixed(0)}% (${stats.longTrades} tr)` },
+                        { label: 'Short Win Rate', value: `${stats.shortWinRate.toFixed(0)}% (${stats.shortTrades} tr)` },
+                        { label: 'Best Winning Streak', value: `${stats.winStreak} trades`, color: 'text-[#22C55E]' },
+                      ].map((item, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <p className="text-[9px] text-[#64748B] uppercase tracking-widest font-bold">{item.label}</p>
+                          <p className={cn('text-sm font-semibold tabular-nums text-white', item.color)}>
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Authored trade ideas */}
+            <div className="space-y-4">
             <h2 className="text-xs font-black uppercase tracking-widest text-[#64748B]">Authored Trade Ideas & Posts ({posts.length})</h2>
 
             {loadingPosts ? (
@@ -438,7 +549,8 @@ export default function TraderProfilePage() {
               ))
             )}
           </div>
-        )}
+        </div>
+      )}
       </div>
     </div>
   )

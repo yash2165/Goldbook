@@ -19,7 +19,8 @@ import {
   useLocalParticipant,
   useChat,
   MediaDeviceSelect,
-  useMediaDeviceSelect
+  useMediaDeviceSelect,
+  useParticipants
 } from '@livekit/components-react'
 import { Track } from 'livekit-client'
 
@@ -54,6 +55,43 @@ export default function CommunityPage() {
       setTab(paramTab)
     }
   }, [paramTab])
+
+  // Resolve invite link parameter
+  useEffect(() => {
+    const roomParam = searchParams.get('room')
+    if (roomParam && user) {
+      setTab('voice')
+      async function resolveInvite() {
+        const { data: room } = await supabase
+          .from('voice_rooms')
+          .select('*')
+          .eq('name', roomParam)
+          .single()
+
+        if (room) {
+          const isCreator = room.created_by === user.id
+          if (room.type === 'public' || isCreator) {
+            joinVoiceRoom(room.name, room.type === 'private')
+          } else {
+            // Check request status
+            const { data: req } = await supabase
+              .from('voice_room_requests')
+              .select('status')
+              .eq('room_id', room.id)
+              .eq('user_id', user.id)
+              .single()
+
+            if (req?.status === 'approved') {
+              joinVoiceRoom(room.name, true)
+            } else {
+              alert(`Room "${room.name}" is Private. Please click 'Request to Join' in the Voice tab to access this room.`)
+            }
+          }
+        }
+      }
+      resolveInvite()
+    }
+  }, [searchParams, user])
 
   // Load user session and profiles on mount
   useEffect(() => {
@@ -660,6 +698,10 @@ function VoiceTab({
     if (!user) return
     setLoadingRooms(true)
     try {
+      // 0. Auto-clean custom rooms older than 12 hours
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
+      await supabase.from('voice_rooms').delete().lt('created_at', twelveHoursAgo)
+
       // 1. Fetch all voice rooms
       const { data: roomsData } = await supabase
         .from('voice_rooms')
@@ -796,8 +838,26 @@ function VoiceTab({
     }
   }
 
+  const handleCloseRoom = async (roomId: string) => {
+    if (confirm('Are you sure you want to close this voice room? All users will be disconnected.')) {
+      const { error } = await supabase.from('voice_rooms').delete().eq('id', roomId)
+      if (error) {
+        showError('Action Failed', error.message)
+      } else {
+        showSuccess('Room Closed', 'Voice room closed successfully.')
+        loadVoiceRooms()
+      }
+    }
+  }
+
+  const handleCopyInviteLink = (roomName: string) => {
+    const link = `${window.location.origin}/community?tab=voice&room=${encodeURIComponent(roomName)}`
+    navigator.clipboard.writeText(link)
+    showSuccess('Link Copied', 'Invite link copied to clipboard!')
+  }
+
   if (connected) {
-    return <VoiceRoomActive onDisconnect={onDisconnect} />
+    return <VoiceRoomActive onDisconnect={onDisconnect} user={user} />
   }
 
   return (
@@ -888,29 +948,53 @@ function VoiceTab({
                   </div>
 
                   <div className="mt-5 shrink-0">
-                    {isDefault || !isPrivate || isCreator || isApproved ? (
-                      <button
-                        onClick={() => onConnect(room.name, isPrivate)}
-                        disabled={loading}
-                        className="w-full py-2 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-xl text-xs font-bold uppercase tracking-wider flex justify-center items-center gap-1.5 transition-transform hover:scale-[1.02] cursor-pointer"
-                      >
-                        <Mic className="w-3.5 h-3.5" /> Join Room
-                      </button>
-                    ) : status === 'pending' ? (
-                      <button
-                        disabled
-                        className="w-full py-2 bg-white/5 border border-white/10 text-[#64748B] rounded-xl text-xs font-bold uppercase tracking-wider"
-                      >
-                        Request Pending
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleRequestJoin(room)}
-                        className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-transform hover:scale-[1.02] cursor-pointer"
-                      >
-                        Request to Join
-                      </button>
-                    )}
+                    <div className="flex gap-2">
+                      {isDefault || !isPrivate || isCreator || isApproved ? (
+                        <button
+                          onClick={() => onConnect(room.name, isPrivate)}
+                          disabled={loading}
+                          className="flex-1 py-2 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-xl text-xs font-bold uppercase tracking-wider flex justify-center items-center gap-1.5 transition-transform hover:scale-[1.02] cursor-pointer"
+                        >
+                          <Mic className="w-3.5 h-3.5" /> Join
+                        </button>
+                      ) : status === 'pending' ? (
+                        <button
+                          disabled
+                          className="flex-1 py-2 bg-white/5 border border-white/10 text-[#64748B] rounded-xl text-xs font-bold uppercase tracking-wider"
+                        >
+                          Pending
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleRequestJoin(room)}
+                          className="flex-1 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-transform hover:scale-[1.02] cursor-pointer"
+                        >
+                          Request
+                        </button>
+                      )}
+
+                      {/* Invite Link Option for Admin */}
+                      {((isPrivate && isCreator) || (!isPrivate && !isDefault)) && (
+                        <button
+                          onClick={() => handleCopyInviteLink(room.name)}
+                          className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold uppercase cursor-pointer"
+                          title="Copy Invite Link"
+                        >
+                          🔗 Invite
+                        </button>
+                      )}
+
+                      {/* Close/Delete Room Option for Creator */}
+                      {!isDefault && isCreator && (
+                        <button
+                          onClick={() => handleCloseRoom(room.id)}
+                          className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl text-xs font-bold uppercase cursor-pointer"
+                          title="Close Room"
+                        >
+                          ✕ Close
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
@@ -1030,17 +1114,47 @@ function VideoInputSelect() {
   )
 }
 
-function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
+function VoiceRoomActive({ onDisconnect, user }: { onDisconnect: () => void; user: any }) {
   const cameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: false })
   const screenShareTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: false })
+  const participants = useParticipants()
   
   const { localParticipant } = useLocalParticipant()
   const { send, chatMessages } = useChat()
   const [chatInput, setChatInput] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [showChatPanel, setShowChatPanel] = useState(true)
+  const [profileMap, setProfileMap] = useState<Record<string, any>>({})
+  const supabase = createClient()
 
   const hasScreenShare = screenShareTracks.length > 0
+
+  // Resolve profiles for all active participants in room
+  useEffect(() => {
+    async function resolveProfiles() {
+      const missingIds = participants
+        .map(p => p.identity)
+        .filter(id => id && !profileMap[id])
+
+      if (missingIds.length === 0) return
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .in('id', missingIds)
+
+      if (data) {
+        setProfileMap(prev => {
+          const next = { ...prev }
+          data.forEach(p => {
+            next[p.id] = p
+          })
+          return next
+        })
+      }
+    }
+    resolveProfiles()
+  }, [participants, profileMap])
 
   const toggleMic = () => {
     if (localParticipant) {
@@ -1056,7 +1170,7 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
 
   const toggleScreenshare = () => {
     if (localParticipant) {
-      localParticipant.setScreenShareEnabled(!localParticipant.isScreenShareEnabled)
+      localParticipant.setScreenShareEnabled(!localParticipant.isScreenShareEnabled, { audio: true })
     }
   }
 
@@ -1125,21 +1239,115 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
                   </button>
                 </div>
 
-                {/* Sidebar Cameras (Smaller list) */}
+                {/* Sidebar Camera Tiles list */}
                 <div className="flex-1 min-w-[200px] flex flex-col gap-3 overflow-y-auto custom-scrollbar no-scrollbar">
-                  {cameraTracks.map(track => (
-                    <div key={track.publication?.trackSid || track.participant.sid} className="h-32 shrink-0 relative rounded-lg overflow-hidden border border-white/5 bg-black/30">
-                      <ParticipantTile trackRef={track} className="w-full h-full object-cover" />
-                    </div>
-                  ))}
+                  {participants.map(p => {
+                    const profile = profileMap[p.identity || '']
+                    const hasCam = p.isCameraEnabled
+                    const isSpeaking = p.isSpeaking
+                    const track = cameraTracks.find(t => t.participant.sid === p.sid)
+
+                    return (
+                      <div 
+                        key={p.sid} 
+                        className={cn(
+                          "h-28 shrink-0 relative rounded-lg overflow-hidden border bg-black/40 flex flex-col items-center justify-center p-3 transition-all duration-300",
+                          isSpeaking ? "border-primary shadow-[0_0_12px_rgba(245,159,11,0.2)]" : "border-white/5"
+                        )}
+                      >
+                        {hasCam && track ? (
+                          <ParticipantTile trackRef={track} className="w-full h-full object-cover absolute inset-0" />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-center space-y-1.5">
+                            <div className={cn(
+                              "w-10 h-10 rounded-xl border flex items-center justify-center text-sm font-black transition-all",
+                              isSpeaking ? "border-primary bg-primary/20 text-primary animate-pulse" : "border-white/10 bg-white/5 text-[#94A3B8]"
+                            )}>
+                              {profile?.avatar_url ? (
+                                <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-lg" />
+                              ) : (
+                                profile?.display_name?.charAt(0).toUpperCase() || profile?.username?.charAt(0).toUpperCase() || '?'
+                              )}
+                            </div>
+                            <div className="text-[9px] font-bold text-white max-w-[120px] truncate leading-none">
+                              {profile?.display_name || profile?.username || 'Trader'}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Speaks status corner indicators */}
+                        <div className="absolute bottom-2 right-2 p-1 rounded bg-black/60 border border-white/5">
+                          {!p.isMicrophoneEnabled ? (
+                            <MicOff className="w-3 h-3 text-[#EF4444]" />
+                          ) : (
+                            <Mic className="w-3 h-3 text-[#22C55E]" />
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ) : (
-              /* Normal Grid Layout for participants */
-              <div className="flex-1 overflow-hidden rounded-xl border border-white/5 bg-black/40 shadow-inner">
-                <GridLayout tracks={cameraTracks} className="h-full">
-                  <ParticipantTile />
-                </GridLayout>
+              /* Grid Layout for all participants */
+              <div className="flex-1 overflow-y-auto rounded-xl border border-white/5 bg-black/40 shadow-inner p-4 no-scrollbar">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {participants.map(p => {
+                    const profile = profileMap[p.identity || '']
+                    const hasCam = p.isCameraEnabled
+                    const isSpeaking = p.isSpeaking
+                    const track = cameraTracks.find(t => t.participant.sid === p.sid)
+
+                    return (
+                      <div 
+                        key={p.sid} 
+                        className={cn(
+                          "relative rounded-xl overflow-hidden aspect-video border bg-black/40 flex flex-col items-center justify-center p-4 transition-all duration-300",
+                          isSpeaking ? "border-primary shadow-[0_0_20px_rgba(245,159,11,0.25)] scale-[1.02]" : "border-white/5"
+                        )}
+                      >
+                        {hasCam && track ? (
+                          <ParticipantTile trackRef={track} className="w-full h-full object-cover absolute inset-0" />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-center space-y-3">
+                            <div className={cn(
+                              "w-14 h-14 rounded-2xl border flex items-center justify-center text-xl font-black transition-all",
+                              isSpeaking ? "border-primary bg-primary/20 text-primary shadow-[0_0_15px_rgba(245,159,11,0.3)]" : "border-white/10 bg-white/5 text-[#94A3B8]"
+                            )}>
+                              {profile?.avatar_url ? (
+                                <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover rounded-xl" />
+                              ) : (
+                                profile?.display_name?.charAt(0).toUpperCase() || profile?.username?.charAt(0).toUpperCase() || '?'
+                              )}
+                            </div>
+                            <div className="space-y-0.5">
+                              <p className="text-xs font-bold text-white max-w-[150px] truncate leading-none">
+                                {profile?.display_name || profile?.username || 'Trader'}
+                              </p>
+                              <p className="text-[9px] text-[#64748B] font-mono leading-none">
+                                @{profile?.username || 'connecting...'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {isSpeaking && (
+                          <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary/20 border border-primary/30 text-primary rounded text-[8px] uppercase font-black tracking-widest animate-pulse">
+                            Speaking
+                          </div>
+                        )}
+
+                        <div className="absolute top-2 right-2 p-1.5 rounded bg-black/60 border border-white/5">
+                          {!p.isMicrophoneEnabled ? (
+                            <MicOff className="w-3.5 h-3.5 text-[#EF4444]" />
+                          ) : (
+                            <Mic className="w-3.5 h-3.5 text-[#22C55E]" />
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -1159,17 +1367,21 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
                 {chatMessages.length === 0 ? (
                   <p className="text-center text-[9px] text-[#64748B] uppercase tracking-wider font-bold py-12">No messages sent yet.</p>
                 ) : (
-                  chatMessages.map((msg, i) => (
-                    <div key={i} className="space-y-0.5">
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-[10px] font-black text-white">{msg.from?.name || msg.from?.identity || 'Trader'}</span>
-                        <span className="text-[8px] text-[#64748B] font-mono">{format(new Date(msg.timestamp), 'HH:mm')}</span>
+                  chatMessages.map((msg, i) => {
+                    const senderProfile = profileMap[msg.from?.identity || '']
+                    const displayName = senderProfile?.display_name || senderProfile?.username || msg.from?.name || 'Trader'
+                    return (
+                      <div key={i} className="space-y-0.5">
+                        <div className="flex justify-between items-baseline">
+                          <span className="text-[10px] font-black text-white">@{displayName}</span>
+                          <span className="text-[8px] text-[#64748B] font-mono">{format(new Date(msg.timestamp), 'HH:mm')}</span>
+                        </div>
+                        <div className="bg-white/5 border border-white/[0.03] rounded-xl px-3 py-1.5 text-xs text-white/90 leading-relaxed">
+                          {msg.message}
+                        </div>
                       </div>
-                      <div className="bg-white/5 border border-white/[0.03] rounded-xl px-3 py-1.5 text-xs text-white/90 leading-relaxed">
-                        {msg.message}
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
 
@@ -1194,19 +1406,17 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
         <div className="flex flex-col items-center gap-4 shrink-0 relative">
           <div className="flex items-center gap-3 bg-black/40 border border-white/10 p-2.5 rounded-2xl shadow-xl w-fit">
             
-            {/* Mic Toggle with Settings dropdown */}
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={toggleMic}
-                className={cn(
-                  'p-3.5 rounded-xl transition-all cursor-pointer',
-                  isMicEnabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/25'
-                )}
-                title={isMicEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
-              >
-                {isMicEnabled ? <Mic className="w-4.5 h-4.5" /> : <MicOff className="w-4.5 h-4.5" />}
-              </button>
-            </div>
+            {/* Mic Toggle */}
+            <button
+              onClick={toggleMic}
+              className={cn(
+                'p-3.5 rounded-xl transition-all cursor-pointer',
+                isMicEnabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/25'
+              )}
+              title={isMicEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
+            >
+              {isMicEnabled ? <Mic className="w-4.5 h-4.5" /> : <MicOff className="w-4.5 h-4.5" />}
+            </button>
 
             {/* Camera Toggle */}
             <button
