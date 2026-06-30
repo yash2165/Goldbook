@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useAccounts } from '@/hooks/useAccounts'
 import { fmt } from '@/lib/calculations'
 import { 
-  Users, Trophy, Mic, UserPlus, Volume2, Globe, Mail, Loader2
+  Users, Trophy, Mic, UserPlus, Volume2, Globe, Mail, Loader2,
+  MicOff, Video, VideoOff, ScreenShare, Fullscreen, Settings, MessageSquare, PhoneOff, Send, VolumeX
 } from 'lucide-react'
 import { UserProfileModal } from '@/components/community/UserProfileModal'
 import { cn } from '@/lib/utils'
@@ -14,7 +15,10 @@ import {
   RoomAudioRenderer, 
   GridLayout,
   ParticipantTile,
-  useTracks
+  useTracks,
+  useLocalParticipant,
+  useChat,
+  MediaDeviceSelect
 } from '@livekit/components-react'
 import { Track } from 'livekit-client'
 
@@ -345,6 +349,22 @@ export default function CommunityPage() {
         audio={true}
         token={voiceToken}
         serverUrl={voiceServerUrl}
+        options={{
+          publishDefaults: {
+            screenShareEncoding: {
+              maxBitrate: 3000000, // 3 Mbps
+              frameRate: 30,
+            },
+            videoEncoding: {
+              maxBitrate: 1500000,
+              frameRate: 30,
+            }
+          }
+        }}
+        screenShareOptions={{
+          resolution: { width: 1920, height: 1080 },
+          frameRate: 30,
+        }}
         data-lk-theme="default"
         style={{ 
           height: '100%', 
@@ -674,8 +694,54 @@ function VoiceTab({
 function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
   const cameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: false })
   const screenShareTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: false })
+  
+  const { localParticipant } = useLocalParticipant()
+  const { send, chatMessages } = useChat()
+  const [chatInput, setChatInput] = useState('')
+  const [showSettings, setShowSettings] = useState(false)
+  const [showChatPanel, setShowChatPanel] = useState(true)
 
   const hasScreenShare = screenShareTracks.length > 0
+
+  const toggleMic = () => {
+    if (localParticipant) {
+      localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled)
+    }
+  }
+
+  const toggleCamera = () => {
+    if (localParticipant) {
+      localParticipant.setCameraEnabled(!localParticipant.isCameraEnabled)
+    }
+  }
+
+  const toggleScreenshare = () => {
+    if (localParticipant) {
+      localParticipant.setScreenShareEnabled(!localParticipant.isScreenShareEnabled)
+    }
+  }
+
+  const handleFullscreen = () => {
+    const el = document.getElementById('shared-screen-window')
+    if (el) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen()
+      } else {
+        el.requestFullscreen().catch((err) => console.error(err))
+      }
+    }
+  }
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!chatInput.trim()) return
+    send(chatInput)
+    setChatInput('')
+  }
+
+  const isMicEnabled = localParticipant?.isMicrophoneEnabled ?? false
+  const isCameraEnabled = localParticipant?.isCameraEnabled ?? false
+  const isScreenShareEnabled = localParticipant?.isScreenShareEnabled ?? false
 
   return (
     <div className="flex-1 overflow-hidden p-6 h-full bg-[#07070b] flex flex-col">
@@ -699,32 +765,187 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
         </div>
 
         {/* Video & Screensharing Custom Layout */}
-        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row gap-6 min-h-[300px]">
-          {hasScreenShare ? (
-            <>
-              {/* Main Screenshare container (Large) */}
-              <div className="flex-[3] relative rounded-xl border border-[#38BDF8]/20 bg-black/60 overflow-hidden shadow-[0_15px_40px_rgba(0,0,0,0.6)] group">
-                <ParticipantTile trackRef={screenShareTracks[0]} className="w-full h-full object-contain" />
-                <div className="absolute top-4 left-4 bg-black/60 border border-white/10 px-3 py-1.5 rounded-lg text-[9px] uppercase font-extrabold tracking-widest text-[#38BDF8] backdrop-blur-md">
-                  🖥️ Live Presentation
+        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row gap-6 min-h-[300px] mb-6">
+          <div className="flex-[3] flex flex-col overflow-hidden min-h-0 relative">
+            {hasScreenShare ? (
+              <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+                {/* Main Screenshare container (Large) */}
+                <div id="shared-screen-window" className="flex-[3] relative rounded-xl border border-[#38BDF8]/20 bg-black/60 overflow-hidden shadow-[0_15px_40px_rgba(0,0,0,0.6)] group">
+                  <ParticipantTile trackRef={screenShareTracks[0]} className="w-full h-full object-contain" />
+                  <div className="absolute top-4 left-4 bg-black/60 border border-white/10 px-3 py-1.5 rounded-lg text-[9px] uppercase font-extrabold tracking-widest text-[#38BDF8] backdrop-blur-md">
+                    🖥️ Live Presentation
+                  </div>
+                  
+                  {/* Fullscreen Overlay Trigger */}
+                  <button 
+                    onClick={handleFullscreen}
+                    className="absolute bottom-4 right-4 p-2 bg-black/60 hover:bg-black/85 text-white border border-white/10 rounded-lg hover:scale-105 transition-transform flex items-center gap-1 text-[9px] uppercase font-black tracking-widest cursor-pointer"
+                    title="Fullscreen Mode"
+                  >
+                    <Fullscreen className="w-3.5 h-3.5" /> Fullscreen
+                  </button>
+                </div>
+
+                {/* Sidebar Cameras (Smaller list) */}
+                <div className="flex-1 min-w-[200px] flex flex-col gap-3 overflow-y-auto custom-scrollbar no-scrollbar">
+                  {cameraTracks.map(track => (
+                    <div key={track.publication?.trackSid || track.participant.sid} className="h-32 shrink-0 relative rounded-lg overflow-hidden border border-white/5 bg-black/30">
+                      <ParticipantTile trackRef={track} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
                 </div>
               </div>
-
-              {/* Sidebar Cameras (Smaller list) */}
-              <div className="flex-1 min-w-[200px] flex flex-col gap-3 overflow-y-auto custom-scrollbar">
-                {cameraTracks.map(track => (
-                  <div key={track.publication?.trackSid || track.participant.sid} className="h-32 shrink-0 relative rounded-lg overflow-hidden border border-white/5 bg-black/30">
-                    <ParticipantTile trackRef={track} className="w-full h-full object-cover" />
-                  </div>
-                ))}
+            ) : (
+              /* Normal Grid Layout for participants */
+              <div className="flex-1 overflow-hidden rounded-xl border border-white/5 bg-black/40 shadow-inner">
+                <GridLayout tracks={cameraTracks} className="h-full">
+                  <ParticipantTile />
+                </GridLayout>
               </div>
-            </>
-          ) : (
-            /* Normal Grid Layout for participants */
-            <div className="flex-1 overflow-hidden rounded-xl border border-white/5 bg-black/40 shadow-inner">
-              <GridLayout tracks={cameraTracks} className="h-full">
-                <ParticipantTile />
-              </GridLayout>
+            )}
+          </div>
+
+          {/* Right side live chat panel */}
+          {showChatPanel && (
+            <div className="w-80 border border-white/5 bg-[#080B11]/90 rounded-2xl flex flex-col overflow-hidden shadow-lg">
+              <div className="px-4 py-3 border-b border-white/5 bg-[#0b0f17] flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4 text-primary" /> Live Discussion
+                </span>
+                <button onClick={() => setShowChatPanel(false)} className="text-[#64748B] hover:text-white text-xs">✕</button>
+              </div>
+              
+              {/* Chat Thread history */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 text-left no-scrollbar">
+                {chatMessages.length === 0 ? (
+                  <p className="text-center text-[9px] text-[#64748B] uppercase tracking-wider font-bold py-12">No messages sent yet.</p>
+                ) : (
+                  chatMessages.map((msg, i) => (
+                    <div key={i} className="space-y-0.5">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[10px] font-black text-white">{msg.from?.identity || 'Trader'}</span>
+                        <span className="text-[8px] text-[#64748B] font-mono">{format(new Date(msg.timestamp), 'HH:mm')}</span>
+                      </div>
+                      <div className="bg-white/5 border border-white/[0.03] rounded-xl px-3 py-1.5 text-xs text-white/90 leading-relaxed">
+                        {msg.message}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Chat Input form */}
+              <form onSubmit={handleSendMessage} className="p-2 border-t border-white/5 bg-black/20 flex gap-1.5">
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-primary/50"
+                />
+                <button type="submit" className="p-2 bg-primary text-black rounded-xl hover:bg-primary/90 transition-all cursor-pointer">
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+
+        {/* Floating Capsule style Control Bar */}
+        <div className="flex flex-col items-center gap-4 shrink-0 relative">
+          <div className="flex items-center gap-3 bg-black/40 border border-white/10 p-2.5 rounded-2xl shadow-xl w-fit">
+            
+            {/* Mic Toggle with Settings dropdown */}
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={toggleMic}
+                className={cn(
+                  'p-3.5 rounded-xl transition-all cursor-pointer',
+                  isMicEnabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/25'
+                )}
+                title={isMicEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
+              >
+                {isMicEnabled ? <Mic className="w-4.5 h-4.5" /> : <MicOff className="w-4.5 h-4.5" />}
+              </button>
+            </div>
+
+            {/* Camera Toggle */}
+            <button
+              onClick={toggleCamera}
+              className={cn(
+                'p-3.5 rounded-xl transition-all cursor-pointer',
+                isCameraEnabled ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/25'
+              )}
+              title={isCameraEnabled ? 'Disable Camera' : 'Enable Camera'}
+            >
+              {isCameraEnabled ? <Video className="w-4.5 h-4.5" /> : <VideoOff className="w-4.5 h-4.5" />}
+            </button>
+
+            {/* Screenshare Toggle */}
+            <button
+              onClick={toggleScreenshare}
+              className={cn(
+                'p-3.5 rounded-xl transition-all border cursor-pointer',
+                isScreenShareEnabled ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white/5 text-[#94A3B8] border-white/5 hover:text-white'
+              )}
+              title={isScreenShareEnabled ? 'Stop Screenshare' : 'Start Screenshare'}
+            >
+              <ScreenShare className="w-4.5 h-4.5" />
+            </button>
+
+            {/* Chat Toggle */}
+            <button
+              onClick={() => setShowChatPanel(!showChatPanel)}
+              className={cn(
+                'p-3.5 rounded-xl transition-all border cursor-pointer',
+                showChatPanel ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white/5 text-[#94A3B8] border-white/5 hover:text-white'
+              )}
+              title={showChatPanel ? 'Hide Chat Panel' : 'Show Chat Panel'}
+            >
+              <MessageSquare className="w-4.5 h-4.5" />
+            </button>
+
+            {/* Device Settings Panel Toggle */}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={cn(
+                'p-3.5 rounded-xl transition-all border cursor-pointer',
+                showSettings ? 'bg-white/10 text-white border-white/20' : 'bg-white/5 text-[#94A3B8] border-white/5 hover:text-white'
+              )}
+              title="Media Settings"
+            >
+              <Settings className="w-4.5 h-4.5" />
+            </button>
+
+            {/* Disconnect Floor */}
+            <button
+              onClick={onDisconnect}
+              className="p-3.5 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all cursor-pointer shadow-lg shadow-red-500/10 flex items-center justify-center gap-1.5"
+              title="Leave Room"
+            >
+              <PhoneOff className="w-4.5 h-4.5" />
+            </button>
+          </div>
+
+          {/* Collapsible Device Settings selectors dropdown */}
+          {showSettings && (
+            <div className="absolute bottom-full mb-3 bg-[#0D1421] border border-white/10 p-5 rounded-2xl shadow-2xl space-y-4 w-72 text-left z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+              <h4 className="text-[10px] font-black text-white uppercase tracking-wider border-b border-white/5 pb-2 mb-2">Media Configuration</h4>
+              
+              <div className="space-y-1 flex flex-col">
+                <label className="text-[9px] text-[#64748B] uppercase tracking-wider font-extrabold">Microphone Input</label>
+                <MediaDeviceSelect kind="audioinput" className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-1.5 focus:outline-none" />
+              </div>
+
+              <div className="space-y-1 flex flex-col">
+                <label className="text-[9px] text-[#64748B] uppercase tracking-wider font-extrabold">Speaker Output</label>
+                <MediaDeviceSelect kind="audiooutput" className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-1.5 focus:outline-none" />
+              </div>
+
+              <div className="space-y-1 flex flex-col">
+                <label className="text-[9px] text-[#64748B] uppercase tracking-wider font-extrabold">Camera Input</label>
+                <MediaDeviceSelect kind="videoinput" className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-1.5 focus:outline-none" />
+              </div>
             </div>
           )}
         </div>
