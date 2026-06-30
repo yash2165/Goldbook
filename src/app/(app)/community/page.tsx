@@ -18,7 +18,8 @@ import {
   useTracks,
   useLocalParticipant,
   useChat,
-  MediaDeviceSelect
+  MediaDeviceSelect,
+  useMediaDeviceSelect
 } from '@livekit/components-react'
 import { Track } from 'livekit-client'
 
@@ -28,14 +29,16 @@ import { format } from 'date-fns'
 import { useToast } from '@/context/ToastContext'
 import { SocialFeed } from '@/components/community/SocialFeed'
 import { DirectMessages } from '@/components/community/DirectMessages'
+import { GlobalChat } from '@/components/community/GlobalChat'
+import { useVoiceRoom } from '@/context/VoiceRoomContext'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 export default function CommunityPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const paramTab = searchParams.get('tab') as 'feed' | 'dms' | 'leaderboard' | 'friends' | 'voice' | null
+  const paramTab = searchParams.get('tab') as 'feed' | 'chat' | 'dms' | 'leaderboard' | 'friends' | 'voice' | null
 
-  const [tab, setTab] = useState<'feed' | 'dms' | 'leaderboard' | 'friends' | 'voice'>('feed')
+  const [tab, setTab] = useState<'feed' | 'chat' | 'dms' | 'leaderboard' | 'friends' | 'voice'>('feed')
   const [user, setUser] = useState<any>(null)
   const [myProfile, setMyProfile] = useState<any>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
@@ -43,45 +46,14 @@ export default function CommunityPage() {
   const supabase = createClient()
   const { success: showSuccess, error: showError } = useToast()
 
+  const { voiceConnected, voiceLoading, joinVoiceRoom, leaveVoiceRoom } = useVoiceRoom()
+
   // Sync tab from query parameter if present
   useEffect(() => {
-    if (paramTab && ['feed', 'dms', 'leaderboard', 'friends', 'voice'].includes(paramTab)) {
+    if (paramTab && ['feed', 'chat', 'dms', 'leaderboard', 'friends', 'voice'].includes(paramTab)) {
       setTab(paramTab)
     }
   }, [paramTab])
-
-  // LiveKit persistent voice connection state
-  const [voiceToken, setVoiceToken] = useState('')
-  const [voiceServerUrl, setVoiceServerUrl] = useState('')
-  const [voiceConnected, setVoiceConnected] = useState(false)
-  const [voiceLoading, setVoiceLoading] = useState(false)
-
-  const joinVoiceRoom = async () => {
-    setVoiceLoading(true)
-    try {
-      const res = await fetch('/api/livekit/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room: 'trading-floor' })
-      })
-      const data = await res.json()
-      if (data.token) {
-        setVoiceToken(data.token)
-        setVoiceServerUrl(data.url)
-        setVoiceConnected(true)
-      }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setVoiceLoading(false)
-    }
-  }
-
-  const leaveVoiceRoom = () => {
-    setVoiceConnected(false)
-    setVoiceToken('')
-    setVoiceServerUrl('')
-  }
 
   // Load user session and profiles on mount
   useEffect(() => {
@@ -220,6 +192,17 @@ export default function CommunityPage() {
             <Globe className="w-4 h-4 shrink-0" />
             <span>Social Feed</span>
           </button>
+
+          <button
+            onClick={() => setTab('chat')}
+            className={cn(
+              'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer',
+              tab === 'chat' ? 'bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/15' : 'text-[#64748B] hover:text-foreground hover:bg-white/5 border border-transparent'
+            )}
+          >
+            <MessageSquare className="w-4 h-4 shrink-0" />
+            <span>Global Chats</span>
+          </button>
           
           <button
             onClick={() => setTab('dms')}
@@ -276,6 +259,8 @@ export default function CommunityPage() {
       <div className="flex-1 flex flex-col overflow-hidden bg-[#07070b]">
         {tab === 'feed' ? (
           <SocialFeed user={user} onOpenProfile={(username) => router.push(`/trader/${username}`)} />
+        ) : tab === 'chat' ? (
+          <GlobalChat user={user} onOpenProfile={(username) => router.push(`/trader/${username}`)} />
         ) : tab === 'dms' ? (
           <DirectMessages user={user} />
         ) : tab === 'friends' ? (
@@ -293,41 +278,10 @@ export default function CommunityPage() {
             loading={voiceLoading} 
             onConnect={joinVoiceRoom} 
             onDisconnect={leaveVoiceRoom} 
+            user={user}
           />
         )}
       </div>
-
-      {/* Floating active voice call popup card */}
-      {voiceConnected && tab !== 'voice' && (
-        <div className="fixed bottom-6 right-20 bg-[#0c0c14]/95 border border-[#8B5CF6]/30 px-4 py-3.5 rounded-2xl shadow-2xl flex items-center gap-4 backdrop-blur-xl z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22C55E] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#22C55E]"></span>
-            </span>
-            <div className="text-left">
-              <p className="text-[10px] font-black text-[#F1F5F9] uppercase tracking-wider flex items-center gap-1.5 leading-none">
-                Voice Floor
-              </p>
-              <p className="text-[8px] text-[#8B5CF6] uppercase tracking-widest font-extrabold mt-1">Active Call</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 border-l border-white/5 pl-4">
-            <button 
-              onClick={() => setTab('voice')}
-              className="px-3 py-1.5 bg-[#8B5CF6]/10 hover:bg-[#8B5CF6]/20 rounded-lg text-[9px] font-bold uppercase tracking-wider text-[#8B5CF6] transition-all cursor-pointer border border-[#8B5CF6]/20"
-            >
-              View
-            </button>
-            <button 
-              onClick={leaveVoiceRoom}
-              className="px-3 py-1.5 bg-[#EF4444]/15 hover:bg-[#EF4444]/25 rounded-lg text-[9px] font-bold uppercase tracking-wider text-[#EF4444] transition-all cursor-pointer border border-[#EF4444]/20"
-            >
-              Disconnect
-            </button>
-          </div>
-        </div>
-      )}
 
       {selectedUser && (
         <UserProfileModal 
@@ -342,42 +296,6 @@ export default function CommunityPage() {
       )}
     </div>
   )
-
-  if (voiceConnected && voiceToken && voiceServerUrl) {
-    return (
-      <LiveKitRoom
-        video={true}
-        audio={true}
-        token={voiceToken}
-        serverUrl={voiceServerUrl}
-        options={{
-          publishDefaults: {
-            screenShareEncoding: {
-              maxBitrate: 3000000, // 3 Mbps
-              maxFramerate: 30,
-            },
-            videoEncoding: {
-              maxBitrate: 1500000,
-              maxFramerate: 30,
-            }
-          }
-        }}
-        data-lk-theme="default"
-        style={{ 
-          height: '100%', 
-          background: 'transparent', 
-          '--lk-bg': 'transparent', 
-          '--lk-control-bar-bg': 'rgba(0,0,0,0.4)', 
-          '--lk-border-color': 'rgba(255,255,255,0.05)',
-          '--lk-grid-gap': '16px'
-        } as any}
-        onDisconnected={leaveVoiceRoom}
-      >
-        {mainContent}
-        <RoomAudioRenderer />
-      </LiveKitRoom>
-    )
-  }
 
   return mainContent
 }
@@ -566,20 +484,52 @@ function FriendsTab({
 }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [adding, setAdding] = useState(false)
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  
+  const supabase = createClient()
   const { success: showSuccess, error: showError } = useToast()
 
-  const handleAddClick = async () => {
-    const targetUser = searchTerm.trim()
-    if (!targetUser) return
+  // Flexible search listener (Debounced)
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSearchResults([])
+      return
+    }
 
+    const timer = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, headline')
+          .or(`username.ilike.%${searchTerm}%,display_name.ilike.%${searchTerm}%`)
+          .limit(10)
+
+        if (!error && data) {
+          // Exclude self
+          setSearchResults(data.filter((u: any) => u.id !== user.id))
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setSearching(false)
+      }
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const handleAddClick = async (targetUsername: string) => {
     setAdding(true)
     try {
-      const res = await onAddFriend(targetUser)
+      const res = await onAddFriend(targetUsername)
       if (res.error) {
-        showError('Friend Request Failed', res.error)
+        showError('Request Failed', res.error)
       } else if (res.success) {
-        showSuccess('Friend Added!', res.success)
+        showSuccess('Friend Request Sent!', res.success)
         setSearchTerm('')
+        setSearchResults([])
       }
     } catch (err) {
       console.error(err)
@@ -596,27 +546,59 @@ function FriendsTab({
           <Users className="w-5 h-5 text-[#22C55E]" /> Friends & Following
         </h2>
 
-        <div className="bg-[#0D1421]/60 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-white/90 mb-4">Add a Friend</h3>
+        {/* Flexible Search Section */}
+        <div className="bg-[#0D1421]/60 border border-white/5 rounded-2xl p-6 backdrop-blur-md relative">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-white/90 mb-4">Discover Friends</h3>
           <div className="flex gap-2">
             <input 
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAddClick()}
               disabled={adding}
-              placeholder="Search by exact username..." 
-              className="flex-1 bg-[#060A12] border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50 text-white disabled:opacity-50" 
+              placeholder="Search by username or name..." 
+              className="flex-1 bg-[#060A12] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 text-white disabled:opacity-50" 
             />
-            <button 
-              onClick={handleAddClick}
-              disabled={adding || !searchTerm.trim()}
-              className="px-4 py-2 bg-[#38BDF8] hover:bg-[#38BDF8]/95 text-black rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" /> {adding ? 'Adding...' : 'Add'}
-            </button>
           </div>
+
+          {/* Dynamic Search Results list */}
+          {searchTerm.trim() !== '' && (
+            <div className="mt-4 border-t border-white/5 pt-4 space-y-3">
+              {searching ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                </div>
+              ) : searchResults.length === 0 ? (
+                <p className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold py-2">No traders found matching "{searchTerm}"</p>
+              ) : (
+                searchResults.map(p => (
+                  <div key={p.id} className="flex items-center justify-between p-3 bg-[#060a12]/50 border border-white/5 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary overflow-hidden border border-white/10 shrink-0">
+                        {p.avatar_url ? (
+                          <img src={p.avatar_url} alt={p.username} className="w-full h-full object-cover" />
+                        ) : (
+                          p.username.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <span className="font-bold text-sm text-white block leading-none">{p.display_name || p.username}</span>
+                        <span className="text-[10px] text-[#64748B] font-mono leading-none mt-1 block">@{p.username}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleAddClick(p.username)}
+                      disabled={adding}
+                      className="px-3.5 py-1.5 bg-primary text-black rounded-lg text-[10px] font-black uppercase tracking-wider hover:scale-105 transition-transform disabled:opacity-50 cursor-pointer"
+                    >
+                      Add Friend
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
+        {/* Existing Friends List */}
         <div className="bg-[#0D1421]/60 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/90 mb-4">Your Friends</h3>
           {friends.length === 0 ? (
@@ -650,42 +632,402 @@ function VoiceTab({
   connected, 
   loading, 
   onConnect, 
-  onDisconnect 
+  onDisconnect,
+  user
 }: { 
   connected: boolean
   loading: boolean
-  onConnect: () => void
+  onConnect: (roomName: string, isPrivate: boolean) => void
   onDisconnect: () => void
+  user: any
 }) {
-  if (!connected) {
-    return (
-      <div className="flex-1 overflow-hidden p-6 h-full bg-[#07070b]">
-        <div className="max-w-xl mx-auto mt-10 animate-in fade-in zoom-in-95 duration-300">
-          <div className="bg-[#0c0c14]/90 border border-white/10 rounded-3xl p-10 text-center space-y-6 shadow-2xl backdrop-blur-2xl">
-            <div className="w-20 h-20 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center mx-auto text-[#8B5CF6] shadow-[0_0_30px_rgba(139,92,246,0.25)] border border-[#8B5CF6]/20 animate-pulse">
-              <Mic className="w-10 h-10" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl font-black uppercase tracking-wider text-white">Trading Floor (Live Voice)</h2>
-              <p className="text-[#64748B] text-xs max-w-sm mx-auto leading-relaxed font-semibold">
-                Join the premium high-fidelity live voice and screensharing channel to discuss active setups, price action, and execute trades in synchrony.
-              </p>
-            </div>
-            
-            <button 
-              onClick={onConnect}
-              disabled={loading}
-              className="px-8 py-3.5 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-[#8B5CF6]/20 transition-all hover:scale-105 w-full max-w-xs mx-auto flex justify-center items-center gap-2 border border-white/10 cursor-pointer"
-            >
-              {loading ? 'Negotiating Link...' : <><Mic className="w-4 h-4" /> Connect to Trading Floor</>}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+  const [rooms, setRooms] = useState<any[]>([])
+  const [loadingRooms, setLoadingRooms] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newRoomName, setNewRoomName] = useState('')
+  const [newRoomType, setNewRoomType] = useState<'public' | 'private'>('public')
+
+  // Request statuses lookup map: room_id -> status
+  const [requestStatuses, setRequestStatuses] = useState<Record<string, string>>({})
+  
+  // Pending requests for rooms created by the current user
+  const [adminRequests, setAdminRequests] = useState<any[]>([])
+
+  const supabase = createClient()
+  const { success: showSuccess, error: showError } = useToast()
+
+  const loadVoiceRooms = async () => {
+    if (!user) return
+    setLoadingRooms(true)
+    try {
+      // 1. Fetch all voice rooms
+      const { data: roomsData } = await supabase
+        .from('voice_rooms')
+        .select('*, profiles:created_by(username, display_name, avatar_url)')
+        .order('created_at', { ascending: false })
+
+      // 2. Fetch my requests
+      const { data: myReqs } = await supabase
+        .from('voice_room_requests')
+        .select('*')
+        .eq('user_id', user.id)
+
+      // 3. Fetch admin requests (for rooms I created)
+      const { data: adminReqs } = await supabase
+        .from('voice_room_requests')
+        .select('*, profiles:user_id(username, display_name, avatar_url), voice_rooms!inner(name, created_by)')
+        .eq('voice_rooms.created_by', user.id)
+        .eq('status', 'pending')
+
+      if (roomsData) {
+        // Prepend default public Trading Floor
+        const defaultFloor = {
+          id: 'trading-floor-default',
+          name: 'trading-floor',
+          type: 'public',
+          profiles: { username: 'System', display_name: 'Platform Broadcast' }
+        }
+        setRooms([defaultFloor, ...roomsData])
+      }
+
+      if (myReqs) {
+        const statuses: Record<string, string> = {}
+        myReqs.forEach(r => {
+          statuses[r.room_id] = r.status
+        })
+        setRequestStatuses(statuses)
+      }
+
+      if (adminReqs) {
+        setAdminRequests(adminReqs)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoadingRooms(false)
+    }
   }
 
-  return <VoiceRoomActive onDisconnect={onDisconnect} />
+  useEffect(() => {
+    loadVoiceRooms()
+
+    // Realtime channel for request updates
+    const channel = supabase
+      .channel('voice_room_events')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'voice_room_requests' }, () => {
+        loadVoiceRooms()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'voice_rooms' }, () => {
+        loadVoiceRooms()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
+
+  const handleCreateRoom = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const nameStr = newRoomName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')
+    if (!nameStr) return
+
+    try {
+      const { data, error } = await supabase
+        .from('voice_rooms')
+        .insert({
+          name: nameStr,
+          type: newRoomType,
+          created_by: user.id
+        })
+        .select()
+        .single()
+
+      if (error) {
+        showError('Room Creation Failed', error.message)
+      } else {
+        showSuccess('Voice Room Created', `Room "${nameStr}" is active.`)
+        setShowCreateModal(false)
+        setNewRoomName('')
+        // Automatically join the newly created room
+        onConnect(nameStr, newRoomType === 'private')
+      }
+    } catch (err: any) {
+      showError('Action Failed', err.message || 'Error creating room.')
+    }
+  }
+
+  const handleRequestJoin = async (room: any) => {
+    try {
+      const { error } = await supabase
+        .from('voice_room_requests')
+        .insert({
+          room_id: room.id,
+          user_id: user.id,
+          status: 'pending'
+        })
+
+      if (error) {
+        showError('Request Failed', error.message)
+      } else {
+        showSuccess('Join Request Sent', 'Waiting for admin approval.')
+        loadVoiceRooms()
+      }
+    } catch (err: any) {
+      showError('Action Failed', err.message)
+    }
+  }
+
+  const handleUpdateRequest = async (reqId: string, status: 'approved' | 'rejected') => {
+    try {
+      const { error } = await supabase
+        .from('voice_room_requests')
+        .update({ status })
+        .eq('id', reqId)
+
+      if (error) {
+        showError('Action Failed', error.message)
+      } else {
+        showSuccess(`Request ${status}`, 'Status updated successfully.')
+        loadVoiceRooms()
+      }
+    } catch (err: any) {
+      showError('Action Failed', err.message)
+    }
+  }
+
+  if (connected) {
+    return <VoiceRoomActive onDisconnect={onDisconnect} />
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 bg-[#07070b] no-scrollbar">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex justify-between items-center border-b border-white/5 pb-4">
+          <div>
+            <h2 className="text-lg font-black uppercase tracking-wider text-white flex items-center gap-2">
+              <Mic className="w-5 h-5 text-primary" /> Live Voice Channels
+            </h2>
+            <p className="text-[10px] text-[#64748B] font-semibold uppercase tracking-widest mt-1">Connect or create private voice rooms</p>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-primary hover:bg-primary/95 text-black rounded-lg text-xs font-bold uppercase tracking-wider transition-transform hover:scale-105 cursor-pointer"
+          >
+            Create Voice Room
+          </button>
+        </div>
+
+        {/* Pending Requests for Admins */}
+        {adminRequests.length > 0 && (
+          <div className="bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-2xl p-5 space-y-3 text-left">
+            <h3 className="text-[10px] font-black text-red-400 uppercase tracking-widest">Pending Access Requests</h3>
+            <div className="space-y-2">
+              {adminRequests.map(req => (
+                <div key={req.id} className="flex items-center justify-between bg-black/40 border border-white/5 p-3 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary overflow-hidden">
+                      {req.profiles?.avatar_url ? (
+                        <img src={req.profiles.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        req.profiles?.username?.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="text-left">
+                      <span className="text-xs font-bold text-white block">@{req.profiles?.username}</span>
+                      <span className="text-[9px] text-[#64748B] font-mono leading-none mt-0.5 block">wants to join: {req.voice_rooms?.name}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleUpdateRequest(req.id, 'approved')}
+                      className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-black rounded text-[10px] font-bold uppercase cursor-pointer"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleUpdateRequest(req.id, 'rejected')}
+                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-[10px] font-bold uppercase cursor-pointer"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Active Rooms Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {loadingRooms ? (
+            <div className="col-span-full flex justify-center py-12">
+              <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            </div>
+          ) : (
+            rooms.map(room => {
+              const isDefault = room.id === 'trading-floor-default'
+              const isCreator = room.created_by === user?.id
+              const isPrivate = room.type === 'private'
+              const status = requestStatuses[room.id] || 'none'
+              const isApproved = status === 'approved'
+
+              return (
+                <div key={room.id} className="bg-[#0D1421]/60 border border-white/5 rounded-2xl p-5 flex flex-col justify-between backdrop-blur-md">
+                  <div className="space-y-2 text-left">
+                    <div className="flex justify-between items-start">
+                      <h4 className="text-sm font-bold text-white uppercase tracking-wider">{room.name}</h4>
+                      <span className={cn(
+                        'text-[8px] font-black uppercase px-2 py-0.5 rounded-full border',
+                        isPrivate ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      )}>
+                        {room.type}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[#64748B] font-mono leading-none">Created by: {room.profiles?.display_name || room.profiles?.username || 'Trader'}</p>
+                  </div>
+
+                  <div className="mt-5 shrink-0">
+                    {isDefault || !isPrivate || isCreator || isApproved ? (
+                      <button
+                        onClick={() => onConnect(room.name, isPrivate)}
+                        disabled={loading}
+                        className="w-full py-2 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-xl text-xs font-bold uppercase tracking-wider flex justify-center items-center gap-1.5 transition-transform hover:scale-[1.02] cursor-pointer"
+                      >
+                        <Mic className="w-3.5 h-3.5" /> Join Room
+                      </button>
+                    ) : status === 'pending' ? (
+                      <button
+                        disabled
+                        className="w-full py-2 bg-white/5 border border-white/10 text-[#64748B] rounded-xl text-xs font-bold uppercase tracking-wider"
+                      >
+                        Request Pending
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleRequestJoin(room)}
+                        className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-transform hover:scale-[1.02] cursor-pointer"
+                      >
+                        Request to Join
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Create Voice Room Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <form onSubmit={handleCreateRoom} className="bg-[#0D1421] border border-white/10 rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-white/5 pb-3">
+              <h4 className="text-xs font-black text-white uppercase tracking-wider">Create Custom Voice Room</h4>
+              <button type="button" onClick={() => setShowCreateModal(false)} className="text-[#64748B] hover:text-white">✕</button>
+            </div>
+
+            <div className="space-y-1 text-left">
+              <label className="text-[9px] text-[#64748B] uppercase tracking-wider font-extrabold">Room Name</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. gold-scalps"
+                value={newRoomName}
+                onChange={e => setNewRoomName(e.target.value)}
+                className="w-full bg-[#060A12] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+              />
+            </div>
+
+            <div className="space-y-1 text-left">
+              <label className="text-[9px] text-[#64748B] uppercase tracking-wider font-extrabold">Room Privacy</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewRoomType('public')}
+                  className={cn(
+                    'py-2 rounded-lg text-xs font-bold uppercase border cursor-pointer',
+                    newRoomType === 'public' ? 'bg-primary/10 text-primary border-primary/25' : 'bg-black/20 text-[#64748B] border-white/5'
+                  )}
+                >
+                  🌐 Public
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewRoomType('private')}
+                  className={cn(
+                    'py-2 rounded-lg text-xs font-bold uppercase border cursor-pointer',
+                    newRoomType === 'private' ? 'bg-amber-500/10 text-amber-400 border-amber-500/25' : 'bg-black/20 text-[#64748B] border-white/5'
+                  )}
+                >
+                  🔒 Private
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-primary text-black rounded-lg text-xs font-bold uppercase tracking-wider hover:scale-[1.02] transition-transform cursor-pointer mt-2"
+            >
+              Create Room
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AudioInputSelect() {
+  const { devices, activeDeviceId, setActiveMediaDevice } = useMediaDeviceSelect({ kind: 'audioinput' })
+  return (
+    <select
+      value={activeDeviceId || ''}
+      onChange={e => setActiveMediaDevice(e.target.value)}
+      className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-2.5 focus:outline-none focus:border-primary/50 truncate cursor-pointer"
+    >
+      {devices.map((d: any) => (
+        <option key={d.deviceId} value={d.deviceId} className="bg-[#0D1421] text-white">
+          {d.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function AudioOutputSelect() {
+  const { devices, activeDeviceId, setActiveMediaDevice } = useMediaDeviceSelect({ kind: 'audiooutput' })
+  return (
+    <select
+      value={activeDeviceId || ''}
+      onChange={e => setActiveMediaDevice(e.target.value)}
+      className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-2.5 focus:outline-none focus:border-primary/50 truncate cursor-pointer"
+    >
+      {devices.map((d: any) => (
+        <option key={d.deviceId} value={d.deviceId} className="bg-[#0D1421] text-white">
+          {d.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function VideoInputSelect() {
+  const { devices, activeDeviceId, setActiveMediaDevice } = useMediaDeviceSelect({ kind: 'videoinput' })
+  return (
+    <select
+      value={activeDeviceId || ''}
+      onChange={e => setActiveMediaDevice(e.target.value)}
+      className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-2.5 focus:outline-none focus:border-primary/50 truncate cursor-pointer"
+    >
+      {devices.map((d: any) => (
+        <option key={d.deviceId} value={d.deviceId} className="bg-[#0D1421] text-white">
+          {d.label}
+        </option>
+      ))}
+    </select>
+  )
 }
 
 function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
@@ -820,7 +1162,7 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
                   chatMessages.map((msg, i) => (
                     <div key={i} className="space-y-0.5">
                       <div className="flex justify-between items-baseline">
-                        <span className="text-[10px] font-black text-white">{msg.from?.identity || 'Trader'}</span>
+                        <span className="text-[10px] font-black text-white">{msg.from?.name || msg.from?.identity || 'Trader'}</span>
                         <span className="text-[8px] text-[#64748B] font-mono">{format(new Date(msg.timestamp), 'HH:mm')}</span>
                       </div>
                       <div className="bg-white/5 border border-white/[0.03] rounded-xl px-3 py-1.5 text-xs text-white/90 leading-relaxed">
@@ -931,17 +1273,17 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
               
               <div className="space-y-1 flex flex-col">
                 <label className="text-[9px] text-[#64748B] uppercase tracking-wider font-extrabold">Microphone Input</label>
-                <MediaDeviceSelect kind="audioinput" className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-1.5 focus:outline-none" />
+                <AudioInputSelect />
               </div>
 
               <div className="space-y-1 flex flex-col">
                 <label className="text-[9px] text-[#64748B] uppercase tracking-wider font-extrabold">Speaker Output</label>
-                <MediaDeviceSelect kind="audiooutput" className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-1.5 focus:outline-none" />
+                <AudioOutputSelect />
               </div>
 
               <div className="space-y-1 flex flex-col">
                 <label className="text-[9px] text-[#64748B] uppercase tracking-wider font-extrabold">Camera Input</label>
-                <MediaDeviceSelect kind="videoinput" className="w-full bg-[#060A12] border border-white/10 rounded-lg text-xs text-white p-1.5 focus:outline-none" />
+                <VideoInputSelect />
               </div>
             </div>
           )}

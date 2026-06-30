@@ -24,6 +24,10 @@ export default function TraderProfilePage() {
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [submittingFollow, setSubmittingFollow] = useState(false)
 
+  // Friend status state
+  const [friendship, setFriendship] = useState<any | null>(null)
+  const [submittingFriend, setSubmittingFriend] = useState(false)
+
   const supabase = createClient()
   const { currencySymbol, formatCurrency } = useMarketMode()
 
@@ -69,6 +73,15 @@ export default function TraderProfilePage() {
             .maybeSingle()
 
           setIsFollowing(!!followCheck)
+
+          // Check friendship status
+          const { data: friendCheck } = await supabase
+            .from('friendships')
+            .select('*')
+            .or(`and(user_id.eq.${user.id},friend_id.eq.${prof.id}),and(user_id.eq.${prof.id},friend_id.eq.${user.id})`)
+            .maybeSingle()
+
+          setFriendship(friendCheck)
         }
 
         // Fetch trader's posts
@@ -131,6 +144,45 @@ export default function TraderProfilePage() {
     }
   }
 
+  const handleFriendAction = async () => {
+    if (!currentUser || !profile || submittingFriend) return
+    setSubmittingFriend(true)
+    try {
+      if (!friendship) {
+        // Send request
+        const { data, error } = await supabase
+          .from('friendships')
+          .insert({
+            user_id: currentUser.id,
+            friend_id: profile.id,
+            status: 'pending'
+          })
+          .select()
+          .single()
+
+        if (!error && data) {
+          setFriendship(data)
+        }
+      } else if (friendship.status === 'pending' && friendship.friend_id === currentUser.id) {
+        // Accept request
+        const { data, error } = await supabase
+          .from('friendships')
+          .update({ status: 'accepted' })
+          .eq('id', friendship.id)
+          .select()
+          .single()
+
+        if (!error && data) {
+          setFriendship(data)
+        }
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSubmittingFriend(false)
+    }
+  }
+
   const handleMessage = async () => {
     if (!currentUser || !profile) return
 
@@ -175,6 +227,13 @@ export default function TraderProfilePage() {
   }
 
   const isSelf = currentUser?.id === profile.id
+  const isFriends = friendship?.status === 'accepted'
+  const isPendingSent = friendship?.status === 'pending' && friendship?.user_id === currentUser?.id
+  const isPendingReceived = friendship?.status === 'pending' && friendship?.friend_id === currentUser?.id
+
+  const canViewContent = isSelf || profile.is_public || isFriends
+  const canSendMessage = isSelf || (profile.allow_messages === 'everyone') || (profile.allow_messages === 'friends_only' && isFriends)
+  const canViewTrades = isSelf || (profile.allow_trade_visibility === 'everyone') || (profile.allow_trade_visibility === 'friends_only' && isFriends)
 
   return (
     <div className="min-h-screen bg-[#060A12] text-white">
@@ -198,7 +257,7 @@ export default function TraderProfilePage() {
                   profile.username.charAt(0).toUpperCase()
                 )}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 text-left">
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl font-black text-white">{profile.display_name || profile.username}</h1>
                   {profile.tier === 'pro' && (
@@ -213,12 +272,13 @@ export default function TraderProfilePage() {
 
             {/* Actions button */}
             {!isSelf && currentUser && (
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                {/* Follow Button */}
                 <button
                   onClick={handleFollowToggle}
                   disabled={submittingFollow}
                   className={cn(
-                    'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-transform hover:scale-105 active:scale-95 border cursor-pointer',
+                    'flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-transform hover:scale-105 active:scale-95 border cursor-pointer',
                     isFollowing 
                       ? 'bg-transparent border-white/10 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 text-white' 
                       : 'bg-primary text-black border-transparent hover:bg-primary/90'
@@ -226,17 +286,39 @@ export default function TraderProfilePage() {
                 >
                   {isFollowing ? 'Unfollow' : 'Follow'}
                 </button>
+
+                {/* Friend Button */}
                 <button
-                  onClick={handleMessage}
-                  className="flex-1 sm:flex-initial px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest transition-transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer text-white"
+                  onClick={handleFriendAction}
+                  disabled={submittingFriend || isPendingSent}
+                  className={cn(
+                    'flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-transform hover:scale-105 active:scale-95 border cursor-pointer',
+                    isFriends 
+                      ? 'bg-transparent border-[#22C55E]/30 text-[#22C55E]' 
+                      : isPendingSent 
+                      ? 'bg-white/5 text-[#64748B] border-white/5 cursor-not-allowed'
+                      : isPendingReceived
+                      ? 'bg-[#22C55E] text-black border-transparent hover:bg-[#22C55E]/90'
+                      : 'bg-white/5 hover:bg-white/10 text-white border-white/10'
+                  )}
                 >
-                  <MessageSquare className="w-4 h-4" /> Message
+                  {isFriends ? '✓ Friends' : isPendingSent ? 'Request Sent' : isPendingReceived ? 'Accept Request' : 'Add Friend'}
                 </button>
+
+                {/* Message Button */}
+                {canSendMessage && (
+                  <button
+                    onClick={handleMessage}
+                    className="flex-1 sm:flex-initial px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-black uppercase tracking-wider transition-transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer text-white"
+                  >
+                    <MessageSquare className="w-4 h-4" /> Message
+                  </button>
+                )}
               </div>
             )}
           </div>
 
-          <p className="text-xs text-[#94A3B8] leading-relaxed max-w-2xl whitespace-pre-wrap">
+          <p className="text-xs text-[#94A3B8] leading-relaxed max-w-2xl text-left whitespace-pre-wrap">
             {profile.bio || 'This trader has not authored a bio description yet.'}
           </p>
 
@@ -261,75 +343,102 @@ export default function TraderProfilePage() {
           </div>
         </div>
 
-        {/* Authored trade ideas */}
-        <div className="space-y-4">
-          <h2 className="text-xs font-black uppercase tracking-widest text-[#64748B]">Authored Trade Ideas & Posts ({posts.length})</h2>
-
-          {loadingPosts ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-6 h-6 text-primary animate-spin" />
+        {/* Content view restrictions based on privacy settings */}
+        {!canViewContent ? (
+          <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-10 text-center space-y-4 shadow-xl">
+            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-[#64748B]">
+              <Award className="w-8 h-8" />
             </div>
-          ) : posts.length === 0 ? (
-            <div className="bg-[#0D1421]/30 border border-dashed border-white/5 rounded-2xl py-16 text-center text-[#64748B] text-xs font-bold uppercase tracking-wider">
-              No ideas published yet
+            <div className="space-y-1">
+              <h3 className="text-sm font-black uppercase tracking-wider text-white">Private Profile</h3>
+              <p className="text-xs text-[#64748B] max-w-xs mx-auto leading-relaxed">
+                Add @{profile.username} as a friend to view their posts, trade logs, and setups.
+              </p>
             </div>
-          ) : (
-            posts.map(post => (
-              <div key={post.id} className="bg-[#0D1421]/60 border border-white/5 rounded-2xl p-5 backdrop-blur-md space-y-4 text-left">
-                <div className="flex justify-between items-center text-[10px] text-[#64748B] font-mono">
-                  <span className="uppercase tracking-widest font-black text-primary flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" /> Published Log
-                  </span>
-                  <span>{format(new Date(post.created_at), 'MMM d, HH:mm')}</span>
-                </div>
+          </div>
+        ) : (
+          /* Authored trade ideas */
+          <div className="space-y-4">
+            <h2 className="text-xs font-black uppercase tracking-widest text-[#64748B]">Authored Trade Ideas & Posts ({posts.length})</h2>
 
-                <p className="text-xs text-[#94A3B8] leading-relaxed whitespace-pre-wrap">
-                  {post.content}
-                </p>
-
-                {post.media_urls?.length > 0 && (
-                  <div className="grid grid-cols-1 gap-2 rounded-xl overflow-hidden border border-white/5 bg-black/40">
-                    {post.media_urls.map((url: string, i: number) => (
-                      <img key={i} src={url} alt="Post content" className="w-full h-auto object-cover max-h-[380px]" />
-                    ))}
-                  </div>
-                )}
-
-                {post.trades && (
-                  <div className="bg-[#060A12]/80 border border-white/5 rounded-xl p-3.5 space-y-2 max-w-xl">
-                    <div className="flex justify-between items-center text-[9px] font-mono text-[#64748B]">
-                      <span className="uppercase tracking-widest font-black text-primary/80">Verified Log</span>
-                      <span className="uppercase tracking-widest font-bold">Closed</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded border', post.trades.direction === 'buy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/15' : 'bg-red-500/10 text-red-400 border-red-500/15')}>
-                          {post.trades.direction}
-                        </span>
-                        <span className="text-xs font-black text-white">{post.trades.symbol}</span>
-                      </div>
-                      <span className={cn('text-xs font-mono font-black', (post.trades.net_profit ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                        {formatCurrency(post.trades.net_profit ?? 0)}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-[#64748B] font-mono">Entry: {post.trades.entry_price} • Exit: {post.trades.exit_price}</p>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-5 border-t border-white/5 pt-3 text-[#64748B]">
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <Heart className="w-4 h-4" />
-                    <span className="font-bold tabular-nums">{post.likes_count || 0}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <MessageSquare className="w-4 h-4" />
-                    <span className="font-bold tabular-nums">{post.comments_count || 0}</span>
-                  </div>
-                </div>
+            {loadingPosts ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
               </div>
-            ))
-          )}
-        </div>
+            ) : posts.length === 0 ? (
+              <div className="bg-[#0D1421]/30 border border-dashed border-white/5 rounded-2xl py-16 text-center text-[#64748B] text-xs font-bold uppercase tracking-wider">
+                No ideas published yet
+              </div>
+            ) : (
+              posts.map(post => (
+                <div key={post.id} className="bg-[#0D1421]/60 border border-white/5 rounded-2xl p-5 backdrop-blur-md space-y-4 text-left">
+                  <div className="flex justify-between items-center text-[10px] text-[#64748B] font-mono">
+                    <span className="uppercase tracking-widest font-black text-primary flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5" /> Published Log
+                    </span>
+                    <span>{format(new Date(post.created_at), 'MMM d, HH:mm')}</span>
+                  </div>
+
+                  <p className="text-xs text-[#94A3B8] leading-relaxed whitespace-pre-wrap font-semibold">
+                    {post.content}
+                  </p>
+
+                  {post.media_urls?.length > 0 && (
+                    <div className="grid grid-cols-1 gap-2 rounded-xl overflow-hidden border border-white/5 bg-black/40">
+                      {post.media_urls.map((url: string, i: number) => (
+                        <img key={i} src={url} alt="Post content" className="w-full h-auto object-cover max-h-[380px]" />
+                      ))}
+                    </div>
+                  )}
+
+                  {post.trades && (
+                    <>
+                      {canViewTrades ? (
+                        <div className="bg-[#060A12]/80 border border-white/5 rounded-xl p-3.5 space-y-2 max-w-xl">
+                          <div className="flex justify-between items-center text-[9px] font-mono text-[#64748B]">
+                            <span className="uppercase tracking-widest font-black text-primary/80">Verified Log</span>
+                            <span className="uppercase tracking-widest font-bold">Closed</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded border', post.trades.direction === 'buy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/15' : 'bg-red-500/10 text-red-400 border-red-500/15')}>
+                                {post.trades.direction}
+                              </span>
+                              <span className="text-xs font-black text-white">{post.trades.symbol}</span>
+                            </div>
+                            <span className={cn('text-xs font-mono font-black', (post.trades.net_profit ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                              {profile.show_pnl_amounts ? (
+                                formatCurrency(post.trades.net_profit ?? 0)
+                              ) : (
+                                (post.trades.net_profit ?? 0) >= 0 ? '+Protected' : '-Protected'
+                              )}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[#64748B] font-mono">Entry: {post.trades.entry_price} • Exit: {post.trades.exit_price}</p>
+                        </div>
+                      ) : (
+                        <div className="bg-[#060A12]/80 border border-white/5 rounded-xl p-3.5 text-center text-[10px] text-[#64748B] font-black uppercase tracking-wider">
+                          🔒 Trade Details Protected by Privacy Settings
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div className="flex items-center gap-5 border-t border-white/5 pt-3 text-[#64748B]">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Heart className="w-4 h-4" />
+                      <span className="font-bold tabular-nums">{post.likes_count || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <MessageSquare className="w-4 h-4" />
+                      <span className="font-bold tabular-nums">{post.comments_count || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
