@@ -1,13 +1,14 @@
 'use client'
 
 import { useAccounts } from '@/hooks/useAccounts'
-import { RefreshCcw, ChevronDown, User, LogOut, Settings } from 'lucide-react'
+import { RefreshCcw, ChevronDown, User, LogOut, Settings, Bell } from 'lucide-react'
 import { format } from 'date-fns'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useToast } from '@/context/ToastContext'
+import { cn } from '@/lib/utils'
 
 export function TopBar() {
   const { accounts, activeAccount, setActiveAccount } = useAccounts()
@@ -17,11 +18,19 @@ export function TopBar() {
   const supabase = createClient()
   const { warning } = useToast()
 
+  // Notifications state
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [isNotifOpen, setIsNotifOpen] = useState(false)
+  const notifRef = useRef<HTMLDivElement>(null)
+
+  const unreadNotifCount = notifications.filter(n => !n.is_read).length
+
   // Dropdown states and refs
   const [isAccountOpen, setIsAccountOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
+
 
   // Listen for outside clicks to close dropdowns
   useEffect(() => {
@@ -32,12 +41,104 @@ export function TopBar() {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false)
       }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setIsNotifOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
+
+  const loadNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications')
+      const data = await res.json()
+      if (res.ok && data.notifications) {
+        setNotifications(data.notifications)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    loadNotifications()
+  }, [])
+
+  // Realtime notification insert subscription
+  useEffect(() => {
+    let notifChannel: any
+
+    async function initNotifRealtime() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      notifChannel = supabase
+        .channel(`notifs-realtime:${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          },
+          async (payload) => {
+            // Fetch actor profile details
+            const { data: actorProfile } = await supabase
+              .from('profiles')
+              .select('username, display_name, avatar_url')
+              .eq('id', payload.new.actor_id)
+              .single()
+
+            const newNotif = {
+              ...payload.new,
+              actor: actorProfile
+            }
+
+            setNotifications(prev => [newNotif, ...prev])
+          }
+        )
+        .subscribe()
+    }
+
+    initNotifRealtime()
+
+    return () => {
+      if (notifChannel) {
+        supabase.removeChannel(notifChannel)
+      }
+    }
+  }, [])
+
+  const handleMarkAllRead = async () => {
+    try {
+      const res = await fetch('/api/notifications', { method: 'PUT' })
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleNotifClick = async (notif: any) => {
+    setIsNotifOpen(false)
+    try {
+      await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: notif.id })
+      })
+      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n))
+      router.push(notif.link)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
 
   // Clock ticking
   useEffect(() => {
@@ -231,6 +332,72 @@ export function TopBar() {
             )}
           </div>
         )}
+
+        {/* Notification Bell Dropdown */}
+        <div className="relative ml-2" ref={notifRef}>
+          <button
+            onClick={() => setIsNotifOpen(!isNotifOpen)}
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-[#94A3B8] hover:text-white transition-all relative cursor-pointer"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadNotifCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white font-black text-[9px] flex items-center justify-center animate-pulse">
+                {unreadNotifCount}
+              </span>
+            )}
+          </button>
+
+          {isNotifOpen && (
+            <div className="absolute right-0 top-full pt-1.5 w-72 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="bg-[#0D1421] border border-[#1E3A5F]/50 rounded-xl shadow-2xl py-1.5 relative z-10 overflow-hidden backdrop-blur-md bg-opacity-95 flex flex-col max-h-80">
+                <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white">Notifications</span>
+                  {unreadNotifCount > 0 && (
+                    <button onClick={handleMarkAllRead} className="text-[9px] font-black uppercase text-primary hover:underline cursor-pointer">
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+                
+                <div className="flex-1 overflow-y-auto no-scrollbar py-1">
+                  {notifications.length === 0 ? (
+                    <p className="text-center text-[10px] text-[#64748B] uppercase tracking-wider font-bold py-8">No notifications yet.</p>
+                  ) : (
+                    notifications.map(n => (
+                      <button
+                        key={n.id}
+                        onClick={() => handleNotifClick(n)}
+                        className={cn(
+                          'w-full px-4 py-2.5 text-left text-xs transition-colors hover:bg-white/5 flex gap-2.5 items-start border-b border-white/[0.02]',
+                          !n.is_read && 'bg-primary/[0.02]'
+                        )}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary shrink-0 text-[10px] overflow-hidden border border-white/10 mt-0.5">
+                          {n.actor?.avatar_url ? (
+                            <img src={n.actor.avatar_url} alt="actor" className="w-full h-full object-cover" />
+                          ) : (
+                            n.actor?.username?.charAt(0).toUpperCase() || '?'
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn('leading-snug', !n.is_read ? 'text-white font-extrabold' : 'text-[#94A3B8]')}>
+                            {n.body}
+                          </p>
+                          <span className="text-[8px] text-[#64748B] font-mono mt-0.5 block">
+                            {format(new Date(n.created_at), 'MMM d, HH:mm')}
+                          </span>
+                        </div>
+                        {!n.is_read && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 mt-2" />
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Profile Dropdown */}
         <div className="relative ml-2" ref={profileRef}>

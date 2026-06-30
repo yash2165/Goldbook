@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { 
   User, Bell, Shield, CheckCircle2, MonitorSmartphone, Settings as SettingsIcon, 
   Globe, Clock, TrendingUp, Edit3, Loader2, Save, Key, AlertTriangle, Trash2, 
-  Copy, ShieldAlert, Check, CopyCheck, RefreshCcw, Info
+  Copy, ShieldAlert, Check, CopyCheck, RefreshCcw, Info, Lock, Download
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,7 +15,7 @@ import Link from 'next/link'
 import { useToast } from '@/context/ToastContext'
 import { useMarketMode, MarketMode } from '@/context/MarketModeContext'
 
-type Tab = 'profile' | 'security'
+type Tab = 'profile' | 'security' | 'privacy'
 
 const DEFAULT_CHECKLIST = [
   'Checked higher timeframe',
@@ -54,7 +54,13 @@ export default function SettingsPage() {
     timezone: 'UTC',
     pre_trade_checklist: DEFAULT_CHECKLIST,
     trading_setups: [] as { name: string, description: string }[],
-    market_mode: 'forex' as MarketMode
+    market_mode: 'forex' as MarketMode,
+    is_public: true,
+    show_pnl_amounts: true,
+    show_online_status: true,
+    allow_messages: 'friends',
+    allow_trade_visibility: 'friends',
+    allow_trade_copying: false
   })
 
   const [rules, setRules] = useState<any[]>([])
@@ -113,7 +119,13 @@ export default function SettingsPage() {
           timezone: data.timezone ?? 'UTC',
           pre_trade_checklist: data.pre_trade_checklist || DEFAULT_CHECKLIST,
           trading_setups: data.trading_setups || [],
-          market_mode: (data.market_mode as MarketMode) || 'forex'
+          market_mode: (data.market_mode as MarketMode) || 'forex',
+          is_public: data.is_public ?? true,
+          show_pnl_amounts: data.show_pnl_amounts ?? true,
+          show_online_status: data.show_online_status ?? true,
+          allow_messages: data.allow_messages ?? 'friends',
+          allow_trade_visibility: data.allow_trade_visibility ?? 'friends',
+          allow_trade_copying: data.allow_trade_copying ?? false
         })
 
       }
@@ -230,6 +242,12 @@ export default function SettingsPage() {
         pre_trade_checklist: profile.pre_trade_checklist,
         trading_setups: profile.trading_setups,
         market_mode: profile.market_mode,
+        is_public: profile.is_public,
+        show_pnl_amounts: profile.show_pnl_amounts,
+        show_online_status: profile.show_online_status,
+        allow_messages: profile.allow_messages,
+        allow_trade_visibility: profile.allow_trade_visibility,
+        allow_trade_copying: profile.allow_trade_copying,
         updated_at: new Date().toISOString()
       })
       .eq('id', user.id)
@@ -442,6 +460,7 @@ export default function SettingsPage() {
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: 'profile', label: 'Profile & Setups', icon: User },
     { id: 'security', label: 'Security & 2FA', icon: Shield },
+    { id: 'privacy', label: 'Privacy & GDPR Data', icon: Lock },
   ]
 
   const isPasswordStrong = passwordUpdate.length >= 8
@@ -1097,6 +1116,162 @@ export default function SettingsPage() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* PRIVACY & GDPR TAB */}
+        {tab === 'privacy' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
+            {/* Preferences block */}
+            <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-xs uppercase tracking-wider">Privacy Preferences</h3>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Control how your details are visible in the platform</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div className="space-y-4">
+                  {/* Public visibility toggle */}
+                  <div className="flex items-center justify-between p-3.5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <div>
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Public Profile</h4>
+                      <p className="text-[10px] text-[#64748B] font-semibold uppercase mt-0.5 leading-snug">Allow anyone to view your public trader standings page</p>
+                    </div>
+                    <button
+                      onClick={() => setProfile(prev => ({ ...prev, is_public: !prev.is_public }))}
+                      className={cn(
+                        'w-11 h-6 rounded-full transition-all relative border p-0.5 cursor-pointer',
+                        profile.is_public ? 'bg-[#38BDF8] border-[#38BDF8]' : 'bg-transparent border-white/10'
+                      )}
+                    >
+                      <span className={cn('w-4.5 h-4.5 rounded-full bg-[#060A12] block transition-transform', profile.is_public ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
+                  {/* Show P&L toggle */}
+                  <div className="flex items-center justify-between p-3.5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <div>
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Show P&L Amounts</h4>
+                      <p className="text-[10px] text-[#64748B] font-semibold uppercase mt-0.5 leading-snug">Display net profit value amounts instead of percentages only</p>
+                    </div>
+                    <button
+                      onClick={() => setProfile(prev => ({ ...prev, show_pnl_amounts: !prev.show_pnl_amounts }))}
+                      className={cn(
+                        'w-11 h-6 rounded-full transition-all relative border p-0.5 cursor-pointer',
+                        profile.show_pnl_amounts ? 'bg-[#38BDF8] border-[#38BDF8]' : 'bg-transparent border-white/10'
+                      )}
+                    >
+                      <span className={cn('w-4.5 h-4.5 rounded-full bg-[#060A12] block transition-transform', profile.show_pnl_amounts ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
+                  {/* Show online status toggle */}
+                  <div className="flex items-center justify-between p-3.5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <div>
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Show Online Status</h4>
+                      <p className="text-[10px] text-[#64748B] font-semibold uppercase mt-0.5 leading-snug">Let other community traders see when you are active online</p>
+                    </div>
+                    <button
+                      onClick={() => setProfile(prev => ({ ...prev, show_online_status: !prev.show_online_status }))}
+                      className={cn(
+                        'w-11 h-6 rounded-full transition-all relative border p-0.5 cursor-pointer',
+                        profile.show_online_status ? 'bg-[#38BDF8] border-[#38BDF8]' : 'bg-transparent border-white/10'
+                      )}
+                    >
+                      <span className={cn('w-4.5 h-4.5 rounded-full bg-[#060A12] block transition-transform', profile.show_online_status ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Allow messages dropdown */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-bold">Restrict Direct Messages</Label>
+                    <select
+                      value={profile.allow_messages}
+                      onChange={e => setProfile(prev => ({ ...prev, allow_messages: e.target.value }))}
+                      className="w-full bg-[#060A12] border border-white/10 rounded-xl h-11 px-3 text-xs text-white focus:outline-none focus:border-primary/50"
+                    >
+                      <option value="everyone">Everyone</option>
+                      <option value="friends">Friends & Followed only</option>
+                      <option value="none">Disable messaging</option>
+                    </select>
+                  </div>
+
+                  {/* Allow trade visibility dropdown */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-[#94A3B8] uppercase tracking-wider font-bold">Restrict Trade Visibility</Label>
+                    <select
+                      value={profile.allow_trade_visibility}
+                      onChange={e => setProfile(prev => ({ ...prev, allow_trade_visibility: e.target.value }))}
+                      className="w-full bg-[#060A12] border border-white/10 rounded-xl h-11 px-3 text-xs text-white focus:outline-none focus:border-primary/50"
+                    >
+                      <option value="everyone">Everyone</option>
+                      <option value="friends">Friends & Followed only</option>
+                      <option value="none">Private (Self only)</option>
+                    </select>
+                  </div>
+
+                  {/* Allow trade copying */}
+                  <div className="flex items-center justify-between p-3.5 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <div>
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">Allow Copy-Trading</h4>
+                      <p className="text-[10px] text-[#64748B] font-semibold uppercase mt-0.5 leading-snug">Let users copy-execute your trades automatically</p>
+                    </div>
+                    <button
+                      onClick={() => setProfile(prev => ({ ...prev, allow_trade_copying: !prev.allow_trade_copying }))}
+                      className={cn(
+                        'w-11 h-6 rounded-full transition-all relative border p-0.5 cursor-pointer',
+                        profile.allow_trade_copying ? 'bg-[#38BDF8] border-[#38BDF8]' : 'bg-transparent border-white/10'
+                      )}
+                    >
+                      <span className={cn('w-4.5 h-4.5 rounded-full bg-[#060A12] block transition-transform', profile.allow_trade_copying ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-white/5">
+                <button
+                  onClick={save}
+                  disabled={saving}
+                  className="px-6 py-3 bg-[#38BDF8] hover:bg-[#7DD3FC] text-black font-black uppercase tracking-widest text-[10px] rounded-xl transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? 'Saving changes...' : 'Save Privacy settings'}
+                </button>
+              </div>
+            </div>
+
+            {/* GDPR Exporter Block */}
+            <div className="bg-[#0D1421]/60 backdrop-blur-xl border border-[#1E3A5F]/40 rounded-3xl p-6 shadow-xl space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-xs uppercase tracking-wider">GDPR Data Archiver</h3>
+                  <p className="text-[10px] text-[#94A3B8] uppercase tracking-wider font-bold mt-0.5">Download your personal platform logs and information</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs text-[#94A3B8] leading-relaxed max-w-xl">
+                  Under the European Union General Data Protection Regulation (GDPR) and global privacy rules, you are entitled to a complete digital record of all records held inside the platform. Click below to instantly generate and download your profile settings, trading logs, social posts, and friendships.
+                </p>
+                
+                <a
+                  href="/api/profile/export-data"
+                  className="px-6 py-3.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/10 transition-colors cursor-pointer inline-flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" /> Generate & Export Archive
+                </a>
+              </div>
+            </div>
           </div>
         )}
       </div>

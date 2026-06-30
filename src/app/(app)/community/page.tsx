@@ -3,33 +3,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAccounts } from '@/hooks/useAccounts'
-import { computeStats, fmt } from '@/lib/calculations'
+import { fmt } from '@/lib/calculations'
 import { 
-  Send, 
-  Hash, 
-  Users, 
-  Trophy, 
-  TrendingUp, 
-  TrendingDown, 
-  Bot, 
-  Image as ImageIcon, 
-  Link as LinkIcon, 
-  Paperclip, 
-  X, 
-  Mic, 
-  UserPlus, 
-  Smile, 
-  AlertTriangle,
-  Volume2
+  Users, Trophy, Mic, UserPlus, Volume2, Globe, Mail, Loader2
 } from 'lucide-react'
-import { format } from 'date-fns'
 import { UserProfileModal } from '@/components/community/UserProfileModal'
 import { cn } from '@/lib/utils'
 import { 
   LiveKitRoom, 
   RoomAudioRenderer, 
-  VideoConference, 
-  ControlBar,
   GridLayout,
   ParticipantTile,
   useTracks
@@ -39,51 +21,29 @@ import { Track } from 'livekit-client'
 // Import LiveKit's default themes and layout styling
 import '@livekit/components-styles'
 import { useToast } from '@/context/ToastContext'
-
-const CHANNELS = [
-  { id: 'general', name: 'general', icon: Hash },
-  { id: 'xauusd', name: 'xauusd', icon: Hash },
-  { id: 'signals', name: 'signals', icon: Hash },
-  { id: 'ai-insights', name: 'ai-insights', icon: Bot },
-]
-
-interface Message {
-  id: string
-  user_id: string
-  channel: string
-  content: string
-  created_at: string
-  image_url?: string
-  shared_trade_id?: string
-  profiles?: { username: string; avatar_url?: string }
-  trades?: { 
-    symbol: string; 
-    direction: string; 
-    entry_price: number; 
-    net_profit: number; 
-    status: string;
-    source?: string;
-    lot_size?: number;
-    exit_price?: number;
-    pips?: number;
-    rr_ratio?: number;
-    setup_tag?: string;
-  }
-}
+import { SocialFeed } from '@/components/community/SocialFeed'
+import { DirectMessages } from '@/components/community/DirectMessages'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 export default function CommunityPage() {
-  const [tab, setTab] = useState<'chat' | 'leaderboard' | 'friends' | 'voice'>('chat')
-  const [channel, setChannel] = useState('general')
-  const [messages, setMessages] = useState<Message[]>([])
-  const [newMsg, setNewMsg] = useState('')
-  const [sending, setSending] = useState(false)
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const paramTab = searchParams.get('tab') as 'feed' | 'dms' | 'leaderboard' | 'friends' | 'voice' | null
+
+  const [tab, setTab] = useState<'feed' | 'dms' | 'leaderboard' | 'friends' | 'voice'>('feed')
   const [user, setUser] = useState<any>(null)
   const [myProfile, setMyProfile] = useState<any>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
-  const [friends, setFriends] = useState<{id: string, username: string}[]>([])
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const [friends, setFriends] = useState<{id: string, username: string, avatar_url?: string}[]>([])
   const supabase = createClient()
   const { success: showSuccess, error: showError } = useToast()
+
+  // Sync tab from query parameter if present
+  useEffect(() => {
+    if (paramTab && ['feed', 'dms', 'leaderboard', 'friends', 'voice'].includes(paramTab)) {
+      setTab(paramTab)
+    }
+  }, [paramTab])
 
   // LiveKit persistent voice connection state
   const [voiceToken, setVoiceToken] = useState('')
@@ -118,24 +78,19 @@ export default function CommunityPage() {
     setVoiceServerUrl('')
   }
 
-  // Real-time broadcast states
-  const [broadcastReactions, setBroadcastReactions] = useState<Record<string, Record<string, string[]>>>({})
-  const [typingUsers, setTypingUsers] = useState<string[]>([])
-  const [isUserTypingState, setIsUserTypingState] = useState(false)
-
-  // Ref tracking current active Supabase channel
-  const channelRef = useRef<any>(null)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Share Trade state
-  const [showShareModal, setShowShareModal] = useState(false)
-  const [myTrades, setMyTrades] = useState<any[]>([])
-  const [selectedTrade, setSelectedTrade] = useState<any>(null)
-  const [imageUrl, setImageUrl] = useState('')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-
-  // Quick Emoji Picker panel visibility
-  const [showEmojiDropdown, setShowEmojiDropdown] = useState(false)
+  // Load user session and profiles on mount
+  useEffect(() => {
+    async function initUser() {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser) {
+        setUser(authUser)
+        const { data: prof } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
+        setMyProfile(prof)
+        loadFriendsList(authUser.id)
+      }
+    }
+    initUser()
+  }, [])
 
   const loadFriendsList = async (userId: string) => {
     const { data: fData } = await supabase.from('friendships')
@@ -198,342 +153,96 @@ export default function CommunityPage() {
         .from('friendships')
         .update({ status: 'accepted' })
         .eq('id', existingFriendship.id)
-      
+
       if (updErr) return { error: updErr.message }
-      await loadFriendsList(user.id)
-      return { success: `Instantly established friendship with ${profileData.username}!` }
+      loadFriendsList(user.id)
+      return { success: `Successfully added ${profileData.username} as a friend!` }
     }
 
-    // Otherwise insert new accepted friendship instantly
     const { error: insErr } = await supabase
       .from('friendships')
       .insert({
         user_id: user.id,
         friend_id: profileData.id,
-        status: 'accepted'
+        status: 'accepted' // Autoconfirm friends initially for direct platform engagement
       })
 
-    if (insErr) {
-      return { error: insErr.message }
-    }
-
-    await loadFriendsList(user.id)
-    return { success: `Instantly established friendship with ${profileData.username}!` }
+    if (insErr) return { error: insErr.message }
+    loadFriendsList(user.id)
+    return { success: `Sent friend request to ${profileData.username}!` }
   }
 
-  // Load current user, profile and friends
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (data.user) {
-        setUser(data.user)
-        
-        // Load personal profile
-        const { data: pData } = await supabase
-          .from('profiles')
-          .select('username, avatar_url')
-          .eq('id', data.user.id)
-          .single()
-        if (pData) setMyProfile(pData)
-
-        // Load friends bidirectionally
-        await loadFriendsList(data.user.id)
-
-        // Load trades for sharing
-        const { data: tData } = await supabase.from('trades')
-          .select('*')
-          .eq('user_id', data.user.id)
-          .order('open_time', { ascending: false })
-          .limit(20)
-        if (tData) setMyTrades(tData)
-      }
-    })
-  }, [])
-
-  // Load persistent emoji reactions from cache when channel changes
-  useEffect(() => {
-    const cached = localStorage.getItem(`reactions_${channel}`)
-    if (cached) {
-      try {
-        setBroadcastReactions(JSON.parse(cached))
-      } catch (e) {
-        console.error(e)
-      }
-    } else {
-      setBroadcastReactions({})
-    }
-    setTypingUsers([])
-  }, [channel])
-
-  // Load messages + realtime channels & broadcasts
-  useEffect(() => {
-    async function loadMessages() {
-      const { data } = await supabase
-        .from('messages')
-        .select('*, profiles(username, avatar_url), trades(symbol, direction, entry_price, net_profit, status, source, lot_size, exit_price, pips, rr_ratio, setup_tag)')
-        .eq('channel', channel)
-        .order('created_at', { ascending: true })
-        .limit(50)
-      setMessages((data as Message[]) ?? [])
-    }
-    loadMessages()
-
-    // Establish channel with broadcast configuration enabled
-    const sub = supabase.channel(`chat-${channel}`, {
-      config: {
-        broadcast: { self: false } // don't loop broadcasts back to publisher
-      }
-    })
-    
-    // Listen for database inserts
-    sub.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel=eq.${channel}` },
-      async (payload) => {
-        const { data } = await supabase
-          .from('messages')
-          .select('*, profiles(username, avatar_url), trades(symbol, direction, entry_price, net_profit, status, source, lot_size, exit_price, pips, rr_ratio, setup_tag)')
-          .eq('id', payload.new.id)
-          .single()
-        if (data) setMessages(m => [...m, data as Message])
-      })
-    
-    // Listen for real-time emoji reactions broadcast
-    sub.on('broadcast', { event: 'reaction' }, ({ payload }) => {
-      setBroadcastReactions(prev => {
-        const key = payload.messageId
-        const current = prev[key] || {}
-        const users = current[payload.emoji] || []
-        
-        let nextUsers
-        if (users.includes(payload.userId)) {
-          nextUsers = users.filter(u => u !== payload.userId)
-        } else {
-          nextUsers = [...users, payload.userId]
-        }
-        
-        const updated = {
-          ...prev,
-          [key]: {
-            ...current,
-            [payload.emoji]: nextUsers
-          }
-        }
-        localStorage.setItem(`reactions_${channel}`, JSON.stringify(updated))
-        return updated
-      })
-    })
-
-    // Listen for typing indicator broadcast
-    sub.on('broadcast', { event: 'typing' }, ({ payload }) => {
-      setTypingUsers(prev => {
-        if (payload.isTyping) {
-          if (prev.includes(payload.username)) return prev
-          return [...prev, payload.username]
-        } else {
-          return prev.filter(u => u !== payload.username)
-        }
-      })
-    })
-
-    sub.subscribe()
-    channelRef.current = sub
-
-    return () => { 
-      supabase.removeChannel(sub) 
-      channelRef.current = null
-    }
-  }, [channel])
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  // Handle key input change and trigger debounced typing broadcasts
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewMsg(e.target.value)
-    
+  const handleStartDM = async (recipientId: string) => {
     if (!user) return
-    
-    const myName = myProfile?.username || user.email?.split('@')[0] || 'Trader'
-
-    if (!isUserTypingState && e.target.value.trim() !== '') {
-      setIsUserTypingState(true)
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'typing',
-          payload: { username: myName, isTyping: true }
-        })
-      }
-    }
-
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-    typingTimeoutRef.current = setTimeout(() => {
-      setIsUserTypingState(false)
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'typing',
-          payload: { username: myName, isTyping: false }
-        })
-      }
-    }, 1500)
-  }
-
-  // Toggle emoji reactions on messages and broadcast to channel
-  const toggleReaction = async (messageId: string, emoji: string) => {
-    if (!user) return
-    
-    setBroadcastReactions(prev => {
-      const current = prev[messageId] || {}
-      const users = current[emoji] || []
-      let nextUsers
-      if (users.includes(user.id)) {
-        nextUsers = users.filter(u => u !== user.id)
-      } else {
-        nextUsers = [...users, user.id]
-      }
-      
-      const updated = {
-        ...prev,
-        [messageId]: {
-          ...current,
-          [emoji]: nextUsers
-        }
-      }
-      localStorage.setItem(`reactions_${channel}`, JSON.stringify(updated))
-      return updated
-    })
-
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'reaction',
-        payload: { messageId, emoji, userId: user.id }
+    try {
+      const res = await fetch('/api/messages/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'direct', recipientId })
       })
-    }
-  }
-
-  const send = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    if ((!newMsg.trim() && !selectedTrade && !imageUrl && !imageFile) || !user) return
-    
-    setSending(true)
-    
-    let uploadedUrl = imageUrl
-    if (imageFile) {
-      const ext = imageFile.name.split('.').pop()
-      const fileName = `${Math.random()}.${ext}`
-      const { data: uploadData, error } = await supabase.storage.from('chat_images').upload(fileName, imageFile)
-      if (!error && uploadData) {
-        const { data: { publicUrl } } = supabase.storage.from('chat_images').getPublicUrl(fileName)
-        uploadedUrl = publicUrl
+      const data = await res.json()
+      if (res.ok && data.conversation) {
+        router.push(`/community?tab=dms&id=${data.conversation.id}`)
       }
-    }
-
-    await supabase.from('messages').insert({ 
-      user_id: user.id, 
-      channel, 
-      content: newMsg.trim() || (selectedTrade ? 'Shared a trade' : ''),
-      shared_trade_id: selectedTrade?.id || null,
-      image_url: uploadedUrl || null
-    })
-    
-    // Clear state
-    setNewMsg('')
-    setSelectedTrade(null)
-    setImageUrl('')
-    setImageFile(null)
-    setShowShareModal(false)
-    setSending(false)
-
-    // Stop typing state
-    setIsUserTypingState(false)
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'typing',
-        payload: { username: myProfile?.username || user.email?.split('@')[0] || 'Trader', isTyping: false }
-      })
+    } catch (e) {
+      console.error(e)
     }
   }
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    if (showShareModal && e.clipboardData.files.length > 0) {
-      setImageFile(e.clipboardData.files[0])
-    }
-  }
-
-  const selectEmoji = (emoji: string) => {
-    setNewMsg(prev => prev + emoji)
-    setShowEmojiDropdown(false)
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#07070b]">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
   }
 
   const mainContent = (
-    <div className="flex h-[calc(100vh-56px)] overflow-hidden" onPaste={handlePaste}>
-      {/* Left channel list */}
+    <div className="flex h-[calc(100vh-56px)] overflow-hidden">
+      {/* Left Menu Sidebar */}
       <div className="w-56 bg-[#0c0c14] border-r border-white/5 flex flex-col shrink-0">
         <div className="px-4 py-4 border-b border-white/5">
-          <p className="text-xs font-bold uppercase tracking-widest text-[#64748B]">Channels</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#64748B]">Community Hub</p>
         </div>
-        <div className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
-          {CHANNELS.map(ch => (
-            <button
-              key={ch.id}
-              onClick={() => { setChannel(ch.id); setTab('chat') }}
-              className={cn(
-                'w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold tracking-wide uppercase transition-all text-left',
-                channel === ch.id && tab === 'chat' ? 'bg-[#38BDF8]/10 text-[#38BDF8]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
-              )}
-            >
-              <ch.icon className="w-4 h-4 shrink-0" />
-              {ch.name}
-            </button>
-          ))}
+        <div className="flex-1 py-4 px-2 space-y-1.5 overflow-y-auto no-scrollbar">
+          <button
+            onClick={() => setTab('feed')}
+            className={cn(
+              'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer',
+              tab === 'feed' ? 'bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/15' : 'text-[#64748B] hover:text-foreground hover:bg-white/5 border border-transparent'
+            )}
+          >
+            <Globe className="w-4 h-4 shrink-0" />
+            <span>Social Feed</span>
+          </button>
           
-          {/* DMs */}
-          {friends.length > 0 && (
-            <>
-              <div className="pt-5 pb-1 px-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#334155]">Direct Messages</p>
-              </div>
-              {friends.map(f => {
-                const dmChannelId = `dm_${[user?.id, f.id].sort().join('_')}`
-                return (
-                  <button
-                    key={f.id}
-                    onClick={() => { setChannel(dmChannelId); setTab('chat') }}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors text-left',
-                      channel === dmChannelId && tab === 'chat' ? 'bg-[#38BDF8]/10 text-[#38BDF8]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
-                    )}
-                  >
-                    <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-[10px] font-bold text-primary">
-                      {f.username.charAt(0).toUpperCase()}
-                    </div>
-                    {f.username}
-                  </button>
-                )
-              })}
-            </>
-          )}
-        </div>
-        
-        {/* Navigation bottom menu options */}
-        <div className="px-2 pb-3 border-t border-white/5 pt-3 space-y-1">
+          <button
+            onClick={() => setTab('dms')}
+            className={cn(
+              'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer',
+              tab === 'dms' ? 'bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/15' : 'text-[#64748B] hover:text-foreground hover:bg-white/5 border border-transparent'
+            )}
+          >
+            <Mail className="w-4 h-4 shrink-0" />
+            <span>Direct Messages</span>
+          </button>
+
           <button
             onClick={() => setTab('friends')}
             className={cn(
-              'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors',
-              tab === 'friends' ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
+              'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer',
+              tab === 'friends' ? 'bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/15' : 'text-[#64748B] hover:text-foreground hover:bg-white/5 border border-transparent'
             )}
           >
-            <Users className="w-4 h-4" /> Friends
+            <Users className="w-4 h-4 shrink-0" />
+            <span>Friends list</span>
           </button>
+          
           <button
             onClick={() => setTab('voice')}
             className={cn(
-              'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors group/voice',
-              tab === 'voice' ? 'bg-[#8B5CF6]/10 text-[#8B5CF6]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
+              'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer group/voice',
+              tab === 'voice' ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/15' : 'text-[#64748B] hover:text-foreground hover:bg-white/5 border border-transparent'
             )}
           >
             <div className="flex items-center gap-2.5">
@@ -544,417 +253,58 @@ export default function CommunityPage() {
               <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-ping" />
             )}
           </button>
+
           <button
             onClick={() => setTab('leaderboard')}
             className={cn(
-              'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors',
-              tab === 'leaderboard' ? 'bg-[#F59E0B]/10 text-[#F59E0B]' : 'text-[#64748B] hover:text-foreground hover:bg-white/5'
+              'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer',
+              tab === 'leaderboard' ? 'bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/15' : 'text-[#64748B] hover:text-foreground hover:bg-white/5 border border-transparent'
             )}
           >
-            <Trophy className="w-4 h-4" /> Leaderboard
+            <Trophy className="w-4 h-4 shrink-0" />
+            <span>Leaderboard</span>
           </button>
         </div>
       </div>
 
-      {/* Main Chat space panel */}
+      {/* Main Workspace Display Panel */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[#07070b]">
-        {tab === 'chat' ? (
-          <>
-            {/* Channel header */}
-            <div className="h-12 border-b border-white/5 px-5 flex items-center justify-between shrink-0 bg-[#0d0d14]">
-              <div className="flex items-center gap-2">
-                {channel.startsWith('dm_') ? (
-                  <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">@</div>
-                ) : (
-                  <Hash className="w-4 h-4 text-[#64748B]" />
-                )}
-                <span className="font-bold text-xs uppercase tracking-wider text-white/90">
-                  {channel.startsWith('dm_') ? (() => {
-                    const parts = channel.replace('dm_', '').split('_')
-                    const friendId = parts.find(id => id !== user?.id)
-                    const friend = friends.find(f => f.id === friendId)
-                    return friend ? `@${friend.username}` : 'Direct Message'
-                  })() : channel}
-                </span>
-                <span className="ml-2 text-[10px] text-[#64748B] bg-white/5 px-2 py-0.5 rounded font-mono">{messages.length} messages</span>
-              </div>
-            </div>
-
-            {/* Messages feed */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6 bg-[radial-gradient(ellipse_at_top_right,rgba(245,159,11,0.015),transparent_60%)] custom-scrollbar">
-              {messages.length === 0 && (
-                <div className="text-center py-20 text-[#334155] text-xs font-semibold uppercase tracking-wider">
-                  No transmissions in #{channel} yet. Be the first to broadcast!
-                </div>
-              )}
-              {messages.map(msg => (
-                <div key={msg.id} className={cn('flex gap-3', msg.user_id === user?.id && 'flex-row-reverse')}>
-                  <button 
-                    onClick={() => setSelectedUser(msg.user_id)}
-                    className="w-8 h-8 rounded-lg overflow-hidden border border-[#38BDF8]/20 flex items-center justify-center shrink-0 text-xs font-bold text-[#38BDF8] hover:scale-105 transition-transform animate-in fade-in zoom-in-75 duration-300 bg-[#38BDF8]/10"
-                  >
-                    {msg.profiles?.avatar_url ? (
-                      <img src={msg.profiles.avatar_url} alt={msg.profiles.username} className="w-full h-full object-cover" />
-                    ) : (
-                      (msg.profiles?.username ?? 'U').charAt(0).toUpperCase()
-                    )}
-                  </button>
-                  
-                  <div className={cn('max-w-md space-y-1', msg.user_id === user?.id && 'items-end flex flex-col')}>
-                    <div className="flex items-center gap-2 text-[9px] text-[#64748B] px-1 font-semibold uppercase tracking-wider">
-                      <button onClick={() => setSelectedUser(msg.user_id)} className="font-bold text-[#94A3B8] hover:text-[#38BDF8] hover:underline">
-                        {msg.profiles?.username ?? 'Anonymous'}
-                      </button>
-                      <span>{format(new Date(msg.created_at), 'HH:mm')}</span>
-                    </div>
-
-                    {/* Unified Message Block with hover reaction bridge */}
-                    <div className="group relative">
-                      {/* Floating reaction picker panel */}
-                      {user && (
-                        <div className={cn(
-                          "absolute bg-[#0D1421]/95 border border-white/10 rounded-full px-2.5 py-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.5)] backdrop-blur-md flex gap-2 opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto transition-all duration-200 z-20 -top-6 origin-bottom",
-                          msg.user_id === user?.id ? "right-2" : "left-2"
-                        )}>
-                          {['🔥', '🚀', '👏', '🎯', '💎', '⚠️'].map(emoji => (
-                            <button
-                              key={emoji}
-                              onClick={() => toggleReaction(msg.id, emoji)}
-                              className="hover:scale-125 active:scale-95 transition-transform text-xs cursor-pointer"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className={cn(
-                        'overflow-hidden rounded-xl border flex flex-col shadow-md transition-all duration-200',
-                        msg.trades && msg.trades.source !== 'manual'
-                          ? 'bg-gradient-to-br from-[#1c1c2b]/95 via-[#10101a]/95 to-[#08080d]/95 border-[#38BDF8]/30 shadow-[0_10px_35px_rgba(56,189,248,0.06)] rounded-xl hover:border-[#38BDF8]/50'
-                          : msg.user_id === user?.id
-                            ? 'bg-[#38BDF8]/5 border-[#38BDF8]/20 rounded-tr-none'
-                            : 'bg-[#10101a]/90 border-white/5 rounded-tl-none hover:border-white/10'
-                      )}>
-                        {msg.content && msg.content !== 'Shared a trade' && (
-                          <div className={cn('px-4 py-3 text-sm leading-relaxed text-white/95 font-medium', (msg.trades || msg.image_url) && 'border-b border-white/5')}>
-                            {msg.content}
-                          </div>
-                        )}
-
-                        {/* Premium custom Sync Trade Embed Card */}
-                        {msg.trades && (
-                          <div className="bg-black/25 backdrop-blur-sm relative w-64 md:w-80 shadow-inner rounded-xl overflow-hidden">
-                            {/* Card header */}
-                            <div className={cn(
-                              "px-3 py-2 flex items-center justify-between text-[9px] font-extrabold tracking-wider uppercase border-b border-white/[0.04]",
-                              msg.trades.source !== 'manual' 
-                                ? "bg-gradient-to-r from-[#38BDF8]/15 via-[#F59E0B]/5 to-transparent text-[#38BDF8]" 
-                                : "bg-white/5 text-[#94A3B8]"
-                            )}>
-                              <span className="flex items-center gap-1.5">
-                                {msg.trades.source !== 'manual' ? (
-                                  <>
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#38BDF8] animate-ping" />
-                                    🛡️ Verified MT5 Trade
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#64748B]" />
-                                    📝 Journal Entry
-                                  </>
-                                )}
-                              </span>
-                              <span className="font-mono text-[#64748B] text-[8px]">
-                                {msg.trades.source !== 'manual' ? 'Sync: mt5' : 'Manual'}
-                              </span>
-                            </div>
-
-                            {/* Trade metrics */}
-                            <div className="p-4 space-y-4">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h4 className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
-                                    {msg.trades.symbol}
-                                    {msg.trades.source !== 'manual' && (
-                                      <span className="text-[#38BDF8] text-[10px]" title="Verified Sync">⚡</span>
-                                    )}
-                                  </h4>
-                                  <span className={cn(
-                                    "text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest mt-1 inline-block border",
-                                    msg.trades.direction?.toLowerCase() === 'buy' ? "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20" : "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20"
-                                  )}>
-                                    {msg.trades.direction}
-                                  </span>
-                                </div>
-                                
-                                {msg.trades.status === 'closed' ? (
-                                  <div className="text-right">
-                                    <span className="text-[8px] text-[#64748B] uppercase font-bold tracking-wider block">Net Return</span>
-                                    <span className={cn(
-                                      "text-sm font-extrabold font-mono tracking-tight",
-                                      (msg.trades.net_profit ?? 0) >= 0 ? "text-[#22C55E] drop-shadow-[0_0_8px_rgba(34,197,94,0.25)]" : "text-[#EF4444]"
-                                    )}>
-                                      {(msg.trades.net_profit ?? 0) >= 0 ? '+' : ''}{fmt(msg.trades.net_profit ?? 0)}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="text-right flex items-center gap-1.5 text-[9px] font-bold text-[#F59E0B] uppercase">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-ping" />
-                                    Active Running
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* 2x3 Grid */}
-                              <div className="grid grid-cols-3 gap-2.5 pt-3 border-t border-white/[0.04] text-[10px] text-[#64748B]">
-                                <div>
-                                  <span className="block text-[8px] uppercase tracking-wider font-semibold">Lots</span>
-                                  <span className="font-bold text-white/90 font-mono">{msg.trades.lot_size ? msg.trades.lot_size.toFixed(2) : 'N/A'}</span>
-                                </div>
-                                <div>
-                                  <span className="block text-[8px] uppercase tracking-wider font-semibold">Entry</span>
-                                  <span className="font-bold text-white/90 font-mono">{msg.trades.entry_price ? msg.trades.entry_price.toFixed(2) : 'N/A'}</span>
-                                </div>
-                                <div>
-                                  <span className="block text-[8px] uppercase tracking-wider font-semibold">Exit</span>
-                                  <span className="font-bold text-white/90 font-mono">{msg.trades.exit_price ? msg.trades.exit_price.toFixed(2) : 'Ticking'}</span>
-                                </div>
-                                <div>
-                                  <span className="block text-[8px] uppercase tracking-wider font-semibold">Pips</span>
-                                  <span className={cn("font-bold font-mono", (msg.trades.pips ?? 0) >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
-                                    {msg.trades.pips ? `${msg.trades.pips >= 0 ? '+' : ''}${msg.trades.pips.toFixed(1)}` : 'N/A'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="block text-[8px] uppercase tracking-wider font-semibold">R:R Ratio</span>
-                                  <span className="font-bold text-white/90 font-mono">{msg.trades.rr_ratio ? `1:${msg.trades.rr_ratio.toFixed(1)}` : 'N/A'}</span>
-                                </div>
-                                <div>
-                                  <span className="block text-[8px] uppercase tracking-wider font-semibold">Setup</span>
-                                  <span className="font-bold text-[#38BDF8] uppercase tracking-wide truncate max-w-[70px] block">{msg.trades.setup_tag || 'Unset'}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Attached Image */}
-                        {msg.image_url && (
-                          <div className="w-64 md:w-80">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={msg.image_url} alt="Shared chart" className="w-full h-auto object-cover max-h-64 object-top" />
-                          </div>
-                        )}
-
-                        {/* Render Tallied Reactions under message body */}
-                        {Object.entries(broadcastReactions[msg.id] || {}).filter(([_, users]) => users.length > 0).length > 0 && (
-                          <div className="flex flex-wrap gap-1 px-3 pb-2 pt-1.5 border-t border-white/[0.04] bg-black/10">
-                            {Object.entries(broadcastReactions[msg.id] || {}).map(([emoji, users]) => {
-                              if (users.length === 0) return null
-                              const hasReacted = user && users.includes(user.id)
-                              return (
-                                <button
-                                  key={emoji}
-                                  onClick={() => toggleReaction(msg.id, emoji)}
-                                  className={cn(
-                                    "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors font-bold cursor-pointer",
-                                    hasReacted 
-                                      ? "bg-[#38BDF8]/20 border-[#38BDF8]/30 text-[#38BDF8]" 
-                                      : "bg-white/5 border-white/5 text-[#64748B] hover:text-white"
-                                  )}
-                                >
-                                  <span>{emoji}</span>
-                                  <span className="font-mono text-[9px]">{users.length}</span>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div ref={bottomRef} />
-            </div>
-
-            {/* Typing indicator alerts bar */}
-            {typingUsers.length > 0 && (
-              <div className="px-5 py-1 text-[10px] text-[#38BDF8] italic font-semibold font-sans bg-black/10 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#38BDF8] animate-pulse" />
-                {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
-              </div>
-            )}
-
-            {/* Inputs bar */}
-            <div className="px-5 py-4 border-t border-white/5 bg-[#0d0d14] relative">
-              
-              {/* Floating Emoji picker drawer */}
-              {showEmojiDropdown && (
-                <div className="absolute bottom-full mb-2 left-5 bg-[#0f0f18] border border-white/10 p-3 rounded-xl shadow-2xl flex gap-2 z-50">
-                  {['🔥', '🚀', '👏', '🎯', '💎', '⚠️', '📈', '📉', '🤑', '🏆'].map(emoji => (
-                    <button 
-                      key={emoji} 
-                      onClick={() => selectEmoji(emoji)}
-                      className="hover:scale-125 transition-transform text-lg"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                  <button onClick={() => setShowEmojiDropdown(false)} className="text-[10px] text-[#64748B] hover:text-white font-bold ml-1">Close</button>
-                </div>
-              )}
-
-              <form onSubmit={send} className="flex items-center gap-3 bg-[#10101a] border border-white/10 rounded-xl px-2 py-1.5 focus-within:border-primary/50 transition-colors">
-                <div className="flex items-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowShareModal(true)}
-                    className="p-2 text-[#64748B] hover:text-white transition-colors"
-                    title="Share a trade or screenshot"
-                  >
-                    <Paperclip className="w-5 h-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowEmojiDropdown(!showEmojiDropdown)}
-                    className="p-2 text-[#64748B] hover:text-white transition-colors"
-                    title="Insert Emoji"
-                  >
-                    <Smile className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <input
-                  value={newMsg}
-                  onChange={handleInputChange}
-                  placeholder={user ? `Message #${channel}...` : 'Sign in to chat'}
-                  disabled={!user || sending}
-                  className="flex-1 bg-transparent border-none text-sm focus:outline-none placeholder:text-[#334155]"
-                />
-                <button
-                  type="submit"
-                  disabled={(!newMsg.trim() && !selectedTrade && !imageUrl && !imageFile) || !user || sending}
-                  className="w-8 h-8 rounded-lg bg-[#38BDF8] hover:bg-[#38BDF8]/95 flex items-center justify-center transition-colors disabled:opacity-40 text-black font-bold"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
-            </div>
-          </>
-        ) : tab === 'leaderboard' ? (
-          <LeaderboardTab />
+        {tab === 'feed' ? (
+          <SocialFeed user={user} onOpenProfile={(username) => router.push(`/trader/${username}`)} />
+        ) : tab === 'dms' ? (
+          <DirectMessages user={user} />
         ) : tab === 'friends' ? (
           <FriendsTab 
             friends={friends} 
             user={user} 
-            onMessage={(dm) => { setChannel(dm); setTab('chat') }} 
+            onMessage={handleStartDM} 
             onAddFriend={handleAddFriendByUsername} 
           />
-        ) : tab === 'voice' ? (
-          <VoiceTab connected={voiceConnected} loading={voiceLoading} onConnect={joinVoiceRoom} onDisconnect={leaveVoiceRoom} />
-        ) : null}
+        ) : tab === 'leaderboard' ? (
+          <LeaderboardTab />
+        ) : (
+          <VoiceTab 
+            connected={voiceConnected} 
+            loading={voiceLoading} 
+            onConnect={joinVoiceRoom} 
+            onDisconnect={leaveVoiceRoom} 
+          />
+        )}
       </div>
 
-      {/* Share Modal */}
-      {showShareModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowShareModal(false)}>
-          <div className="bg-[#0D1421] border border-white/10 rounded-2xl p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold">Share Trade & Chart</h2>
-              <button onClick={() => setShowShareModal(false)} className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-white/5 transition-all">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Select Trade */}
-              <div>
-                <label className="text-xs text-[#64748B] uppercase tracking-wider font-semibold mb-2 block">Link a Trade (Optional)</label>
-                <select 
-                  value={selectedTrade?.id || ''}
-                  onChange={e => setSelectedTrade(myTrades.find(t => t.id === e.target.value) || null)}
-                  className="w-full bg-[#0D1421] border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark] appearance-none"
-                >
-                  <option value="">-- No trade selected --</option>
-                  {myTrades.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.status.toUpperCase()}: {t.symbol} {t.direction.toUpperCase()} @ {t.entry_price} {t.status === 'closed' ? `(${fmt(t.net_profit)})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Attach Image / Link */}
-              <div>
-                <label className="text-xs text-[#64748B] uppercase tracking-wider font-semibold mb-2 block flex items-center justify-between">
-                  <span>Attach Screenshot (Optional)</span>
-                  <span className="text-[#64748B] text-[10px] font-normal lowercase">Ctrl+V to paste image</span>
-                </label>
-                
-                {imageFile ? (
-                  <div className="p-3 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between">
-                    <span className="text-sm text-white truncate max-w-[200px] flex items-center gap-2">
-                      <ImageIcon className="w-4 h-4 text-primary" /> {imageFile.name}
-                    </span>
-                    <button onClick={() => setImageFile(null)} className="text-[#EF4444] text-xs font-bold">Remove</button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <LinkIcon className="w-4 h-4 absolute left-3 top-2.5 text-[#64748B]" />
-                      <input
-                        value={imageUrl}
-                        onChange={e => setImageUrl(e.target.value)}
-                        placeholder="Paste TradingView image link..."
-                        className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-primary/50"
-                      />
-                    </div>
-                    <label className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg cursor-pointer hover:bg-white/10 transition-colors flex items-center justify-center">
-                      <ImageIcon className="w-4 h-4 text-[#64748B]" />
-                      <input type="file" className="hidden" accept="image/*" onChange={e => {
-                        if (e.target.files?.[0]) setImageFile(e.target.files[0])
-                      }} />
-                    </label>
-                  </div>
-                )}
-              </div>
-              
-              <div className="pt-2">
-                <label className="text-xs text-[#64748B] uppercase tracking-wider font-semibold mb-2 block">Comment (Optional)</label>
-                <input
-                  value={newMsg}
-                  onChange={e => setNewMsg(e.target.value)}
-                  placeholder="Add a comment to your trade..."
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
-                />
-              </div>
-
-              <button
-                onClick={() => send()}
-                disabled={(!newMsg.trim() && !selectedTrade && !imageUrl && !imageFile) || sending}
-                className="w-full py-2.5 bg-[#38BDF8] hover:bg-[#38BDF8]/95 disabled:opacity-40 rounded-xl text-sm font-bold transition-all shadow-lg shadow-[#38BDF8]/25 flex items-center justify-center gap-2 text-black"
-              >
-                {sending ? 'Sending...' : <><Send className="w-4 h-4" /> Share to #{channel}</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Floating active voice call popup card */}
       {voiceConnected && tab !== 'voice' && (
-        <div className="fixed bottom-6 right-6 bg-[#0c0c14]/95 border border-[#8B5CF6]/30 px-4 py-3.5 rounded-2xl shadow-2xl flex items-center gap-4 backdrop-blur-xl z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed bottom-6 right-20 bg-[#0c0c14]/95 border border-[#8B5CF6]/30 px-4 py-3.5 rounded-2xl shadow-2xl flex items-center gap-4 backdrop-blur-xl z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="flex items-center gap-3">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22C55E] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#22C55E]"></span>
             </span>
             <div className="text-left">
-              <p className="text-[10px] font-black text-[#F1F5F9] uppercase tracking-wider flex items-center gap-1.5">
-                <Volume2 className="w-3.5 h-3.5 text-[#38BDF8]" /> Trading Floor
+              <p className="text-[10px] font-black text-[#F1F5F9] uppercase tracking-wider flex items-center gap-1.5 leading-none">
+                Voice Floor
               </p>
-              <p className="text-[8px] text-[#8B5CF6] uppercase tracking-widest font-extrabold mt-0.5">Voice Room Active</p>
+              <p className="text-[8px] text-[#8B5CF6] uppercase tracking-widest font-extrabold mt-1">Active Call</p>
             </div>
           </div>
           <div className="flex items-center gap-2 border-l border-white/5 pl-4">
@@ -962,7 +312,7 @@ export default function CommunityPage() {
               onClick={() => setTab('voice')}
               className="px-3 py-1.5 bg-[#8B5CF6]/10 hover:bg-[#8B5CF6]/20 rounded-lg text-[9px] font-bold uppercase tracking-wider text-[#8B5CF6] transition-all cursor-pointer border border-[#8B5CF6]/20"
             >
-              View Grid
+              View
             </button>
             <button 
               onClick={leaveVoiceRoom}
@@ -979,9 +329,8 @@ export default function CommunityPage() {
           userId={selectedUser} 
           currentUserId={user?.id}
           onClose={() => setSelectedUser(null)} 
-          onMessage={(channelId) => {
-            setChannel(channelId)
-            setTab('chat')
+          onMessage={(recipientId) => {
+            handleStartDM(recipientId)
             setSelectedUser(null)
           }}
         />
@@ -1049,9 +398,8 @@ function LeaderboardTab() {
   const top3 = leaderboard.slice(0, 3)
   const remaining = leaderboard.slice(3)
 
-
   return (
-    <div className="flex-1 overflow-y-auto p-6 bg-[#07070b]">
+    <div className="flex-1 overflow-y-auto p-6 bg-[#07070b] no-scrollbar">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-2 mb-6">
           <Trophy className="w-6 h-6 text-[#38BDF8] drop-shadow-[0_0_10px_rgba(56,189,248,0.3)]" />
@@ -1064,7 +412,7 @@ function LeaderboardTab() {
           </div>
         ) : (
           <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Esport-Style 3D Podium for Top 3 */}
+            {/* 3D Podium for Top 3 */}
             <div className="grid grid-cols-3 gap-4 items-end max-w-xl mx-auto pt-6 pb-4 border-b border-white/5">
               
               {/* 2nd Place (Silver) */}
@@ -1088,7 +436,7 @@ function LeaderboardTab() {
                     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-400 to-slate-200" />
                     <span className="text-slate-300 text-[9px] font-black tracking-widest uppercase">RANK #2</span>
                     <span className="text-[9px] text-[#64748B] mt-1">{top3[1].trades} Trades</span>
-                    <span className="text-[8px] text-[#22C55E]/80 font-mono mt-0.5 font-bold">WR: {top3[1].winRate}% • {top3[1].mostTraded}</span>
+                    <span className="text-[8px] text-[#22C55E]/80 font-mono mt-0.5 font-bold">WR: {top3[1].winRate}%</span>
                   </div>
                 </div>
               ) : (
@@ -1116,7 +464,7 @@ function LeaderboardTab() {
                     <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-yellow-300 via-primary to-amber-500" />
                     <span className="text-[#38BDF8] text-xs font-black tracking-widest uppercase animate-pulse">CHAMPION</span>
                     <span className="text-[9px] text-[#64748B] mt-1">{top3[0].trades} Trades</span>
-                    <span className="text-[8px] text-primary/80 font-mono mt-0.5 font-bold">WR: {top3[0].winRate}% • {top3[0].mostTraded}</span>
+                    <span className="text-[8px] text-primary/80 font-mono mt-0.5 font-bold">WR: {top3[0].winRate}%</span>
                   </div>
                 </div>
               ) : (
@@ -1144,7 +492,7 @@ function LeaderboardTab() {
                     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#CD7F32] to-[#A0522D]" />
                     <span className="text-[#CD7F32] text-[9px] font-black tracking-widest uppercase">RANK #3</span>
                     <span className="text-[9px] text-[#64748B] mt-1">{top3[2].trades} Trades</span>
-                    <span className="text-[8px] text-[#CD7F32]/80 font-mono mt-0.5 font-bold">WR: {top3[2].winRate}% • {top3[2].mostTraded}</span>
+                    <span className="text-[8px] text-[#CD7F32]/80 font-mono mt-0.5 font-bold">WR: {top3[2].winRate}%</span>
                   </div>
                 </div>
               ) : (
@@ -1171,7 +519,7 @@ function LeaderboardTab() {
                       </div>
                       <div className="flex-1">
                         <p className="font-bold text-sm text-white">{entry.username}</p>
-                        <p className="text-xs text-[#64748B]">{entry.trades} trades • Win Rate: {entry.winRate}% • Most Traded: {entry.mostTraded}</p>
+                        <p className="text-xs text-[#64748B]">{entry.trades} trades • Win Rate: {entry.winRate}%</p>
                       </div>
                       <div className={cn('font-bold tabular-nums text-sm font-mono', entry.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
                         {fmt(entry.pnl)}
@@ -1196,7 +544,7 @@ function FriendsTab({
 }: { 
   friends: any[]
   user: any
-  onMessage: (dm: string) => void
+  onMessage: (recipientId: string) => void
   onAddFriend: (username: string) => Promise<{ error?: string; success?: string }>
 }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -1225,7 +573,7 @@ function FriendsTab({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 bg-[#07070b]">
+    <div className="flex-1 overflow-y-auto p-6 bg-[#07070b] no-scrollbar">
       <div className="max-w-xl space-y-6">
         <h2 className="text-lg font-black uppercase tracking-wider text-white flex items-center gap-2">
           <Users className="w-5 h-5 text-[#22C55E]" /> Friends & Following
@@ -1245,7 +593,7 @@ function FriendsTab({
             <button 
               onClick={handleAddClick}
               disabled={adding || !searchTerm.trim()}
-              className="px-4 py-2 bg-[#38BDF8] hover:bg-[#38BDF8]/95 text-black rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+              className="px-4 py-2 bg-[#38BDF8] hover:bg-[#38BDF8]/95 text-black rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer"
             >
               <UserPlus className="w-4 h-4" /> {adding ? 'Adding...' : 'Add'}
             </button>
@@ -1263,15 +611,14 @@ function FriendsTab({
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary relative overflow-hidden">
                       {f.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={f.avatar_url} alt={f.username} className="w-full h-full object-cover" />
                       ) : (
                         f.username.charAt(0).toUpperCase()
                       )}
                     </div>
-                    <span className="font-bold text-sm">{f.username}</span>
+                    <span className="font-bold text-sm text-white">{f.username}</span>
                   </div>
-                  <button onClick={() => onMessage(`dm_${[user?.id, f.id].sort().join('_')}`)} className="text-xs text-primary hover:underline">Message</button>
+                  <button onClick={() => onMessage(f.id)} className="text-xs text-primary hover:underline cursor-pointer">Message</button>
                 </div>
               ))}
             </div>
@@ -1380,11 +727,6 @@ function VoiceRoomActive({ onDisconnect }: { onDisconnect: () => void }) {
               </GridLayout>
             </div>
           )}
-        </div>
-        
-        {/* Floating Capsule style Control Bar */}
-        <div className="mt-6 flex justify-center bg-black/20 p-2.5 rounded-xl border border-white/5 w-fit mx-auto">
-          <ControlBar variation="minimal" controls={{ microphone: true, screenShare: true, camera: true, leave: false }} />
         </div>
       </div>
     </div>
