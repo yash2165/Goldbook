@@ -18,9 +18,11 @@ import confetti from 'canvas-confetti'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import Link from 'next/link'
+import { useMarketMode } from '@/context/MarketModeContext'
 
 export default function AIReportPage() {
   const supabase = createClient()
+  const { currencySymbol } = useMarketMode()
   const [userTier, setUserTier] = useState<'free' | 'paid' | 'pro' | null>(null)
   const [loadingTier, setLoadingTier] = useState(true)
 
@@ -1101,7 +1103,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
                         <p className="text-[9px] font-black uppercase tracking-wider text-center">{c.emotion}</p>
                         <p className="text-lg font-black mt-1.5 leading-none">{c.win_rate.toFixed(0)}% <span className="text-[9px] text-[#64748B] font-normal">WR</span></p>
                         <p className={cn("text-[9px] font-bold mt-1", c.avg_pnl >= 0 ? "text-emerald-400" : "text-red-400")}>
-                          {c.avg_pnl >= 0 ? '+' : ''}${c.avg_pnl.toFixed(0)} avg
+                          {c.avg_pnl >= 0 ? '+' : '-'}{currencySymbol}{Math.abs(c.avg_pnl).toFixed(0)} avg
                         </p>
                       </motion.div>
                     )
@@ -1145,7 +1147,7 @@ Track your behavioral metrics for free on GoldBook! https://goldbook-roan.vercel
                             <div className="bg-white/[0.01] border border-white/5 rounded-xl p-3.5 space-y-1">
                               <span className="text-[9px] text-[#64748B] uppercase tracking-widest font-black block">Average net trade p&l</span>
                               <p className={cn("text-xl font-black", corr.avg_pnl >= 0 ? "text-emerald-400" : "text-red-400")}>
-                                {corr.avg_pnl >= 0 ? '+' : ''}${corr.avg_pnl.toFixed(2)}
+                                {corr.avg_pnl >= 0 ? '+' : ''}{currencySymbol}{Math.abs(corr.avg_pnl).toFixed(2)}
                               </p>
                             </div>
 

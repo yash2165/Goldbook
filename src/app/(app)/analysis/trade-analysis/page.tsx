@@ -158,6 +158,28 @@ function TradeAnalysisContent() {
     }
   }, [closed])
 
+  const [screenshots, setScreenshots] = useState<any[]>([])
+
+  // Fetch screenshots when selectedTrade changes
+  useEffect(() => {
+    if (!selectedTrade) {
+      setScreenshots([])
+      return
+    }
+    async function loadScreenshots() {
+      try {
+        const res = await fetch(`/api/trades/upload-screenshot?tradeId=${selectedTrade.id}`)
+        const data = await res.json()
+        if (res.ok && data.screenshots) {
+          setScreenshots(data.screenshots)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    loadScreenshots()
+  }, [selectedTrade])
+
   // Clipboard paste CTRL+V handler for screenshots on Trade Analysis page
   useEffect(() => {
     if (!selectedTrade) return
@@ -175,7 +197,7 @@ function TradeAnalysisContent() {
 
     window.addEventListener('paste', handlePaste)
     return () => window.removeEventListener('paste', handlePaste)
-  }, [selectedTrade, trades])
+  }, [selectedTrade])
 
   const uploadScreenshot = async (file: File) => {
     if (!selectedTrade) return
@@ -190,13 +212,10 @@ function TradeAnalysisContent() {
         body: formData
       })
       const data = await res.json()
-      if (res.ok && data.screenshotUrl) {
-        // Refetch trades list to update database state
-        await refetch()
-        // Update selection with new payload from refreshed trades
-        setSelectedTrade((prev: any) => ({ ...prev, screenshot_url: data.screenshotUrl }))
+      if (res.ok && data.screenshot) {
+        setScreenshots(prev => [...prev, data.screenshot])
       } else {
-        alert(data.error || 'Failed to upload pasted screenshot.')
+        alert(data.error || 'Failed to upload screenshot.')
       }
     } catch (err) {
       console.error(err)
@@ -206,29 +225,39 @@ function TradeAnalysisContent() {
     }
   }
 
-  const deleteScreenshot = async () => {
-    if (!selectedTrade) return
-    if (!confirm('Are you sure you want to delete this screenshot?')) return
-    
-    setUploadingScreenshot(true)
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    
+  const updateScreenshotCaption = async (id: string, caption: string) => {
     try {
-      const { error } = await supabase
-        .from('trades')
-        .update({ screenshot_url: null })
-        .eq('id', selectedTrade.id)
+      await fetch('/api/trades/upload-screenshot', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: [{ id, caption }]
+        })
+      })
+    } catch (err) {
+      console.error('Failed to update caption:', err)
+    }
+  }
 
-      if (error) throw error
-      await refetch()
-      setSelectedTrade((prev: any) => ({ ...prev, screenshot_url: null }))
+  const deleteScreenshot = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this screenshot?')) return
+    setUploadingScreenshot(true)
+    try {
+      const res = await fetch(`/api/trades/upload-screenshot?id=${id}`, {
+        method: 'DELETE'
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to delete screenshot')
+      }
+      setScreenshots(prev => prev.filter(s => s.id !== id))
     } catch (err: any) {
       alert(err.message)
     } finally {
       setUploadingScreenshot(false)
     }
   }
+
 
   // Filter calculations
   const filtered = closed.filter(t => {
@@ -525,89 +554,101 @@ function TradeAnalysisContent() {
                 <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-5 md:p-6 shadow-xl space-y-4 animate-in fade-in duration-300">
                   <div className="flex items-center justify-between border-b border-white/5 pb-3">
                     <h3 className="text-xs font-black text-white/90 uppercase tracking-widest flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-primary" /> Visual Trade Analysis
+                      <FileText className="w-4 h-4 text-primary" /> Visual Trade Analysis ({screenshots.length})
                     </h3>
-                    {selectedTrade.screenshot_url ? (
-                      <span className="text-[8px] px-2.5 py-0.5 bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#22C55E] rounded-md font-black uppercase tracking-wider">Screenshot Loaded</span>
+                    {screenshots.length > 0 ? (
+                      <span className="text-[8px] px-2.5 py-0.5 bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#22C55E] rounded-md font-black uppercase tracking-wider">Screenshots Loaded</span>
                     ) : (
                       <span className="text-[8px] px-2.5 py-0.5 bg-[#F59E0B]/15 border border-[#F59E0B]/30 text-[#F59E0B] rounded-md font-black uppercase tracking-wider">No Visuals</span>
                     )}
                   </div>
 
-                  {selectedTrade.screenshot_url ? (
-                    /* Display Paste Screenshot naturally without intrusive overlays */
-                    <div className="space-y-4">
-                      <div className="relative rounded-xl overflow-hidden border border-white/5 bg-[#09090E] shadow-inner max-w-full flex items-center justify-center transition-all duration-300" style={{ minHeight: '340px' }}>
-                        <img 
-                          src={selectedTrade.screenshot_url} 
-                          alt="Trade execution chart" 
-                          className="w-full h-auto object-contain max-h-[420px] p-2" 
-                        />
-                      </div>
-                      
-                      {/* Non-intrusive action controls below the chart screenshot */}
-                      <div className="flex items-center gap-3">
-                        <a 
-                          href={selectedTrade.screenshot_url} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          className="flex-1 text-center py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-98"
-                        >
-                          🔍 Open Full Resolution
-                        </a>
-                        <button
-                          onClick={deleteScreenshot}
-                          disabled={uploadingScreenshot}
-                          className="px-5 py-2.5 bg-[#EF4444]/10 hover:bg-[#EF4444]/25 border border-[#EF4444]/30 text-[#EF4444] text-[10px] font-black uppercase tracking-wider rounded-xl transition-all active:scale-98"
-                        >
-                          🗑️ Delete Screenshot
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Elegant upload/paste dropzone */
-                    <div className="border-2 border-dashed border-white/10 hover:border-[#F59E0B]/30 transition-colors rounded-xl p-12 text-center bg-[#09090E]/30 flex flex-col items-center justify-center space-y-4 relative" style={{ minHeight: '340px' }}>
-                      <div className="w-12 h-12 rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center text-primary shadow-inner scale-110">
-                        <Camera className="w-6 h-6 text-primary" />
-                      </div>
-                      
-                      {uploadingScreenshot ? (
-                        <div className="flex flex-col items-center space-y-2">
-                          <Loader2 className="w-6 h-6 text-primary animate-spin" />
-                          <span className="text-xs text-[#64748B] font-mono">Syncing image payload to Supabase...</span>
-                        </div>
-                      ) : (
-                        <div className="space-y-3 max-w-sm">
-                          <div className="space-y-1">
-                            <h4 className="text-sm font-extrabold text-white">Visual Screenshot Missing</h4>
-                            <p className="text-xs text-[#64748B] leading-relaxed">
-                              Paste your TradingView chart screenshot directly (**CTRL + V**) or click the button below to upload a file. 
-                            </p>
+                  {screenshots.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {screenshots.map((s, sIdx) => (
+                        <div key={s.id} className="relative group rounded-xl overflow-hidden border border-white/5 bg-[#09090e] shadow-lg flex flex-col p-2 space-y-2 animate-in fade-in duration-200">
+                          <div className="relative rounded-lg overflow-hidden h-48 bg-black flex items-center justify-center">
+                            <img 
+                              src={s.url} 
+                              alt={s.caption || `Screenshot ${sIdx + 1}`} 
+                              className="w-full h-full object-contain"
+                            />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <a 
+                                href={s.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition-all"
+                                title="View Original"
+                              >
+                                🔍
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => deleteScreenshot(s.id)}
+                                className="p-2 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                title="Delete"
+                              >
+                                🗑️
+                              </button>
+                            </div>
                           </div>
                           <input 
-                            type="file" 
-                            id={`screenshot-analysis-input-${selectedTrade.id}`}
-                            accept="image/*" 
-                            className="hidden" 
-                            onChange={e => {
-                              const file = e.target.files?.[0]
-                              if (file) uploadScreenshot(file)
+                            type="text"
+                            placeholder="Add a caption..."
+                            value={s.caption || ''}
+                            onChange={(e) => {
+                              const newCaps = [...screenshots]
+                              newCaps[sIdx].caption = e.target.value
+                              setScreenshots(newCaps)
                             }}
+                            onBlur={() => {
+                              updateScreenshotCaption(s.id, s.caption)
+                            }}
+                            className="bg-[#0D1421] border border-[#1A1A2E] rounded-lg px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors w-full"
                           />
-                          <button
-                            type="button"
-                            onClick={() => document.getElementById(`screenshot-analysis-input-${selectedTrade.id}`)?.click()}
-                            className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold uppercase tracking-wider text-white border border-white/10 transition-all hover:scale-105 active:scale-95 shadow-md inline-block"
-                          >
-                            Select File
-                          </button>
                         </div>
-                      )}
+                      ))}
                     </div>
                   )}
+
+                  <div className="border-2 border-dashed border-white/10 hover:border-[#F59E0B]/30 transition-colors rounded-xl p-6 text-center bg-[#09090E]/30 flex flex-col items-center justify-center space-y-3 max-w-md mx-auto">
+                    <div className="w-10 h-10 rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center text-primary shadow-inner">
+                      <Camera className="w-5 h-5 text-primary" />
+                    </div>
+                    {uploadingScreenshot ? (
+                      <div className="flex flex-col items-center space-y-1">
+                        <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                        <span className="text-[10px] text-[#64748B] font-mono">Uploading...</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-white/90">Upload screenshot / paste (CTRL + V)</p>
+                        <p className="text-[10px] text-[#64748B]">Add chart layouts, setups, or exit confirmations</p>
+                        <input 
+                          type="file" 
+                          id={`screenshot-analysis-input-${selectedTrade?.id || 'new'}`}
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={e => {
+                            const file = e.target.files?.[0]
+                            if (file) uploadScreenshot(file)
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById(`screenshot-analysis-input-${selectedTrade?.id || 'new'}`)?.click()}
+                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white border border-white/10 transition-all cursor-pointer"
+                        >
+                          Select File
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* ── NOTION DOSSIER DETAILED WORKSPACE GRID ──────────────────────── */}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                   
                   {/* CARD 1: Journal Entries Dossier */}

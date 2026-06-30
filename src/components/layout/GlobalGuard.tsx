@@ -15,7 +15,7 @@ export function GlobalGuard({ children }: { children: React.ReactNode }) {
       const { data: { session } } = await supabase.auth.getSession()
       
       // Allow public routes
-      if (pathname === '/' || pathname.startsWith('/auth')) {
+      if (pathname === '/' || pathname.startsWith('/auth') || pathname === '/privacy' || pathname === '/terms') {
         setLoading(false)
         return
       }
@@ -39,7 +39,7 @@ export function GlobalGuard({ children }: { children: React.ReactNode }) {
     checkAuth()
   }, [pathname])
 
-  if (loading && pathname !== '/') return null
+  if (loading && pathname !== '/' && pathname !== '/privacy' && pathname !== '/terms') return null
 
   return <>{children}</>
 }

@@ -2,6 +2,7 @@
 
 import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
+import { useMarketMode } from '@/context/MarketModeContext'
 import {
   computeStats,
   computeEquityCurve,
@@ -18,6 +19,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth } from 'date-fns'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
+
 
 const PERIOD_OPTS = ['1D', '1W', '1M', '3M', 'ALL'] as const
 type Period = (typeof PERIOD_OPTS)[number]
@@ -44,10 +46,12 @@ function StatCard({
   badge?: string
   isProgress?: boolean
 }) {
+  const { currencySymbol } = useMarketMode()
   const isPositive = value >= 0
   const [prevVal, setPrevVal] = useState(value)
   const [flashState, setFlashState] = useState<'up' | 'down' | null>(null)
   const [blurState, setBlurState] = useState(false)
+
 
   useEffect(() => {
     if (value !== prevVal && prevVal !== undefined) {
@@ -109,7 +113,7 @@ function StatCard({
             blurState ? 'blur-[4px]' : 'blur-0'
           )}>
             {isCurrency && value < 0 && <span>-</span>}
-            {isCurrency && <span>$</span>}
+            {isCurrency && <span>{currencySymbol}</span>}
             <CountUp
               end={Math.abs(value)}
               decimals={isCurrency || !Number.isInteger(value) ? 2 : 0}
@@ -223,7 +227,9 @@ function SkeletonCard() {
 
 export default function DashboardPage() {
   const { activeAccount } = useAccounts()
+  const { currencySymbol, formatCurrency } = useMarketMode()
   const { trades, loading } = useTrades(activeAccount?.id)
+
   const [period, setPeriod] = useState<Period>('1M')
   const [news, setNews] = useState<any[]>([])
   
@@ -568,13 +574,13 @@ export default function DashboardPage() {
               <div className="text-xl font-bold text-white tracking-tight flex flex-col justify-end">
                 <div className="flex items-baseline gap-2">
                   <span className={cn(todayPnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]")}>
-                    {todayPnl >= 0 ? '+' : '-'}${Math.abs(todayPnl).toFixed(2)}
+                    {todayPnl >= 0 ? '+' : '-'}{currencySymbol}{Math.abs(todayPnl).toFixed(2)}
                   </span>
                   <span className="text-xs text-[#64748B] font-mono">({todayTrades.length} closed)</span>
                 </div>
                 {todayFloatingPnl !== 0 && (
                   <span className={cn("text-xs font-bold font-mono mt-0.5", todayFloatingPnl >= 0 ? "text-emerald-400 animate-pulse" : "text-rose-400 animate-pulse")}>
-                    {todayFloatingPnl >= 0 ? '+' : '-'}${Math.abs(todayFloatingPnl).toFixed(2)} floating
+                    {todayFloatingPnl >= 0 ? '+' : '-'}{currencySymbol}{Math.abs(todayFloatingPnl).toFixed(2)} floating
                   </span>
                 )}
               </div>
@@ -715,7 +721,7 @@ export default function DashboardPage() {
                       fontSize={10} 
                       tickLine={false} 
                       axisLine={false}
-                      tickFormatter={(val) => `$${val.toLocaleString()}`}
+                      tickFormatter={(val) => `${currencySymbol}${val.toLocaleString()}`}
                       width={60}
                     />
                     <Tooltip

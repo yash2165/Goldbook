@@ -978,6 +978,10 @@ export default function LandingPage() {
             </span>
           </div>
           <p>© {new Date().getFullYear()} GoldBook Inc. Free forever. Built by gold traders for disciplined scalpers.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+          </div>
         </div>
       </footer>
     </div>

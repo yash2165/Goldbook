@@ -217,8 +217,25 @@ function TradeJournalCard({
   const [tradeChecklist, setTradeChecklist] = useState<Record<string, boolean>>(trade.pre_trade_checklist || {})
 
   
-  const [screenshotUrl, setScreenshotUrl] = useState(trade.screenshot_url || '')
+  const [screenshots, setScreenshots] = useState<any[]>([])
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false)
+
+  // Fetch screenshots when card is expanded
+  useEffect(() => {
+    if (!expanded) return
+    async function loadScreenshots() {
+      try {
+        const res = await fetch(`/api/trades/upload-screenshot?tradeId=${trade.id}`)
+        const data = await res.json()
+        if (res.ok && data.screenshots) {
+          setScreenshots(data.screenshots)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    loadScreenshots()
+  }, [expanded, trade.id])
 
   // Clipboard paste CTRL+V handler for screenshots
   useEffect(() => {
@@ -251,10 +268,10 @@ function TradeJournalCard({
         body: formData
       })
       const data = await res.json()
-      if (res.ok && data.screenshotUrl) {
-        setScreenshotUrl(data.screenshotUrl)
+      if (res.ok && data.screenshot) {
+        setScreenshots(prev => [...prev, data.screenshot])
       } else {
-        alert(data.error || 'Failed to upload pasted screenshot.')
+        alert(data.error || 'Failed to upload screenshot.')
       }
     } catch (err) {
       console.error(err)
@@ -264,19 +281,35 @@ function TradeJournalCard({
     }
   }
 
-  const deleteScreenshot = async () => {
+  const updateScreenshotCaption = async (id: string, caption: string) => {
     try {
-      const { error } = await supabase
-        .from('trades')
-        .update({ screenshot_url: null })
-        .eq('id', trade.id)
+      await fetch('/api/trades/upload-screenshot', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: [{ id, caption }]
+        })
+      })
+    } catch (err) {
+      console.error('Failed to update caption:', err)
+    }
+  }
 
-      if (error) throw error
-      setScreenshotUrl('')
+  const deleteScreenshot = async (id: string) => {
+    try {
+      const res = await fetch(`/api/trades/upload-screenshot?id=${id}`, {
+        method: 'DELETE'
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to delete screenshot')
+      }
+      setScreenshots(prev => prev.filter(s => s.id !== id))
     } catch (err: any) {
       alert(err.message)
     }
   }
+
 
   const saveJournal = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -794,71 +827,93 @@ function TradeJournalCard({
                   </div>
                 </div>
 
-                <div className="pt-2">
-                  <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium mb-2 block">TradingView Chart Screenshot</label>
-                  {screenshotUrl ? (
-                    <div className="space-y-3 max-w-md animate-in fade-in duration-200">
-                      <div className="relative rounded-xl overflow-hidden border border-white/5 bg-[#09090e] shadow-lg flex items-center justify-center">
-                        <img 
-                          src={screenshotUrl} 
-                          alt="Trade screenshot chart" 
-                          className="w-full h-auto object-contain max-h-64 p-1" 
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a 
-                          href={screenshotUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 text-center py-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all"
-                        >
-                          🔍 View Full Image
-                        </a>
-                        <button
-                          type="button"
-                          onClick={deleteScreenshot}
-                          className="px-3 py-2 bg-[#EF4444]/10 hover:bg-[#EF4444]/25 border border-[#EF4444]/30 text-[#EF4444] text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-                        >
-                          🗑️ Delete Screenshot
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-white/10 hover:border-[#F59E0B]/40 transition-colors rounded-xl p-4 text-center bg-[#09090e]/30 flex flex-col items-center justify-center space-y-2 max-w-md">
-                      <div className="w-8 h-8 rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center text-[#F59E0B]">
-                        <Camera className="w-4 h-4" />
-                      </div>
-                      {uploadingScreenshot ? (
-                        <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
-                          <Loader2 className="w-3.5 h-3.5 text-[#F59E0B] animate-spin" /> Uploading image...
-                        </div>
-                      ) : (
-                        <div>
-                          <p className="text-xs font-bold text-white/90">Paste TradingView image (CTRL + V)</p>
-                          <p className="text-[10px] text-[#64748B] mt-0.5">Or click to select an image from your device</p>
-                          
+                <div className="pt-2 space-y-4">
+                  <label className="text-xs text-[#64748B] uppercase tracking-wider font-medium block">Trade Screenshots ({screenshots.length})</label>
+                  
+                  {screenshots.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-2xl">
+                      {screenshots.map((s, sIdx) => (
+                        <div key={s.id} className="relative group rounded-xl overflow-hidden border border-white/5 bg-[#09090e] shadow-lg flex flex-col p-2 space-y-2 animate-in fade-in duration-200">
+                          <div className="relative rounded-lg overflow-hidden h-40 bg-black flex items-center justify-center">
+                            <img 
+                              src={s.url} 
+                              alt={s.caption || `Screenshot ${sIdx + 1}`} 
+                              className="w-full h-full object-contain"
+                            />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <a 
+                                href={s.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-bold transition-all"
+                                title="View Original"
+                              >
+                                🔍
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => deleteScreenshot(s.id)}
+                                className="p-2 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                title="Delete"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
                           <input 
-                            type="file" 
-                            id={`screenshot-input-${trade.id}`}
-                            accept="image/*" 
-                            className="hidden" 
-                            onChange={e => {
-                              const file = e.target.files?.[0]
-                              if (file) uploadScreenshot(file)
+                            type="text"
+                            placeholder="Add a caption..."
+                            value={s.caption || ''}
+                            onChange={(e) => {
+                              const newCaps = [...screenshots]
+                              newCaps[sIdx].caption = e.target.value
+                              setScreenshots(newCaps)
                             }}
+                            onBlur={() => {
+                              updateScreenshotCaption(s.id, s.caption)
+                            }}
+                            className="bg-[#0D1421] border border-[#1A1A2E] rounded-lg px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:border-[#F59E0B]/50 transition-colors w-full"
                           />
-                          <button
-                            type="button"
-                            onClick={() => document.getElementById(`screenshot-input-${trade.id}`)?.click()}
-                            className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-bold uppercase tracking-wider text-white border border-white/10 mt-2 transition-all cursor-pointer"
-                          >
-                            Select File
-                          </button>
                         </div>
-                      )}
+                      ))}
                     </div>
                   )}
+
+                  <div className="border-2 border-dashed border-white/10 hover:border-[#F59E0B]/40 transition-colors rounded-xl p-4 text-center bg-[#09090e]/30 flex flex-col items-center justify-center space-y-2 max-w-md">
+                    <div className="w-8 h-8 rounded-full bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center text-[#F59E0B]">
+                      <Camera className="w-4 h-4" />
+                    </div>
+                    {uploadingScreenshot ? (
+                      <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
+                        <Loader2 className="w-3.5 h-3.5 text-[#F59E0B] animate-spin" /> Uploading image...
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs font-bold text-white/90">Upload screenshot / paste (CTRL + V)</p>
+                        <p className="text-[10px] text-[#64748B] mt-0.5">Add chart layouts, setups, or exit confirmations</p>
+                        
+                        <input 
+                          type="file" 
+                          id={`screenshot-input-${trade.id}`}
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={e => {
+                            const file = e.target.files?.[0]
+                            if (file) uploadScreenshot(file)
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById(`screenshot-input-${trade.id}`)?.click()}
+                          className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-bold uppercase tracking-wider text-white border border-white/10 mt-2 transition-all cursor-pointer"
+                        >
+                          Select File
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
               </div>
               )} {/* end !shouldRenderCustom left col */}
 

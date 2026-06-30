@@ -3,6 +3,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { DotGrid } from '@/components/DotGrid'
 import { PageTransitionWrapper } from '@/components/PageTransitionWrapper'
 import { MarketModeProvider } from '@/context/MarketModeContext'
+import { AIChatWidget } from '@/components/chat/AIChatWidget'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,8 +19,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </PageTransitionWrapper>
           </main>
         </div>
+        <AIChatWidget />
       </div>
     </MarketModeProvider>
   )
 }
+
 

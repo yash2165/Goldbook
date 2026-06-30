@@ -10,6 +10,12 @@ interface MarketModeContextType {
   setMarketMode: (mode: MarketMode) => Promise<void>
   isIndian: boolean
   currencySymbol: string
+  currencyCode: string
+  defaultSymbols: string[]
+  sessionLabels: string[]
+  lotLabel: string
+  pipLabel: string
+  chargesVisible: boolean
   formatCurrency: (val: number, showSign?: boolean) => string
   loading: boolean
 }
@@ -72,11 +78,23 @@ export function MarketModeProvider({ children }: { children: React.ReactNode }) 
 
   const isIndian = marketMode === 'indian'
   const currencySymbol = isIndian ? '₹' : '$'
+  const currencyCode = isIndian ? 'INR' : 'USD'
+  
+  const defaultSymbols = isIndian 
+    ? ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK']
+    : ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'BTCUSD', 'ETHUSD']
+
+  const sessionLabels = isIndian
+    ? ['Pre-Market', 'Open Bell', 'Mid-Session', 'Close Bell']
+    : ['Asian Session', 'London Session', 'New York Session', 'Overnight']
+
+  const lotLabel = isIndian ? 'Quantity / Lots' : 'Lot Size'
+  const pipLabel = isIndian ? 'Points' : 'Pips'
+  const chargesVisible = isIndian
 
   const formatCurrency = useCallback((val: number, showSign = true) => {
     const absVal = Math.abs(val)
-    const sign = val >= 0 ? '+' : '-'
-    const formatted = absVal.toLocaleString('en-US', {
+    const formatted = absVal.toLocaleString(isIndian ? 'en-IN' : 'en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })
@@ -96,6 +114,12 @@ export function MarketModeProvider({ children }: { children: React.ReactNode }) 
         setMarketMode,
         isIndian,
         currencySymbol,
+        currencyCode,
+        defaultSymbols,
+        sessionLabels,
+        lotLabel,
+        pipLabel,
+        chargesVisible,
         formatCurrency,
         loading,
       }}
@@ -112,3 +136,4 @@ export function useMarketMode() {
   }
   return context
 }
+
