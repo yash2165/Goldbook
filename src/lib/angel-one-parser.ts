@@ -1,5 +1,6 @@
 import { parseNSEDerivativesSymbol } from './csv-parsers'
-import { StandardTrade } from './trade-matcher'
+import { StandardTrade, matchTradePairs } from './trade-matcher'
+import { ExecutionLeg } from './csv-parsers'
 
 export interface AngelOneTaxSummary {
   client_name: string
@@ -28,7 +29,7 @@ export interface AngelOneTaxSummary {
 }
 
 /**
- * Parses raw text extracted from Angel One P&L Tax PDF or CSV reports.
+ * Parses raw text extracted from Angel One P&L Tax PDF, TradeBook PDF or CSV exports.
  */
 export function parseAngelOneTaxReportText(rawText: string): AngelOneTaxSummary {
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean)
@@ -46,7 +47,6 @@ export function parseAngelOneTaxReportText(rawText: string): AngelOneTaxSummary 
   const getString = (pattern: RegExp, defaultVal = ''): string => {
     for (let i = 0; i < lines.length; i++) {
       if (pattern.test(lines[i])) {
-        // Look for string in current or next line
         const parts = lines[i].split(/\s{2,}|\t|:/)
         if (parts.length > 1 && parts[parts.length - 1].trim()) {
           return parts[parts.length - 1].trim()
@@ -57,22 +57,22 @@ export function parseAngelOneTaxReportText(rawText: string): AngelOneTaxSummary 
     return defaultVal
   }
 
-  // 1. Client Basic Information
+  // 1. Client Basic Information & Metadata
   const client_name = getString(/Client Name/i, 'Trader')
-  const client_id = getString(/Client Id|Client Code/i, '')
+  const client_id = getString(/ClientCode|Client Id|Client Code/i, '')
   const pan = getString(/PAN/i, '')
 
   // 2. Date Range
   const financial_year = getString(/Financial Year/i, '2026-2027')
-  const from_date = getString(/From Date/i, '')
-  const to_date = getString(/To Date/i, '')
+  const from_date = getString(/From Date|StartDate/i, '')
+  const to_date = getString(/To Date|EndDate/i, '')
 
-  // 3. Ledger Summary
+  // 3. Ledger Balances & Summaries
   const ledger_opening_balance = getValue(/Ledger Opening/i, 0)
   const ledger_closing_balance = getValue(/Ledger Closing/i, 0)
 
-  // 4. P&L Summary
-  const total_taxable_pnl = getValue(/Total Taxable P&L/i, 0)
+  // 4. P&L & Charges Summaries
+  let total_taxable_pnl = getValue(/Total Taxable P&L/i, 0)
   const delivery_ltcg_pnl = getValue(/Taxable Delivery P&L.*LTCG/i, 0)
   const delivery_stcg_pnl = getValue(/Taxable Delivery P&L.*STCG/i, 0)
   const intraday_speculative_pnl = getValue(/Taxable Intraday/i, 0)
@@ -82,23 +82,71 @@ export function parseAngelOneTaxReportText(rawText: string): AngelOneTaxSummary 
   const futures_turnover = getValue(/Future Turnover/i, 0)
   const options_turnover = getValue(/Options Turnover/i, 0)
 
-  const total_charges = getValue(/Total Charges and Statutory Levies/i, 0)
-  const total_stt = getValue(/Total STT/i, 0)
-  const additional_brokerage = getValue(/Additional Brokerage/i, 0)
+  const total_charges = getValue(/Total Charges/i, 0)
+  const total_stt = getValue(/\bSTT\b/i, 0)
+  const additional_brokerage = getValue(/Brokerage/i, 0)
 
-  const non_trade_dp_charges = getValue(/Total DP Charges/i, 0)
-  const non_trade_amc_charges = getValue(/Account Maintenance Charges/i, 0)
+  const non_trade_dp_charges = getValue(/Total DP Charges|DP Charges/i, 0)
+  const non_trade_amc_charges = getValue(/Account Maintenance|Monthly Account Maintenance/i, 0)
   const non_trade_interest_charges = getValue(/Interest Charges/i, 0)
 
-  // 5. Extract Trade-Wise Details
   const trades: StandardTrade[] = []
+  const executionLegs: ExecutionLeg[] = []
 
-  // Extract Options & Equity trade rows
-  // Options pattern example: BANKNIFTY 28/04/2026 56500 PE 30 ...
+  // Extract TradeBook Execution Legs (Official Angel One TradeBook PDF/Excel format)
+  // Example line: OPTIDX BANKNIFTY Mar 30 2026 61000.00 CE (BT) Buy 889.8
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
 
-    // Option row match (e.g. BANKNIFTY or NIFTY with Strike & Type)
+    // Check Angel One TradeBook contract line pattern
+    const tbMatch = line.match(/(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Z0-9]+)\s+([A-Za-z]{3}\s+\d{1,2}\s+\d{4})\s*(?:(\d+(?:\.\d+)?)\s+(CE|PE))?\s*(?:\([^)]*\))?\s+(Buy|Sell)\s+([-+]?\d*\.?\d+)/i)
+    if (tbMatch) {
+      const typePrefix = tbMatch[1].toUpperCase()
+      const symbol = tbMatch[2].toUpperCase()
+      const expiryStr = tbMatch[3]
+      const strike = tbMatch[4] ? parseFloat(tbMatch[4]) : null
+      const optType = tbMatch[5] ? (tbMatch[5].toUpperCase() as 'CE' | 'PE') : null
+      const dir = tbMatch[6].toLowerCase() === 'buy' ? 'buy' : 'sell'
+      const price = parseFloat(tbMatch[7]) || 0
+
+      // Look in current or next lines for quantity number (e.g. 30, 65, 60, 20)
+      let qty = 30
+      if (symbol === 'NIFTY') qty = 65
+      else if (symbol === 'FINNIFTY') qty = 60
+      else if (symbol === 'SENSEX') qty = 20
+
+      const numbers = (line + ' ' + (lines[i + 1] || '')).match(/\b\d+\b/g)
+      if (numbers) {
+        for (const n of numbers) {
+          const val = parseInt(n, 10)
+          if ([15, 20, 25, 30, 50, 60, 65, 75, 100, 120, 150].includes(val)) {
+            qty = val
+            break
+          }
+        }
+      }
+
+      let expiry_date: string | null = null
+      try {
+        const d = new Date(expiryStr)
+        if (!isNaN(d.getTime())) expiry_date = d.toISOString().split('T')[0]
+      } catch {}
+
+      executionLegs.push({
+        trade_date: expiry_date || new Date().toISOString(),
+        symbol,
+        direction: dir,
+        instrument_type: typePrefix.startsWith('OPT') ? 'options' : 'futures',
+        qty,
+        price,
+        option_type: optType,
+        strike_price: strike,
+        expiry_date
+      })
+      continue
+    }
+
+    // Option summary format: BANKNIFTY 28/04/2026 56500 PE 30 560.67 559.27 -207.88
     const optMatch = line.match(/(BANKNIFTY|NIFTY|FINNIFTY|MIDCPNIFTY|SENSEX)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(PE|CE)\s+(\d+)/i)
     if (optMatch) {
       const symbolBase = optMatch[1].toUpperCase()
@@ -107,7 +155,6 @@ export function parseAngelOneTaxReportText(rawText: string): AngelOneTaxSummary 
       const optType = optMatch[4].toUpperCase() as 'CE' | 'PE'
       const qty = parseInt(optMatch[5], 10)
 
-      // Look ahead for prices & dates in subsequent tokens or line
       const numbers = (line + ' ' + (lines[i + 1] || '')).match(/[-+]?\d*\.?\d+/g)
       let buyPrice = 0
       let sellPrice = 0
@@ -134,87 +181,20 @@ export function parseAngelOneTaxReportText(rawText: string): AngelOneTaxSummary 
         option_type: optType,
         strike_price: strike,
         source: 'csv_import',
-        notes: `Angel One Tax P&L | Segment: Options (Non-Speculative)`
+        notes: `Angel One Tax P&L | Options`
       })
     }
+  }
 
-    // Equity / Intraday row match (e.g., BANKBEES 100 08/06/2026 560.67 559.27 -207.88)
-    const eqMatch = line.match(/([A-Z0-9]{3,15})\s+(\d+)\s+(\d{2}\/\d{2}\/\d{4})/i)
-    if (eqMatch && !line.includes('BANKNIFTY') && !line.includes('NIFTY')) {
-      const scrip = eqMatch[1].toUpperCase()
-      const qty = parseInt(eqMatch[2], 10)
-      const dateStr = eqMatch[3]
+  // If execution legs were extracted from Angel One TradeBook, match them into completed trades via FIFO!
+  if (executionLegs.length > 0) {
+    const matched = matchTradePairs(executionLegs)
+    trades.push(...matched.completedTrades)
+  }
 
-      const nums = (line + ' ' + (lines[i + 1] || '')).match(/[-+]?\d*\.?\d+/g)
-      if (nums && nums.length >= 3) {
-        const buyPrice = parseFloat(nums[nums.length - 3]) || 0
-        const sellPrice = parseFloat(nums[nums.length - 2]) || 0
-        const pnl = parseFloat(nums[nums.length - 1]) || 0
-
-        trades.push({
-          symbol: scrip,
-          direction: sellPrice >= buyPrice ? 'buy' : 'sell',
-          instrument_type: 'equity',
-          lot_size: qty,
-          entry_price: buyPrice,
-          exit_price: sellPrice,
-          net_profit: pnl,
-          status: 'closed',
-          open_time: dateStr,
-          close_time: dateStr,
-          source: 'csv_import',
-          notes: `Angel One Tax P&L | Segment: Intraday`
-        })
-      }
-    }
-
-    // Official TradeBook format: OPTIDX BANKNIFTY Mar 30 2026 61000.00 CE (BT) Buy 889.8 30
-    const tbMatch = line.match(/(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Z0-9]+)\s+([A-Za-z]{3}\s+\d{1,2}\s+\d{4})\s*(?:(\d+(?:\.\d+)?)\s+(CE|PE))?\s*(?:\([^)]*\))?\s+(Buy|Sell)\s+([-+]?\d*\.?\d+)/i)
-    if (tbMatch) {
-      const typePrefix = tbMatch[1].toUpperCase()
-      const symbol = tbMatch[2].toUpperCase()
-      const expiryStr = tbMatch[3]
-      const strike = tbMatch[4] ? parseFloat(tbMatch[4]) : null
-      const optType = tbMatch[5] ? (tbMatch[5].toUpperCase() as 'CE' | 'PE') : null
-      const dir = tbMatch[6].toLowerCase() === 'buy' ? 'buy' : 'sell'
-      const price = parseFloat(tbMatch[7]) || 0
-
-      const numbers = (line + ' ' + (lines[i + 1] || '')).match(/\b\d+\b/g)
-      let qty = 30
-      if (numbers) {
-        for (const n of numbers) {
-          const val = parseInt(n, 10)
-          if ([15, 25, 30, 50, 65, 75, 100].includes(val)) {
-            qty = val
-            break
-          }
-        }
-      }
-
-      let expiry_date: string | null = null
-      try {
-        const d = new Date(expiryStr)
-        if (!isNaN(d.getTime())) expiry_date = d.toISOString().split('T')[0]
-      } catch {}
-
-      const fullSymbol = strike && optType ? `${symbol} ${strike} ${optType}` : symbol
-      trades.push({
-        symbol: fullSymbol,
-        direction: dir,
-        instrument_type: typePrefix.startsWith('OPT') ? 'options' : 'futures',
-        lot_size: qty,
-        entry_price: dir === 'buy' ? price : 0,
-        exit_price: dir === 'sell' ? price : 0,
-        net_profit: 0,
-        status: 'closed',
-        open_time: expiry_date || new Date().toISOString(),
-        close_time: expiry_date || new Date().toISOString(),
-        option_type: optType,
-        strike_price: strike,
-        source: 'csv_import',
-        notes: `Angel One TradeBook | ${symbol}`
-      })
-    }
+  // Calculate total taxable P&L if not explicitly in header
+  if (total_taxable_pnl === 0 && trades.length > 0) {
+    total_taxable_pnl = trades.reduce((sum, t) => sum + (t.net_profit ?? 0), 0)
   }
 
   return {

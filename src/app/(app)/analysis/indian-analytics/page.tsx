@@ -169,13 +169,31 @@ export default function IndianAnalyticsPage() {
   // Handle Angel One File Select / Drop
   const handleFileSelect = async (file: File) => {
     setSelectedFile(file)
+    setImporting(true)
+    setParsedPreview(null)
+    setImportText('')
+
     try {
-      const text = await file.text()
-      setImportText(text)
-      const parsed = parseAngelOneTaxReportText(text)
-      setParsedPreview(parsed)
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/trades/parse-file', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await res.json()
+      if (res.ok && data.parsedReport) {
+        setParsedPreview(data.parsedReport)
+        setImportText(data.extractedTextSnippet || '')
+      } else {
+        alert(data.error || 'Failed to parse file. Please upload a valid Angel One TradeBook or Tax P&L file.')
+      }
     } catch (err) {
-      console.error('Error reading file:', err)
+      console.error('Error parsing file:', err)
+      alert('Error parsing uploaded file. Please try again.')
+    } finally {
+      setImporting(false)
     }
   }
 
