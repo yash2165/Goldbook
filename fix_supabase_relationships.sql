@@ -1,6 +1,4 @@
 -- SECTION 1: Fix postgREST relation schema cache
--- Redirect constraints to profiles(id) instead of auth.users(id)
-
 ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_user_id_fkey;
 ALTER TABLE posts ADD CONSTRAINT posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
@@ -35,7 +33,7 @@ ALTER TABLE trade_screenshots DROP CONSTRAINT IF EXISTS trade_screenshots_user_i
 ALTER TABLE trade_screenshots ADD CONSTRAINT trade_screenshots_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
--- SECTION 2: Ensure storage buckets are public and configured
+-- SECTION 2: Ensure storage buckets are public
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
@@ -49,7 +47,7 @@ VALUES ('chat_images', 'chat_images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
 
--- SECTION 3: Storage Access Policies (Fix Upload 500 Errors)
+-- SECTION 3: Storage Access Policies (use owner_id UUID column)
 DROP POLICY IF EXISTS "Allow public select on storage objects" ON storage.objects;
 DROP POLICY IF EXISTS "Allow authenticated inserts on avatars bucket" ON storage.objects;
 DROP POLICY IF EXISTS "Allow authenticated inserts on screenshots bucket" ON storage.objects;
@@ -74,23 +72,23 @@ CREATE POLICY "Allow authenticated inserts on chat_images bucket" ON storage.obj
 );
 
 CREATE POLICY "Allow owner updates on avatars bucket" ON storage.objects FOR UPDATE USING (
-  bucket_id = 'avatars' AND auth.uid()::text = owner
+  bucket_id = 'avatars' AND auth.uid() = owner_id
 );
 CREATE POLICY "Allow owner updates on screenshots bucket" ON storage.objects FOR UPDATE USING (
-  bucket_id = 'screenshots' AND auth.uid()::text = owner
+  bucket_id = 'screenshots' AND auth.uid() = owner_id
 );
 CREATE POLICY "Allow owner updates on chat_images bucket" ON storage.objects FOR UPDATE USING (
-  bucket_id = 'chat_images' AND auth.uid()::text = owner
+  bucket_id = 'chat_images' AND auth.uid() = owner_id
 );
 
 CREATE POLICY "Allow owner deletes on avatars bucket" ON storage.objects FOR DELETE USING (
-  bucket_id = 'avatars' AND auth.uid()::text = owner
+  bucket_id = 'avatars' AND auth.uid() = owner_id
 );
 CREATE POLICY "Allow owner deletes on screenshots bucket" ON storage.objects FOR DELETE USING (
-  bucket_id = 'screenshots' AND auth.uid()::text = owner
+  bucket_id = 'screenshots' AND auth.uid() = owner_id
 );
 CREATE POLICY "Allow owner deletes on chat_images bucket" ON storage.objects FOR DELETE USING (
-  bucket_id = 'chat_images' AND auth.uid()::text = owner
+  bucket_id = 'chat_images' AND auth.uid() = owner_id
 );
 
 
@@ -126,7 +124,6 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'voice_rooms' AND policyname = 'Anyone can manage own voice rooms') THEN
     CREATE POLICY "Anyone can manage own voice rooms" ON voice_rooms FOR ALL USING (auth.uid() = created_by);
   END IF;
-
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'voice_room_requests' AND policyname = 'Anyone can read requests') THEN
     CREATE POLICY "Anyone can read requests" ON voice_room_requests FOR SELECT USING (true);
   END IF;
@@ -164,36 +161,69 @@ DO $$ BEGIN
 END $$;
 
 
--- SECTION 7: Real-time Publications Setup (Enable Realtime Broadcasts)
+-- SECTION 7: Real-time Publications Setup
 DO $$
 DECLARE
   pub_exists BOOLEAN;
 BEGIN
   SELECT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') INTO pub_exists;
-  
   IF pub_exists THEN
-    BEGIN
-      ALTER PUBLICATION supabase_realtime ADD TABLE global_messages;
-    EXCEPTION WHEN duplicate_object THEN
-      RAISE NOTICE 'global_messages already in publication';
-    END;
-
-    BEGIN
-      ALTER PUBLICATION supabase_realtime ADD TABLE voice_room_requests;
-    EXCEPTION WHEN duplicate_object THEN
-      RAISE NOTICE 'voice_room_requests already in publication';
-    END;
-
-    BEGIN
-      ALTER PUBLICATION supabase_realtime ADD TABLE voice_rooms;
-    EXCEPTION WHEN duplicate_object THEN
-      RAISE NOTICE 'voice_rooms already in publication';
-    END;
-
-    BEGIN
-      ALTER PUBLICATION supabase_realtime ADD TABLE direct_messages;
-    EXCEPTION WHEN duplicate_object THEN
-      RAISE NOTICE 'direct_messages already in publication';
-    END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE global_messages;
+    EXCEPTION WHEN duplicate_object THEN RAISE NOTICE 'global_messages already in publication'; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE voice_room_requests;
+    EXCEPTION WHEN duplicate_object THEN RAISE NOTICE 'voice_room_requests already in publication'; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE voice_rooms;
+    EXCEPTION WHEN duplicate_object THEN RAISE NOTICE 'voice_rooms already in publication'; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE direct_messages;
+    EXCEPTION WHEN duplicate_object THEN RAISE NOTICE 'direct_messages already in publication'; END;
   END IF;
 END $$;
+
+
+-- SECTION 8: Angel One & Indian Tax P&L Database System
+CREATE TABLE IF NOT EXISTS tax_pnl_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  broker TEXT NOT NULL DEFAULT 'angel_one',
+  client_name TEXT,
+  client_id TEXT,
+  pan TEXT,
+  financial_year TEXT,
+  from_date DATE,
+  to_date DATE,
+  ledger_opening_balance NUMERIC(15,2) DEFAULT 0,
+  ledger_closing_balance NUMERIC(15,2) DEFAULT 0,
+  total_taxable_pnl NUMERIC(15,2) DEFAULT 0,
+  delivery_ltcg_pnl NUMERIC(15,2) DEFAULT 0,
+  delivery_stcg_pnl NUMERIC(15,2) DEFAULT 0,
+  intraday_speculative_pnl NUMERIC(15,2) DEFAULT 0,
+  futures_pnl NUMERIC(15,2) DEFAULT 0,
+  options_pnl NUMERIC(15,2) DEFAULT 0,
+  futures_turnover NUMERIC(15,2) DEFAULT 0,
+  options_turnover NUMERIC(15,2) DEFAULT 0,
+  total_charges NUMERIC(15,2) DEFAULT 0,
+  total_stt NUMERIC(15,2) DEFAULT 0,
+  additional_brokerage NUMERIC(15,2) DEFAULT 0,
+  non_trade_dp_charges NUMERIC(15,2) DEFAULT 0,
+  non_trade_amc_charges NUMERIC(15,2) DEFAULT 0,
+  non_trade_interest_charges NUMERIC(15,2) DEFAULT 0,
+  raw_json JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE tax_pnl_reports ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'tax_pnl_reports' AND policyname = 'Users can view own tax reports') THEN
+    CREATE POLICY "Users can view own tax reports" ON tax_pnl_reports FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'tax_pnl_reports' AND policyname = 'Users can manage own tax reports') THEN
+    CREATE POLICY "Users can manage own tax reports" ON tax_pnl_reports FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS stt NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS statutory_charges NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS segment TEXT DEFAULT 'intraday';
+ALTER TABLE public.trades ADD COLUMN IF NOT EXISTS isin TEXT;
+

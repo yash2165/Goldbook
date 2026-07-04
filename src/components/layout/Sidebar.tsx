@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: BarChart2,
     children: [
       { name: 'Performance', href: '/analysis/performance' },
+      { name: 'Indian Analytics & Tax', href: '/analysis/indian-analytics' },
       { name: 'Trade Analysis', href: '/analysis/trade-analysis' },
       { name: 'Strategy Analysis', href: '/analysis/strategy-analysis' },
       { name: 'Accounts', href: '/analysis/accounts' },

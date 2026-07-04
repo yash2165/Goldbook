@@ -76,6 +76,26 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'recipientId is required for DM.' }, { status: 400 })
       }
 
+      // Verify privacy permissions
+      const { data: recipientProfile } = await supabase
+        .from('profiles')
+        .select('allow_messages')
+        .eq('id', recipientId)
+        .single()
+
+      if (recipientProfile && recipientProfile.allow_messages === 'friends') {
+        const { data: friendCheck } = await supabase
+          .from('friendships')
+          .select('status')
+          .or(`and(user_id.eq.${user.id},friend_id.eq.${recipientId}),and(user_id.eq.${recipientId},friend_id.eq.${user.id})`)
+          .eq('status', 'accepted')
+          .maybeSingle()
+
+        if (!friendCheck) {
+          return NextResponse.json({ error: 'This trader only accepts direct messages from friends.' }, { status: 403 })
+        }
+      }
+
       // Check if a DM already exists between these two users
       const { data: existingMemberships, error: checkErr } = await supabase
         .from('conversation_members')
@@ -103,13 +123,13 @@ export async function POST(req: Request) {
 
           if (conv) {
             // Fetch profiles details for DM
-            const { data: recipientProfile } = await supabase
+            const { data: recipientInfo } = await supabase
               .from('profiles')
               .select('username, display_name, avatar_url')
               .eq('id', recipientId)
               .single()
 
-            return NextResponse.json({ success: true, conversation: { ...conv, otherMember: recipientProfile } })
+            return NextResponse.json({ success: true, conversation: { ...conv, otherMember: recipientInfo } })
           }
         }
       }
@@ -141,13 +161,13 @@ export async function POST(req: Request) {
       }
 
       // Fetch recipient profile for return payload
-      const { data: recipientProfile } = await supabase
+      const { data: finalRecipientInfo } = await supabase
         .from('profiles')
         .select('username, display_name, avatar_url')
         .eq('id', recipientId)
         .single()
 
-      return NextResponse.json({ success: true, conversation: { ...newConv, otherMember: recipientProfile } })
+      return NextResponse.json({ success: true, conversation: { ...newConv, otherMember: finalRecipientInfo } })
     }
 
     if (type === 'group') {

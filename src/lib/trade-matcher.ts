@@ -19,6 +19,7 @@ export interface StandardTrade {
   brokerage?: number
   stt?: number
   other_charges?: number
+  notes?: string
 }
 
 // Lot size mapping based on 2026 regulations
