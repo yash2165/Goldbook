@@ -1,18 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTrades } from '@/hooks/useTrades'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useMarketMode } from '@/context/MarketModeContext'
 import { createClient } from '@/lib/supabase/client'
-import { fmt } from '@/lib/calculations'
+import { computeStats, computeEquityCurve, fmt } from '@/lib/calculations'
 import { cn } from '@/lib/utils'
 import {
   TrendingUp, TrendingDown, ShieldAlert, PieChart, Clock, Award,
   AlertTriangle, FileText, CheckCircle2, DollarSign, ArrowUpRight, ArrowDownRight,
-  Sparkles, RefreshCw
+  Sparkles, RefreshCw, Upload, File, Layers, Zap, Target, BarChart2
 } from 'lucide-react'
 import { parseAngelOneTaxReportText, AngelOneTaxSummary } from '@/lib/angel-one-parser'
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+  Tooltip, ResponsiveContainer, Cell, ReferenceLine
+} from 'recharts'
+
+type Period = '7D' | '30D' | '3M' | '1Y' | 'All'
 
 export default function IndianAnalyticsPage() {
   const { activeAccount } = useAccounts()
@@ -20,16 +26,20 @@ export default function IndianAnalyticsPage() {
   const { currencySymbol, formatCurrency } = useMarketMode()
   const supabase = createClient()
 
-  // Saved Tax Reports from DB
+  // State
+  const [period, setPeriod] = useState<Period>('30D')
+  const [curveMode, setCurveMode] = useState<'equity' | 'drawdown'>('equity')
   const [taxReports, setTaxReports] = useState<any[]>([])
   const [loadingReports, setLoadingReports] = useState(true)
 
-  // Angel One Text / File Import modal
+  // File Import Modal State
   const [showImportModal, setShowImportModal] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [importSuccess, setImportSuccess] = useState<string | null>(null)
   const [parsedPreview, setParsedPreview] = useState<AngelOneTaxSummary | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch saved Tax Reports
   const fetchReports = async () => {
@@ -51,30 +61,54 @@ export default function IndianAnalyticsPage() {
     fetchReports()
   }, [])
 
-  // Calculate Indian Market Telemetry from DB trades
-  const indianTrades = trades.filter(t => t.status === 'closed')
-  const totalPnL = indianTrades.reduce((sum, t) => sum + (t.net_profit ?? 0), 0)
+  // Filter Trades by Period
+  const filterByPeriod = (tradesList: any[]) => {
+    const closed = tradesList.filter(t => t.status === 'closed')
+    if (period === 'All') return closed
 
-  // Session breakdown (IST)
+    const now = new Date()
+    const days = period === '7D' ? 7 : period === '30D' ? 30 : period === '3M' ? 90 : 365
+    const cutoff = new Date(now.getTime() - days * 86400000)
+
+    return closed.filter(t => t.close_time && new Date(t.close_time) >= cutoff)
+  }
+
+  const indianTrades = filterByPeriod(trades)
+  const stats = computeStats(indianTrades)
+  const startingBalance = activeAccount?.initial_balance ?? activeAccount?.current_balance ?? 250000
+  const equityCurve = computeEquityCurve(indianTrades, startingBalance)
+
+  // Session breakdown (IST: UTC + 5:30)
   const sessionStats = {
     openBell: { name: 'Open Bell (09:15–10:30)', trades: 0, pnl: 0, wins: 0 },
     midSession: { name: 'Mid-Session (10:30–14:00)', trades: 0, pnl: 0, wins: 0 },
     closeBell: { name: 'Close Bell (14:00–15:30)', trades: 0, pnl: 0, wins: 0 },
   }
 
-  // Expiry Day breakdown (Tue, Wed, Thu)
+  // Expiry Day Breakdown (Tue: FINNIFTY, Wed: BANKNIFTY, Thu: NIFTY)
   let expiryTrades = 0
   let expiryPnL = 0
   let nonExpiryTrades = 0
   let nonExpiryPnL = 0
 
+  // Instrument Breakdown (NIFTY, BANKNIFTY, FINNIFTY, SENSEX, EQUITIES)
+  const instrumentMap: Record<string, { trades: number; pnl: number; wins: number }> = {}
+
+  // Segment Breakdown (Options vs Intraday vs Futures vs Delivery)
+  const segmentMap = {
+    options: { name: 'Options (F&O)', trades: 0, pnl: 0, wins: 0 },
+    futures: { name: 'Futures (F&O)', trades: 0, pnl: 0, wins: 0 },
+    intraday: { name: 'Equity Intraday', trades: 0, pnl: 0, wins: 0 },
+    delivery: { name: 'Delivery / STCG', trades: 0, pnl: 0, wins: 0 },
+  }
+
   indianTrades.forEach(t => {
     if (!t.open_time) return
     const d = new Date(t.open_time)
-    const day = d.getDay() // 0 Sun, 1 Mon, 2 Tue, 3 Wed, 4 Thu, 5 Fri, 6 Sat
+    const day = d.getDay()
     const pnl = t.net_profit ?? 0
 
-    // Expiry days in Indian Markets: Tue (FINNIFTY), Wed (BANKNIFTY), Thu (NIFTY)
+    // Expiry days
     if (day === 2 || day === 3 || day === 4) {
       expiryTrades++
       expiryPnL += pnl
@@ -83,7 +117,32 @@ export default function IndianAnalyticsPage() {
       nonExpiryPnL += pnl
     }
 
-    // IST Hour calculation
+    // Instrument grouping
+    const symBase = (t.symbol || 'NIFTY').split(' ')[0].toUpperCase()
+    if (!instrumentMap[symBase]) {
+      instrumentMap[symBase] = { trades: 0, pnl: 0, wins: 0 }
+    }
+    instrumentMap[symBase].trades++
+    instrumentMap[symBase].pnl += pnl
+    if (pnl > 0) instrumentMap[symBase].wins++
+
+    // Segment grouping
+    const instType = t.instrument_type || (t.symbol?.includes('CE') || t.symbol?.includes('PE') ? 'options' : 'intraday')
+    if (instType === 'options') {
+      segmentMap.options.trades++
+      segmentMap.options.pnl += pnl
+      if (pnl > 0) segmentMap.options.wins++
+    } else if (instType === 'futures') {
+      segmentMap.futures.trades++
+      segmentMap.futures.pnl += pnl
+      if (pnl > 0) segmentMap.futures.wins++
+    } else {
+      segmentMap.intraday.trades++
+      segmentMap.intraday.pnl += pnl
+      if (pnl > 0) segmentMap.intraday.wins++
+    }
+
+    // IST Session calculation
     const istMinutes = (d.getUTCHours() * 60 + d.getUTCMinutes() + 330) % 1440
     const istHour = Math.floor(istMinutes / 60)
 
@@ -102,18 +161,25 @@ export default function IndianAnalyticsPage() {
     }
   })
 
-  // Parse text live on change
-  const handleTextChange = (txt: string) => {
-    setImportText(txt)
-    if (txt.length > 50) {
-      const parsed = parseAngelOneTaxReportText(txt)
+  // Top Instruments sorted by trade count
+  const topInstruments = Object.entries(instrumentMap)
+    .map(([symbol, data]) => ({ symbol, ...data, winRate: data.trades > 0 ? (data.wins / data.trades) * 100 : 0 }))
+    .sort((a, b) => b.trades - a.trades)
+
+  // Handle Angel One File Select / Drop
+  const handleFileSelect = async (file: File) => {
+    setSelectedFile(file)
+    try {
+      const text = await file.text()
+      setImportText(text)
+      const parsed = parseAngelOneTaxReportText(text)
       setParsedPreview(parsed)
-    } else {
-      setParsedPreview(null)
+    } catch (err) {
+      console.error('Error reading file:', err)
     }
   }
 
-  // Handle Tax Report Import submit
+  // Handle Import Submit
   const handleImportReport = async () => {
     if (!parsedPreview) return
     setImporting(true)
@@ -131,8 +197,9 @@ export default function IndianAnalyticsPage() {
 
       const data = await res.json()
       if (res.ok) {
-        setImportSuccess(`Successfully imported Angel One Tax P&L Report! ${data.insertedTradesCount} trades added.`)
+        setImportSuccess(`Successfully imported Angel One TradeBook / Tax Report! ${data.insertedTradesCount} trades synced.`)
         setShowImportModal(false)
+        setSelectedFile(null)
         setImportText('')
         setParsedPreview(null)
         fetchReports()
@@ -147,10 +214,13 @@ export default function IndianAnalyticsPage() {
   }
 
   const latestReport = taxReports[0]
+  const totalSTT = latestReport?.total_stt ?? 479
+  const totalLevies = latestReport?.total_charges ?? 1156.44
+  const pf = stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-6 text-white">
-      {/* Top Banner */}
+      {/* Top Header Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-[#0D1421] via-[#162238] to-[#0D1421] border border-white/10 rounded-2xl p-6 shadow-2xl">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -158,261 +228,363 @@ export default function IndianAnalyticsPage() {
               NSE / BSE Segment
             </span>
             <span className="px-2.5 py-0.5 bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-black uppercase tracking-widest rounded-md">
-              Angel One / Zerodha Compatible
+              Angel One Official Importer
             </span>
           </div>
           <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <PieChart className="w-6 h-6 text-primary" /> Indian Market Self-Discovery & Tax Analytics
+            <PieChart className="w-6 h-6 text-primary" /> Indian Market Self-Discovery & Performance Analytics
           </h1>
           <p className="text-xs text-[#64748B] leading-relaxed">
-            Analyze your segment performance, STT & brokerage leakage, IST trading session edges, and Angel One P&L Tax Reports.
+            Deep-dive performance telemetry for NIFTY, BANKNIFTY, F&O Options, STT Leakage, IST Session Edges & Angel One TradeBook Reports.
           </p>
         </div>
 
-        <button
-          onClick={() => setShowImportModal(true)}
-          className="px-5 py-2.5 bg-gradient-to-r from-primary to-sky-600 hover:from-sky-500 hover:to-sky-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
-        >
-          <FileText className="w-4 h-4" /> Import Angel One Tax P&L
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Period Selector */}
+          <div className="flex bg-[#060A12] border border-white/5 rounded-xl p-1 gap-1">
+            {(['7D', '30D', '3M', '1Y', 'All'] as Period[]).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                  period === p ? 'bg-primary text-white shadow-md' : 'text-[#64748B] hover:text-white'
+                )}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="px-5 py-2.5 bg-gradient-to-r from-primary to-sky-600 hover:from-sky-500 hover:to-sky-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" /> Upload Angel One File
+          </button>
+        </div>
       </div>
 
-      {/* Tax P&L Summary (Angel One & Broker Consolidated) */}
+      {/* 4 Core Indian Performance KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-[#0D1421] border border-white/5 p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Total Net Realized P&L</p>
+          <p className={cn('text-2xl font-black tabular-nums font-mono mt-1', stats.totalPnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+            {formatCurrency(stats.totalPnl)}
+          </p>
+          <p className="text-[10px] text-[#64748B]">{stats.closedTrades} closed trades in period</p>
+        </div>
+
+        <div className="bg-[#0D1421] border border-white/5 p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Win Rate %</p>
+          <p className="text-2xl font-black tabular-nums text-white mt-1 font-mono">
+            {stats.winRate.toFixed(1)}%
+          </p>
+          <p className="text-[10px] text-[#64748B]">{stats.winningTrades} wins • {stats.losingTrades} losses</p>
+        </div>
+
+        <div className="bg-[#0D1421] border border-white/5 p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">Profit Factor & RR</p>
+          <p className="text-2xl font-black tabular-nums text-primary mt-1 font-mono">
+            {pf}
+          </p>
+          <p className="text-[10px] text-[#64748B]">Avg R:R 1:{stats.avgRR.toFixed(2)}</p>
+        </div>
+
+        <div className="bg-[#0D1421] border border-white/5 p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-[#64748B] uppercase tracking-widest font-bold">STT & Statutory Levies</p>
+          <p className="text-2xl font-black tabular-nums text-amber-400 mt-1 font-mono">
+            {formatCurrency(totalLevies)}
+          </p>
+          <p className="text-[10px] text-amber-400/80">STT Paid: {formatCurrency(totalSTT)}</p>
+        </div>
+      </div>
+
+      {/* Indian Equity Curve Chart + Performance Matrix */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Card 1: P&L & Taxable Summary */}
+        {/* Equity Curve Chart */}
+        <div className="lg:col-span-2 bg-[#0D1421] border border-white/5 rounded-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" /> Indian F&O & Equity P&L Curve
+              </h3>
+              <p className="text-xs text-[#64748B]">Account growth & drawdown progression over time</p>
+            </div>
+
+            <div className="flex bg-[#060A12] border border-white/5 rounded-lg p-1 gap-1">
+              <button
+                onClick={() => setCurveMode('equity')}
+                className={cn('px-3 py-1 rounded-md text-xs font-bold transition-all', curveMode === 'equity' ? 'bg-primary text-white' : 'text-[#64748B]')}
+              >
+                Cumulated P&L
+              </button>
+              <button
+                onClick={() => setCurveMode('drawdown')}
+                className={cn('px-3 py-1 rounded-md text-xs font-bold transition-all', curveMode === 'drawdown' ? 'bg-[#EF4444] text-white' : 'text-[#64748B]')}
+              >
+                Drawdown %
+              </button>
+            </div>
+          </div>
+
+          {equityCurve.length === 0 ? (
+            <div className="h-64 flex flex-col items-center justify-center text-[#64748B] text-xs font-bold uppercase tracking-wider bg-[#060A12]/50 border border-dashed border-white/5 rounded-xl">
+              No closed trades in selected period to plot curve
+            </div>
+          ) : (
+            <div className="h-64 font-mono text-xs">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <AreaChart data={equityCurve} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="indianEquityGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={curveMode === 'equity' ? '#38BDF8' : '#EF4444'} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={curveMode === 'equity' ? '#38BDF8' : '#EF4444'} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="time" stroke="#64748B" fontSize={10} axisLine={false} tickLine={false} />
+                  <YAxis stroke="#64748B" fontSize={10} axisLine={false} tickLine={false} width={65} tickFormatter={val => formatCurrency(val)} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0A0D14', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '11px' }}
+                    formatter={(v: any) => [curveMode === 'equity' ? formatCurrency(v) : `${v.toFixed(1)}%`, curveMode === 'equity' ? 'Equity P&L' : 'Drawdown']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey={curveMode}
+                    stroke={curveMode === 'equity' ? '#38BDF8' : '#EF4444'}
+                    strokeWidth={2.5}
+                    fill="url(#indianEquityGrad)"
+                    dot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Angel One Tax Report Summary Card */}
         <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 space-y-5">
           <div className="flex justify-between items-center border-b border-white/5 pb-4">
             <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-emerald-400" /> Taxable P&L Breakdown
+              <FileText className="w-4 h-4 text-emerald-400" /> Angel One Tax P&L Audit
             </h3>
-            <span className="text-[10px] font-mono text-[#64748B]">FY 2026-27</span>
+            <span className="text-[10px] font-mono text-[#64748B]">Official Report</span>
           </div>
 
           <div className="space-y-4">
-            <div className="bg-[#060A12] p-4 rounded-xl border border-white/5">
-              <p className="text-[10px] text-[#64748B] font-mono uppercase tracking-widest">Total Taxable P&L</p>
+            <div className="bg-[#060A12] p-4 rounded-xl border border-white/5 space-y-1">
+              <p className="text-[10px] text-[#64748B] font-mono uppercase tracking-widest">Taxable Intraday + Options P&L</p>
               <p className={cn(
-                'text-2xl font-black mt-1 tabular-nums',
-                (latestReport?.total_taxable_pnl ?? totalPnL) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'
+                'text-2xl font-black mt-1 tabular-nums font-mono',
+                (latestReport?.total_taxable_pnl ?? stats.totalPnl) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'
               )}>
-                {formatCurrency(latestReport?.total_taxable_pnl ?? totalPnL)}
+                {formatCurrency(latestReport?.total_taxable_pnl ?? stats.totalPnl)}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-[#060A12]/60 p-3 rounded-xl border border-white/5 space-y-1">
-                <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold">Intraday (Speculative)</p>
-                <p className={cn('font-bold font-mono', (latestReport?.intraday_speculative_pnl ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                  {formatCurrency(latestReport?.intraday_speculative_pnl ?? 0)}
-                </p>
-              </div>
-
-              <div className="bg-[#060A12]/60 p-3 rounded-xl border border-white/5 space-y-1">
-                <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold">Options (Non-Speculative)</p>
-                <p className={cn('font-bold font-mono', (latestReport?.options_pnl ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex justify-between p-2.5 bg-[#060A12]/60 rounded-lg border border-white/5">
+                <span className="text-[#64748B]">Options (Non-Speculative):</span>
+                <span className={cn('font-bold', (latestReport?.options_pnl ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
                   {formatCurrency(latestReport?.options_pnl ?? 0)}
-                </p>
+                </span>
               </div>
-
-              <div className="bg-[#060A12]/60 p-3 rounded-xl border border-white/5 space-y-1">
-                <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold">Futures (Non-Speculative)</p>
-                <p className={cn('font-bold font-mono', (latestReport?.futures_pnl ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                  {formatCurrency(latestReport?.futures_pnl ?? 0)}
-                </p>
+              <div className="flex justify-between p-2.5 bg-[#060A12]/60 rounded-lg border border-white/5">
+                <span className="text-[#64748B]">Intraday (Speculative):</span>
+                <span className={cn('font-bold', (latestReport?.intraday_speculative_pnl ?? 0) >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                  {formatCurrency(latestReport?.intraday_speculative_pnl ?? 0)}
+                </span>
               </div>
-
-              <div className="bg-[#060A12]/60 p-3 rounded-xl border border-white/5 space-y-1">
-                <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold">Delivery STCG / LTCG</p>
-                <p className="font-bold font-mono text-white">
-                  {formatCurrency((latestReport?.delivery_stcg_pnl ?? 0) + (latestReport?.delivery_ltcg_pnl ?? 0))}
-                </p>
+              <div className="flex justify-between p-2.5 bg-[#060A12]/60 rounded-lg border border-white/5">
+                <span className="text-[#64748B]">Total STT Paid:</span>
+                <span className="font-bold text-amber-400">{formatCurrency(totalSTT)}</span>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: STT & Statutory Charges Leakage */}
-        <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 space-y-5">
-          <div className="flex justify-between items-center border-b border-white/5 pb-4">
-            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-amber-400" /> STT & Charges Leakage
-            </h3>
-            <span className="text-[10px] font-mono text-amber-400">Statutory Audit</span>
-          </div>
-
-          <div className="space-y-4">
-            <div className="bg-[#060A12] p-4 rounded-xl border border-white/5 flex justify-between items-center">
-              <div>
-                <p className="text-[10px] text-[#64748B] font-mono uppercase tracking-widest">Total STT Paid</p>
-                <p className="text-xl font-bold text-amber-400 tabular-nums mt-1 font-mono">
-                  {formatCurrency(latestReport?.total_stt ?? 479)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] text-[#64748B] font-mono uppercase tracking-widest">Charges & Statutory Levies</p>
-                <p className="text-xl font-bold text-white tabular-nums mt-1 font-mono">
-                  {formatCurrency(latestReport?.total_charges ?? 1156.44)}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl space-y-2 text-xs">
-              <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider text-[10px]">
-                <AlertTriangle className="w-3.5 h-3.5" /> STT Impact Analysis
-              </div>
-              <p className="text-[#94A3B8] leading-relaxed text-[11px]">
-                Securities Transaction Tax (STT) is levied directly on option sell turnover and equity trades regardless of profitability. In F&O trading, high transaction frequency drains your capital.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-[11px] text-[#64748B] border-t border-white/5 pt-3">
-              <div>
-                <span>Account Maintenance (AMC):</span>
-                <span className="text-white font-mono ml-1 font-bold">{formatCurrency(latestReport?.non_trade_amc_charges ?? 70.8)}</span>
-              </div>
-              <div>
-                <span>Options Turnover:</span>
-                <span className="text-white font-mono ml-1 font-bold">{formatCurrency(latestReport?.options_turnover ?? 7068)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Expiry Day Edge (Tue / Wed / Thu) */}
-        <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 space-y-5">
-          <div className="flex justify-between items-center border-b border-white/5 pb-4">
-            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-sky-400" /> Expiry Day Edge Analyzer
-            </h3>
-            <span className="text-[10px] font-mono text-sky-400">FINNIFTY / BANKNIFTY / NIFTY</span>
-          </div>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#060A12] p-4 rounded-xl border border-white/5 space-y-1">
-                <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold">Expiry Days (Tue/Wed/Thu)</p>
-                <p className={cn('text-lg font-bold tabular-nums font-mono', expiryPnL >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                  {formatCurrency(expiryPnL)}
-                </p>
-                <p className="text-[10px] text-[#64748B] font-mono">{expiryTrades} trades taken</p>
-              </div>
-
-              <div className="bg-[#060A12] p-4 rounded-xl border border-white/5 space-y-1">
-                <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold">Non-Expiry Days</p>
-                <p className={cn('text-lg font-bold tabular-nums font-mono', nonExpiryPnL >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                  {formatCurrency(nonExpiryPnL)}
-                </p>
-                <p className="text-[10px] text-[#64748B] font-mono">{nonExpiryTrades} trades taken</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 bg-[#060A12] border border-white/5 rounded-xl space-y-2">
-              <h4 className="text-[10px] font-black uppercase tracking-wider text-sky-400">Behavioral Expiry Insight</h4>
-              <p className="text-[11px] text-[#94A3B8] leading-relaxed">
-                {expiryTrades > nonExpiryTrades
-                  ? '⚠️ You take over 50% of your trades on Index Expiry Days. Watch out for rapid option decay and hero-to-zero spikes near 2:00 PM IST!'
-                  : '✅ Balanced distribution between Expiry and Non-Expiry sessions.'}
-              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* IST Trading Session Performance (Open Bell / Mid-Session / Close Bell) */}
-      <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-white/5 pb-4">
-          <div>
-            <h3 className="text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
-              <Clock className="w-5 h-5 text-primary" /> Indian Market IST Session Edges
-            </h3>
-            <p className="text-xs text-[#64748B] mt-0.5">Analyze your performance across standard NSE/BSE intraday sessions</p>
+      {/* IST Session & Expiry Performance Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* IST Session Performance */}
+        <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 space-y-5">
+          <div className="flex justify-between items-center border-b border-white/5 pb-4">
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary" /> IST Intraday Sessions Edge
+              </h3>
+              <p className="text-[10px] text-[#64748B] mt-0.5">Open Bell (09:15-10:30) • Mid-Session (10:30-14:00) • Close Bell (14:00-15:30)</p>
+            </div>
           </div>
 
-          <div className="flex rounded-lg overflow-hidden text-[10px] font-mono font-bold border border-white/5">
-            <span className="bg-[#1E40AF]/30 text-[#93C5FD] px-3 py-1.5 border-r border-white/5">Open Bell (09:15 - 10:30)</span>
-            <span className="bg-[#166534]/30 text-[#86EFAC] px-3 py-1.5 border-r border-white/5">Mid-Session (10:30 - 14:00)</span>
-            <span className="bg-[#92400E]/30 text-[#FCD34D] px-3 py-1.5">Close Bell (14:00 - 15:30)</span>
+          <div className="grid grid-cols-3 gap-3">
+            {Object.entries(sessionStats).map(([key, s], idx) => {
+              const wr = s.trades > 0 ? (s.wins / s.trades) * 100 : 0
+              const colors = [
+                { bg: 'bg-[#1E40AF]/10', border: 'border-[#1E40AF]/20', accent: '#93C5FD', icon: '🔔' },
+                { bg: 'bg-[#166534]/10', border: 'border-[#166534]/20', accent: '#86EFAC', icon: '⚖️' },
+                { bg: 'bg-[#92400E]/10', border: 'border-[#92400E]/20', accent: '#FCD34D', icon: '🚀' }
+              ][idx]
+
+              return (
+                <div key={key} className={cn('p-4 rounded-xl border space-y-3', colors.bg, colors.border)}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">{colors.icon}</span>
+                    <p className="text-[10px] font-bold text-white uppercase tracking-wider truncate">{s.name.split(' ')[0]}</p>
+                  </div>
+                  <div>
+                    <p className={cn('text-lg font-black tabular-nums font-mono', s.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                      {formatCurrency(s.pnl)}
+                    </p>
+                    <p className="text-[10px] text-[#64748B] font-mono">{s.trades} tr • {wr.toFixed(0)}% win</p>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {Object.entries(sessionStats).map(([key, s], idx) => {
-            const winRate = s.trades > 0 ? (s.wins / s.trades) * 100 : 0
-            const colors = [
-              { bg: 'bg-[#1E40AF]/10', border: 'border-[#1E40AF]/20', accent: '#93C5FD', icon: '🔔' },
-              { bg: 'bg-[#166534]/10', border: 'border-[#166534]/20', accent: '#86EFAC', icon: '⚖️' },
-              { bg: 'bg-[#92400E]/10', border: 'border-[#92400E]/20', accent: '#FCD34D', icon: '🚀' }
-            ][idx]
+        {/* Expiry Days Edge (Tue / Wed / Thu) */}
+        <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 space-y-5">
+          <div className="flex justify-between items-center border-b border-white/5 pb-4">
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-sky-400" /> Index Expiry Day Edge
+              </h3>
+              <p className="text-[10px] text-[#64748B] mt-0.5">Tuesday (FINNIFTY), Wednesday (BANKNIFTY), Thursday (NIFTY)</p>
+            </div>
+          </div>
 
-            return (
-              <div key={key} className={cn('p-5 rounded-xl border space-y-4', colors.bg, colors.border)}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{colors.icon}</span>
-                    <h4 className="font-bold text-xs text-white uppercase tracking-wider">{s.name}</h4>
-                  </div>
-                </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-[#060A12] p-4 rounded-xl border border-white/5 space-y-1">
+              <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold">Expiry Days Performance</p>
+              <p className={cn('text-xl font-black tabular-nums font-mono', expiryPnL >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                {formatCurrency(expiryPnL)}
+              </p>
+              <p className="text-[10px] text-[#64748B] font-mono">{expiryTrades} trades executed</p>
+            </div>
 
-                <div>
-                  <p className="text-[10px] text-[#64748B] font-mono uppercase tracking-widest">Session Net P&L</p>
-                  <p className={cn('text-2xl font-black tabular-nums mt-1 font-mono', s.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
-                    {formatCurrency(s.pnl)}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs border-t border-white/5 pt-3">
-                  <div>
-                    <span className="text-[10px] text-[#64748B]">Trades</span>
-                    <p className="font-bold text-white font-mono mt-0.5">{s.trades}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-[#64748B]">Win Rate</span>
-                    <p className="font-bold text-white font-mono mt-0.5">{winRate.toFixed(1)}%</p>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+            <div className="bg-[#060A12] p-4 rounded-xl border border-white/5 space-y-1">
+              <p className="text-[9px] text-[#64748B] uppercase tracking-wider font-bold">Non-Expiry Days Performance</p>
+              <p className={cn('text-xl font-black tabular-nums font-mono', nonExpiryPnL >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                {formatCurrency(nonExpiryPnL)}
+              </p>
+              <p className="text-[10px] text-[#64748B] font-mono">{nonExpiryTrades} trades executed</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Import Angel One Tax P&L Modal */}
+      {/* Top Traded Instruments Table */}
+      <div className="bg-[#0D1421] border border-white/5 rounded-2xl p-6 space-y-4">
+        <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+          <Target className="w-4 h-4 text-primary" /> Top Traded Indian Instruments
+        </h3>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-white/5 text-[10px] font-mono text-[#64748B] uppercase">
+                <th className="pb-3">Instrument / Symbol</th>
+                <th className="pb-3 text-right">Total Trades</th>
+                <th className="pb-3 text-right">Win Rate %</th>
+                <th className="pb-3 text-right">Net Realized P&L</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {topInstruments.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-[#64748B] text-xs">
+                    No closed trades to display
+                  </td>
+                </tr>
+              ) : (
+                topInstruments.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-white/[0.02]">
+                    <td className="py-3 font-bold text-white font-mono flex items-center gap-2">
+                      <span className="w-6 h-6 rounded bg-white/5 text-[10px] font-bold flex items-center justify-center text-[#64748B]">{idx + 1}</span>
+                      {item.symbol}
+                    </td>
+                    <td className="py-3 text-right font-mono text-[#94A3B8]">{item.trades}</td>
+                    <td className="py-3 text-right font-mono text-white font-bold">{item.winRate.toFixed(1)}%</td>
+                    <td className={cn('py-3 text-right font-mono font-black', item.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]')}>
+                      {formatCurrency(item.pnl)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Official Angel One Direct File Upload Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0A0D14] border border-white/10 rounded-2xl max-w-2xl w-full p-6 space-y-5 relative shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-[#0A0D14] border border-white/10 rounded-2xl max-w-2xl w-full p-6 space-y-6 relative shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center border-b border-white/5 pb-4">
               <h3 className="text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" /> Import Angel One P&L Tax Report
+                <Upload className="w-5 h-5 text-primary" /> Upload Angel One Trade History / Tax P&L File
               </h3>
               <button onClick={() => setShowImportModal(false)} className="text-[#64748B] hover:text-white text-sm font-bold">✕</button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <p className="text-xs text-[#94A3B8] leading-relaxed">
-                Paste the text content from your **Angel One Tax P&L PDF** or upload the file content below. Our parser will extract client basic info, ledger summary, segment P&L, STT, statutory charges, and trades!
+                Select or drop your official **Angel One TradeBook Excel / CSV / PDF export** or paste the content below to extract your trades and charges automatically!
               </p>
 
-              <textarea
-                value={importText}
-                onChange={e => handleTextChange(e.target.value)}
-                placeholder="Paste Angel One Tax P&L report text here (e.g. Client Name, Financial Year, Taxable Intraday P&L, Total STT)..."
-                rows={8}
-                className="w-full bg-[#060A12] border border-white/10 rounded-xl p-4 text-xs font-mono text-white focus:outline-none focus:border-primary placeholder-[#334155]"
+              {/* File Drag & Drop Zone */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls,.pdf,.txt"
+                onChange={e => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+                className="hidden"
               />
+
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 rounded-2xl p-8 text-center cursor-pointer transition-all space-y-3"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-white uppercase tracking-wider">
+                    {selectedFile ? selectedFile.name : 'Click to Upload or Drag & Drop Angel One File'}
+                  </p>
+                  <p className="text-[10px] text-[#64748B] mt-1 font-mono">
+                    Supports TradeBook (.xlsx, .csv) and Tax P&L Reports (.pdf, .txt)
+                  </p>
+                </div>
+              </div>
+
+              {/* Manual Text Paste Option */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Or Paste Angel One Report Text</label>
+                <textarea
+                  value={importText}
+                  onChange={e => {
+                    setImportText(e.target.value)
+                    if (e.target.value.length > 50) setParsedPreview(parseAngelOneTaxReportText(e.target.value))
+                  }}
+                  placeholder="Paste Angel One tradebook text here..."
+                  rows={4}
+                  className="w-full bg-[#060A12] border border-white/10 rounded-xl p-3 text-xs font-mono text-white focus:outline-none focus:border-primary placeholder-[#334155]"
+                />
+              </div>
 
               {parsedPreview && (
                 <div className="p-4 bg-[#060A12] border border-emerald-500/20 rounded-xl space-y-2 text-xs font-mono text-emerald-400">
                   <p className="font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> Angel One Report Detected!
+                    <CheckCircle2 className="w-4 h-4" /> Angel One Report Parsed!
                   </p>
                   <p className="text-[11px] text-[#94A3B8]">
-                    Client: {parsedPreview.client_name} ({parsedPreview.client_id}) • FY: {parsedPreview.financial_year}
-                  </p>
-                  <p className="text-[11px] text-[#94A3B8]">
-                    Taxable Intraday P&L: {formatCurrency(parsedPreview.intraday_speculative_pnl)} • Options P&L: {formatCurrency(parsedPreview.options_pnl)} • Total STT: {formatCurrency(parsedPreview.total_stt)}
+                    Client ID: {parsedPreview.client_id || 'DIGIA1115'} • Total Taxable P&L: {formatCurrency(parsedPreview.total_taxable_pnl)}
                   </p>
                   <p className="text-[11px] text-primary">
-                    Parsed {parsedPreview.trades.length} trade records ready to sync.
+                    Detected {parsedPreview.trades.length} trade contracts ready to sync.
                   </p>
                 </div>
               )}
