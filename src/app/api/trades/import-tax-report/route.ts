@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+function sanitizeDate(val: any): string | null {
+  if (!val || typeof val !== 'string') return null
+  const isoMatch = val.match(/\b(\d{4}-\d{2}-\d{2})\b/)
+  if (isoMatch) return isoMatch[1]
+
+  const slashMatch = val.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/)
+  if (slashMatch) return `${slashMatch[3]}-${slashMatch[2]}-${slashMatch[1]}`
+
+  try {
+    const firstPart = val.trim().split(/\s+/)[0]
+    const d = new Date(firstPart)
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
+  } catch {}
+
+  return null
+}
+
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -24,8 +41,8 @@ export async function POST(req: Request) {
         client_id: report.client_id || null,
         pan: report.pan || null,
         financial_year: report.financial_year || null,
-        from_date: report.from_date || null,
-        to_date: report.to_date || null,
+        from_date: sanitizeDate(report.from_date),
+        to_date: sanitizeDate(report.to_date),
         ledger_opening_balance: report.ledger_opening_balance || 0,
         ledger_closing_balance: report.ledger_closing_balance || 0,
         total_taxable_pnl: report.total_taxable_pnl || 0,

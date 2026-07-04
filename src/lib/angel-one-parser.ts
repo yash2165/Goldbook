@@ -28,6 +28,23 @@ export interface AngelOneTaxSummary {
   trades: StandardTrade[]
 }
 
+function cleanDateString(str: string): string {
+  if (!str) return ''
+  const isoMatch = str.match(/\b(\d{4}-\d{2}-\d{2})\b/)
+  if (isoMatch) return isoMatch[1]
+
+  const slashMatch = str.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/)
+  if (slashMatch) return `${slashMatch[3]}-${slashMatch[2]}-${slashMatch[1]}`
+
+  try {
+    const firstPart = str.trim().split(/\s+/)[0]
+    const d = new Date(firstPart)
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
+  } catch {}
+
+  return ''
+}
+
 /**
  * Parses raw text extracted from Angel One P&L Tax PDF, TradeBook PDF or CSV exports.
  */
@@ -64,8 +81,16 @@ export function parseAngelOneTaxReportText(rawText: string): AngelOneTaxSummary 
 
   // 2. Date Range
   const financial_year = getString(/Financial Year/i, '2026-2027')
-  const from_date = getString(/From Date|StartDate/i, '')
-  const to_date = getString(/To Date|EndDate/i, '')
+  let from_date = ''
+  let to_date = ''
+  const dateMatches = rawText.match(/\b(\d{4}-\d{2}-\d{2})\b/g)
+  if (dateMatches && dateMatches.length >= 2) {
+    from_date = dateMatches[0]
+    to_date = dateMatches[1]
+  } else {
+    from_date = cleanDateString(getString(/From Date|StartDate/i, ''))
+    to_date = cleanDateString(getString(/To Date|EndDate/i, ''))
+  }
 
   // 3. Ledger Balances & Summaries
   const ledger_opening_balance = getValue(/Ledger Opening/i, 0)
