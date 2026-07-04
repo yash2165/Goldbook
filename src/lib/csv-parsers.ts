@@ -134,6 +134,70 @@ export function parseNSEDerivativesSymbol(symbolStr: string): {
 }
 
 /**
+ * Standardize and parse Angel One TradeBook contract string.
+ * Examples:
+ * - OPTIDX BANKNIFTY Mar 30 2026 61000.00 CE (BT) -> BANKNIFTY, Options, CE, 61000, 2026-03-30
+ * - OPTIDX BANKNIFTY Feb 24 2026 60500.00 PE (BT) -> BANKNIFTY, Options, PE, 60500, 2026-02-24
+ * - FUTIDX BANKNIFTY Feb 24 2026 -> BANKNIFTY, Futures, 2026-02-24
+ */
+export function parseAngelOneContractString(rawSymbol: string): {
+  symbol: string
+  instrument_type: 'equity' | 'options' | 'futures' | 'spot'
+  option_type?: 'CE' | 'PE' | null
+  strike_price?: number | null
+  expiry_date?: string | null
+} {
+  const clean = rawSymbol.trim().replace(/\s*\([^)]*\)/g, '')
+
+  // 1. Match OPTIDX / OPTSTK e.g. OPTIDX BANKNIFTY Mar 30 2026 61000.00 CE
+  const optMatch = clean.match(/^(?:OPTIDX|OPTSTK)\s+([A-Z0-9]+)\s+([A-Za-z]{3}\s+\d{1,2}\s+\d{4})\s+(\d+(?:\.\d+)?)\s+(CE|PE)/i)
+  if (optMatch) {
+    const symbol = optMatch[1].toUpperCase()
+    const expiryStr = optMatch[2]
+    const strike_price = parseFloat(optMatch[3])
+    const option_type = optMatch[4].toUpperCase() as 'CE' | 'PE'
+
+    let expiry_date: string | null = null
+    try {
+      const d = new Date(expiryStr)
+      if (!isNaN(d.getTime())) {
+        expiry_date = d.toISOString().split('T')[0]
+      }
+    } catch {}
+
+    return {
+      symbol,
+      instrument_type: 'options',
+      option_type,
+      strike_price,
+      expiry_date
+    }
+  }
+
+  // 2. Match FUTIDX / FUTSTK e.g. FUTIDX BANKNIFTY Feb 24 2026
+  const futMatch = clean.match(/^(?:FUTIDX|FUTSTK)\s+([A-Z0-9]+)\s+([A-Za-z]{3}\s+\d{1,2}\s+\d{4})/i)
+  if (futMatch) {
+    const symbol = futMatch[1].toUpperCase()
+    const expiryStr = futMatch[2]
+    let expiry_date: string | null = null
+    try {
+      const d = new Date(expiryStr)
+      if (!isNaN(d.getTime())) {
+        expiry_date = d.toISOString().split('T')[0]
+      }
+    } catch {}
+
+    return {
+      symbol,
+      instrument_type: 'futures',
+      expiry_date
+    }
+  }
+
+  return parseNSEDerivativesSymbol(clean)
+}
+
+/**
  * Standardize CSV row parser values.
  */
 function cleanDirection(directionStr: string): 'buy' | 'sell' {
@@ -263,29 +327,60 @@ export function parseCSVData(
     })
   }
 
-  // 4. Angel One
+  // 4. Angel One TradeBook & Charges
   if (broker === 'angel') {
-    // Expected headers: Trade Date, Script Name, Buy/Sell, Quantity, Price/Rate
-    const dateIdx = headers.findIndex(h => h.includes('date'))
-    const symIdx = headers.findIndex(h => h.includes('name') || h.includes('script') || h.includes('symbol'))
-    const typeIdx = headers.findIndex(h => h.includes('buy') || h.includes('sell') || h.includes('transaction'))
+    const dateIdx = headers.findIndex(h => h === 'date' || h.includes('trade date') || h.includes('date') || h.includes('time'))
+    const symIdx = headers.findIndex(h => h.includes('scrip') || h.includes('contract') || h.includes('symbol') || h.includes('name'))
+    const typeIdx = headers.findIndex(h => h.includes('buy/sell') || h.includes('buy') || h.includes('sell') || h.includes('transaction') || h.includes('side'))
     const qtyIdx = headers.findIndex(h => h.includes('quantity') || h.includes('qty'))
-    const priceIdx = headers.findIndex(h => h.includes('price') || h.includes('rate') || h.includes('net rate'))
+
+    const priceIdx = headers.findIndex(h => h === 'price' || h.includes('rate') || h.includes('trade price'))
+    const buyPriceIdx = headers.findIndex(h => h.includes('buy price') || h.includes('buy rate'))
+    const sellPriceIdx = headers.findIndex(h => h.includes('sell price') || h.includes('sell rate'))
+
+    const brokerageIdx = headers.findIndex(h => h.includes('brokerage'))
+    const sttIdx = headers.findIndex(h => h.includes('stt'))
+    const gstIdx = headers.findIndex(h => h.includes('gst'))
+    const turnoverChargesIdx = headers.findIndex(h => h.includes('exchange turnover') || h.includes('turnover charges'))
+    const stampDutyIdx = headers.findIndex(h => h.includes('stamp duty'))
+    const ipftIdx = headers.findIndex(h => h.includes('ipft'))
 
     return rows.map(r => {
       const rawSymbol = symIdx !== -1 ? r[symIdx] : ''
-      const derivatives = parseNSEDerivativesSymbol(rawSymbol)
+      const parsedContract = parseAngelOneContractString(rawSymbol)
+
+      const dirStr = typeIdx !== -1 ? r[typeIdx] : ''
+      const direction = cleanDirection(dirStr || 'buy')
+
+      let price = priceIdx !== -1 ? parseNumber(r[priceIdx]) : 0
+      const buyPrice = buyPriceIdx !== -1 ? parseNumber(r[buyPriceIdx]) : 0
+      const sellPrice = sellPriceIdx !== -1 ? parseNumber(r[sellPriceIdx]) : 0
+
+      if (price === 0) {
+        price = direction === 'buy' ? (buyPrice || sellPrice) : (sellPrice || buyPrice)
+      }
+
+      const brokerage = brokerageIdx !== -1 ? parseNumber(r[brokerageIdx]) : 0
+      const stt = sttIdx !== -1 ? parseNumber(r[sttIdx]) : 0
+      const gst = gstIdx !== -1 ? parseNumber(r[gstIdx]) : 0
+      const turnoverCharges = turnoverChargesIdx !== -1 ? parseNumber(r[turnoverChargesIdx]) : 0
+      const stampDuty = stampDutyIdx !== -1 ? parseNumber(r[stampDutyIdx]) : 0
+      const ipft = ipftIdx !== -1 ? parseNumber(r[ipftIdx]) : 0
+
+      const other_charges = brokerage + gst + turnoverCharges + stampDuty + ipft
 
       return {
         trade_date: parseDateTimeString(dateIdx !== -1 ? r[dateIdx] : ''),
-        symbol: derivatives.symbol,
-        direction: cleanDirection(typeIdx !== -1 ? r[typeIdx] : 'buy'),
-        instrument_type: derivatives.instrument_type,
+        symbol: parsedContract.symbol,
+        direction,
+        instrument_type: parsedContract.instrument_type,
         qty: parseNumber(qtyIdx !== -1 ? r[qtyIdx] : 0),
-        price: parseNumber(priceIdx !== -1 ? r[priceIdx] : 0),
-        option_type: derivatives.option_type,
-        strike_price: derivatives.strike_price,
-        expiry_date: derivatives.expiry_date
+        price,
+        option_type: parsedContract.option_type,
+        strike_price: parsedContract.strike_price,
+        expiry_date: parsedContract.expiry_date,
+        stt,
+        other_charges
       }
     })
   }

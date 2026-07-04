@@ -167,6 +167,54 @@ export function parseAngelOneTaxReportText(rawText: string): AngelOneTaxSummary 
         })
       }
     }
+
+    // Official TradeBook format: OPTIDX BANKNIFTY Mar 30 2026 61000.00 CE (BT) Buy 889.8 30
+    const tbMatch = line.match(/(OPTIDX|OPTSTK|FUTIDX|FUTSTK)\s+([A-Z0-9]+)\s+([A-Za-z]{3}\s+\d{1,2}\s+\d{4})\s*(?:(\d+(?:\.\d+)?)\s+(CE|PE))?\s*(?:\([^)]*\))?\s+(Buy|Sell)\s+([-+]?\d*\.?\d+)/i)
+    if (tbMatch) {
+      const typePrefix = tbMatch[1].toUpperCase()
+      const symbol = tbMatch[2].toUpperCase()
+      const expiryStr = tbMatch[3]
+      const strike = tbMatch[4] ? parseFloat(tbMatch[4]) : null
+      const optType = tbMatch[5] ? (tbMatch[5].toUpperCase() as 'CE' | 'PE') : null
+      const dir = tbMatch[6].toLowerCase() === 'buy' ? 'buy' : 'sell'
+      const price = parseFloat(tbMatch[7]) || 0
+
+      const numbers = (line + ' ' + (lines[i + 1] || '')).match(/\b\d+\b/g)
+      let qty = 30
+      if (numbers) {
+        for (const n of numbers) {
+          const val = parseInt(n, 10)
+          if ([15, 25, 30, 50, 65, 75, 100].includes(val)) {
+            qty = val
+            break
+          }
+        }
+      }
+
+      let expiry_date: string | null = null
+      try {
+        const d = new Date(expiryStr)
+        if (!isNaN(d.getTime())) expiry_date = d.toISOString().split('T')[0]
+      } catch {}
+
+      const fullSymbol = strike && optType ? `${symbol} ${strike} ${optType}` : symbol
+      trades.push({
+        symbol: fullSymbol,
+        direction: dir,
+        instrument_type: typePrefix.startsWith('OPT') ? 'options' : 'futures',
+        lot_size: qty,
+        entry_price: dir === 'buy' ? price : 0,
+        exit_price: dir === 'sell' ? price : 0,
+        net_profit: 0,
+        status: 'closed',
+        open_time: expiry_date || new Date().toISOString(),
+        close_time: expiry_date || new Date().toISOString(),
+        option_type: optType,
+        strike_price: strike,
+        source: 'csv_import',
+        notes: `Angel One TradeBook | ${symbol}`
+      })
+    }
   }
 
   return {
