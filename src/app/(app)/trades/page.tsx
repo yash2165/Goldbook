@@ -201,7 +201,10 @@ export default function TradesPage() {
               </thead>
               <tbody className="divide-y divide-white/[0.03]">
                 {filtered.map(trade => {
-                  const symSign = trade.currency === 'INR' ? '₹' : '$'
+                  const isINR = trade.currency === 'INR' ||
+                    ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX'].some(s => trade.symbol?.toUpperCase().includes(s)) ||
+                    isIndian
+                  const symSign = isINR ? '₹' : '$'
                   const isManualLike = trade.source === 'manual' || trade.source === 'csv_import'
                   
                   return (
@@ -224,7 +227,7 @@ export default function TradesPage() {
                           <div>
                             <div className="font-bold text-white flex items-center gap-1.5">
                               {trade.symbol}
-                              {trade.instrument_type === 'options' && (
+                              {trade.instrument_type === 'options' && trade.strike_price && trade.option_type && !trade.symbol.includes(trade.option_type) && (
                                 <span className={cn(
                                   'text-[9px] px-1 py-0.5 rounded font-black',
                                   trade.option_type === 'CE' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15' : 'bg-red-500/10 text-red-400 border border-red-500/15'
@@ -274,10 +277,10 @@ export default function TradesPage() {
                         <span className={cn(
                           'text-[10px] px-2 py-0.5 rounded font-medium uppercase tracking-wide',
                           isManualLike
-                            ? 'bg-white/5 text-[#64748B] border border-white/10'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                             : 'bg-primary/10 text-primary'
                         )}>
-                          {trade.source === 'csv_import' ? '🗎 CSV' : trade.source === 'manual' ? '✎ Manual' : '⚡ MT5'}
+                          {trade.source === 'csv_import' ? '🗎 CSV Import' : trade.source === 'manual' ? '✎ Manual' : '⚡ MT5'}
                         </span>
                       </td>
                       <td className="px-6 py-3.5">

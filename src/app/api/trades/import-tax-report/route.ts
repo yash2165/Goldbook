@@ -77,14 +77,19 @@ export async function POST(req: Request) {
         symbol: t.symbol || 'NIFTY',
         direction: t.direction || 'buy',
         instrument_type: t.instrument_type || 'options',
+        option_type: t.option_type || null,
+        strike_price: t.strike_price || null,
+        expiry_date: t.expiry_date || null,
+        currency: 'INR',
+        source: 'csv_import',
         lot_size: t.lot_size || 1,
         entry_price: t.entry_price || 0,
         exit_price: t.exit_price || 0,
         net_profit: t.net_profit || 0,
-        status: 'closed',
+        status: t.status || 'closed',
         open_time: t.open_time ? new Date(t.open_time).toISOString() : new Date().toISOString(),
         close_time: t.close_time ? new Date(t.close_time).toISOString() : new Date().toISOString(),
-        notes: t.notes || `Tax P&L Import (${broker})`
+        notes: t.notes || `Angel One TradeBook / Tax Report`
       }))
 
       const { data: inserted, error: tradesErr } = await supabase

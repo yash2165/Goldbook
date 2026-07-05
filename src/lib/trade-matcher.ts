@@ -1,38 +1,49 @@
-import { ExecutionLeg } from './csv-parsers'
+/**
+ * Trade Matching Algorithm (FIFO)
+ * Pairs Buy and Sell execution legs for Stocks, F&O, and Forex into completed trades.
+ */
 
 export interface StandardTrade {
+  id?: string
   symbol: string
   direction: 'buy' | 'sell'
   lot_size: number
   entry_price: number
-  exit_price?: number | null
+  exit_price: number | null
   open_time: string
-  close_time?: string | null
-  net_profit?: number | null
-  gross_profit?: number | null
+  close_time: string | null
+  gross_profit?: number
+  net_profit?: number
   status: 'open' | 'closed'
-  source: 'csv_import'
-  instrument_type: 'spot' | 'equity' | 'options' | 'futures'
+  source: 'manual' | 'csv_import' | 'ea_sync'
+  instrument_type?: 'equity' | 'options' | 'futures' | 'forex' | 'spot'
   option_type?: 'CE' | 'PE' | null
   strike_price?: number | null
   expiry_date?: string | null
+  currency?: string
   brokerage?: number
   stt?: number
   other_charges?: number
   notes?: string
 }
 
-// Lot size mapping based on 2026 regulations
-const LOT_SIZES: Record<string, number> = {
-  NIFTY: 65,
-  BANKNIFTY: 30,
-  FINNIFTY: 60,
-  MIDCPNIFTY: 120,
-  SENSEX: 20
+export interface ExecutionLeg {
+  trade_date: string
+  symbol: string
+  direction: 'buy' | 'sell'
+  instrument_type: 'equity' | 'options' | 'futures' | 'forex' | 'spot'
+  qty: number
+  price: number
+  option_type?: 'CE' | 'PE' | null
+  strike_price?: number | null
+  expiry_date?: string | null
+  brokerage?: number
+  stt?: number
+  other_charges?: number
 }
 
 /**
- * Pairs buy and sell execution legs using a FIFO matching engine.
+ * Pairs execution legs using FIFO (First-In, First-Out) matching algorithm.
  */
 export function matchTradePairs(legs: ExecutionLeg[]): {
   completedTrades: StandardTrade[]
@@ -41,8 +52,7 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
   const completedTrades: StandardTrade[] = []
   const openPositions: StandardTrade[] = []
 
-  // Group legs by unique contract key
-  // Group key: SYMBOL | TYPE | STRIKE | OPTION_TYPE | EXPIRY
+  // Group legs by unique contract key: SYMBOL | TYPE | STRIKE | OPTION_TYPE | EXPIRY
   const groups: Record<string, ExecutionLeg[]> = {}
   
   for (const leg of legs) {
@@ -68,6 +78,10 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
     const sellQueue: ExecutionLeg[] = []
 
     for (const leg of sortedLegs) {
+      const fullSymbol = leg.strike_price && leg.option_type
+        ? `${leg.symbol} ${leg.strike_price} ${leg.option_type}`
+        : leg.symbol
+
       if (leg.direction === 'buy') {
         // We have a BUY. Check if we have open SELLs to cover (Short cover)
         let remainingQty = leg.qty
@@ -90,7 +104,7 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
             + (sellLeg.brokerage ?? 0) + (sellLeg.stt ?? 0) + (sellLeg.other_charges ?? 0)
           
           completedTrades.push({
-            symbol: leg.symbol,
+            symbol: fullSymbol,
             direction: 'sell', // Short position originally
             lot_size: matchQty,
             entry_price: sellLeg.price,
@@ -98,9 +112,10 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
             open_time: sellLeg.trade_date,
             close_time: leg.trade_date,
             gross_profit: grossPnl,
-            net_profit: grossPnl - totalCharges,
+            net_profit: parseFloat((grossPnl - totalCharges).toFixed(2)),
             status: 'closed',
             source: 'csv_import',
+            currency: 'INR',
             instrument_type: leg.instrument_type,
             option_type: leg.option_type,
             strike_price: leg.strike_price,
@@ -142,7 +157,7 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
             + (buyLeg.brokerage ?? 0) + (buyLeg.stt ?? 0) + (buyLeg.other_charges ?? 0)
 
           completedTrades.push({
-            symbol: leg.symbol,
+            symbol: fullSymbol,
             direction: 'buy', // Long position originally
             lot_size: matchQty,
             entry_price: buyLeg.price,
@@ -150,9 +165,10 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
             open_time: buyLeg.trade_date,
             close_time: leg.trade_date,
             gross_profit: grossPnl,
-            net_profit: grossPnl - totalCharges,
+            net_profit: parseFloat((grossPnl - totalCharges).toFixed(2)),
             status: 'closed',
             source: 'csv_import',
+            currency: 'INR',
             instrument_type: leg.instrument_type,
             option_type: leg.option_type,
             strike_price: leg.strike_price,
@@ -177,8 +193,12 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
 
     // Remaining items in queues are open positions
     for (const openLeg of buyQueue) {
+      const fullSymbol = openLeg.strike_price && openLeg.option_type
+        ? `${openLeg.symbol} ${openLeg.strike_price} ${openLeg.option_type}`
+        : openLeg.symbol
+
       openPositions.push({
-        symbol: openLeg.symbol,
+        symbol: fullSymbol,
         direction: 'buy',
         lot_size: openLeg.qty,
         entry_price: openLeg.price,
@@ -187,6 +207,7 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
         close_time: null,
         status: 'open',
         source: 'csv_import',
+        currency: 'INR',
         instrument_type: openLeg.instrument_type,
         option_type: openLeg.option_type,
         strike_price: openLeg.strike_price,
@@ -198,8 +219,12 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
     }
 
     for (const openLeg of sellQueue) {
+      const fullSymbol = openLeg.strike_price && openLeg.option_type
+        ? `${openLeg.symbol} ${openLeg.strike_price} ${openLeg.option_type}`
+        : openLeg.symbol
+
       openPositions.push({
-        symbol: openLeg.symbol,
+        symbol: fullSymbol,
         direction: 'sell',
         lot_size: openLeg.qty,
         entry_price: openLeg.price,
@@ -208,6 +233,7 @@ export function matchTradePairs(legs: ExecutionLeg[]): {
         close_time: null,
         status: 'open',
         source: 'csv_import',
+        currency: 'INR',
         instrument_type: openLeg.instrument_type,
         option_type: openLeg.option_type,
         strike_price: openLeg.strike_price,
@@ -234,15 +260,6 @@ function calculateLegPnl(
   instrument_type: string
 ): number {
   const priceDiff = direction === 'buy' ? exitPrice - entryPrice : entryPrice - exitPrice
-  
-  if (instrument_type === 'options' || instrument_type === 'futures') {
-    // For F&O: Quantity is number of contracts. 
-    // In index options, lot size multiplier applies. e.g. 65 for Nifty.
-    const cleanSym = symbol.toUpperCase()
-    const lotMultiplier = LOT_SIZES[cleanSym] ?? 1 // If stock option, quantity is already absolute shares
-    return parseFloat((priceDiff * quantity * lotMultiplier).toFixed(2))
-  }
-  
-  // Equity: quantity is absolute shares
+  // In Angel One exports, quantity is the exact total units/shares executed (e.g. 30, 65, 60).
   return parseFloat((priceDiff * quantity).toFixed(2))
 }
