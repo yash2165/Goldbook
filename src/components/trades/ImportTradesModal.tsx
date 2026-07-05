@@ -17,18 +17,16 @@ interface ImportTradesModalProps {
 }
 
 const BROKERS = [
-  { id: 'zerodha', name: 'Zerodha Console', desc: 'Upload tradebook CSV from Console' },
-  { id: 'dhan', name: 'Dhan', desc: 'Upload Trade History CSV' },
-  { id: 'angel', name: 'Angel One', desc: 'Upload Trade Book CSV or Tax P&L PDF text' },
-  { id: 'upstox', name: 'Upstox', desc: 'Upload Trade History CSV' },
-  { id: 'groww', name: 'Groww', desc: 'Upload Trade History CSV' },
-  { id: '5paisa', name: '5paisa', desc: 'Upload Trade Book CSV' },
-  { id: 'fyers', name: 'Fyers', desc: 'Upload Trade Book CSV' },
-  { id: 'generic', name: 'Generic / Custom CSV', desc: 'Map columns from any CSV' },
+  { id: 'mt4_mt5', name: 'MetaTrader 4 / 5 (MT4 / MT5)', desc: 'Upload HTML or CSV statement exported from MT4/MT5' },
+  { id: 'ctrader', name: 'cTrader / TradeLocker', desc: 'Upload Trade History CSV' },
+  { id: 'ftmo', name: 'FTMO / FundedNext / Prop Firms', desc: 'Upload Prop Account Trade Log CSV' },
+  { id: 'tradingview', name: 'TradingView', desc: 'Upload Strategy Tester List of Trades CSV' },
+  { id: 'myfxbook', name: 'Myfxbook', desc: 'Upload Myfxbook History CSV' },
+  { id: 'generic', name: 'Custom Forex CSV', desc: 'Map columns from any Forex statement CSV' },
 ]
 
 export function ImportTradesModal({ onClose, onImported }: ImportTradesModalProps) {
-  const [broker, setBroker] = useState<string>('zerodha')
+  const [broker, setBroker] = useState<string>('mt4_mt5')
   const [step, setStep] = useState<1 | 2 | 3>(1) // 1: Broker & Upload, 2: Column Mapping (generic only), 3: Review & Confirm
   const [file, setFile] = useState<File | null>(null)
   const [parsing, setParsing] = useState(false)

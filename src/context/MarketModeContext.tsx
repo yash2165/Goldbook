@@ -30,10 +30,12 @@ export function MarketModeProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     async function loadMarketMode() {
       try {
-        // Fallback to localStorage initially for fast render
         const localMode = localStorage.getItem('goldbook_market_mode') as MarketMode
-        if (localMode === 'forex' || localMode === 'indian') {
-          setMarketModeState(localMode)
+        if (localMode === 'forex') {
+          setMarketModeState('forex')
+        } else {
+          setMarketModeState('forex')
+          localStorage.setItem('goldbook_market_mode', 'forex')
         }
 
         const { data: { user } } = await supabase.auth.getUser()
@@ -44,10 +46,8 @@ export function MarketModeProvider({ children }: { children: React.ReactNode }) 
             .eq('id', user.id)
             .single()
 
-          if (!error && data?.market_mode) {
-            const dbMode = data.market_mode as MarketMode
-            setMarketModeState(dbMode)
-            localStorage.setItem('goldbook_market_mode', dbMode)
+          if (!error && data?.market_mode && data.market_mode === 'forex') {
+            setMarketModeState('forex')
           }
         }
       } catch (err) {

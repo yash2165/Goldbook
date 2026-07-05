@@ -201,10 +201,7 @@ export default function TradesPage() {
               </thead>
               <tbody className="divide-y divide-white/[0.03]">
                 {filtered.map(trade => {
-                  const isINR = trade.currency === 'INR' ||
-                    ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX'].some(s => trade.symbol?.toUpperCase().includes(s)) ||
-                    isIndian
-                  const symSign = isINR ? '₹' : '$'
+                  const symSign = trade.currency === 'EUR' ? '€' : trade.currency === 'GBP' ? '£' : '$'
                   const isManualLike = trade.source === 'manual' || trade.source === 'csv_import'
                   
                   return (
