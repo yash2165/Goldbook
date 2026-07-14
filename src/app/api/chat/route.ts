@@ -42,10 +42,40 @@ export async function POST(req: Request) {
     const slicedMessages = messages.slice(-15) // Keep last 15 messages for context
 
     // Map roles to Gemini roles ('user' -> 'user', 'assistant'/'model' -> 'model')
-    const contents = slicedMessages.map((m: any) => ({
-      role: m.role === 'user' ? 'user' : 'model',
+    const rawContents = slicedMessages.map((m: any) => ({
+      role: (m.role === 'user' ? 'user' : 'model') as 'user' | 'model',
       parts: m.parts || [{ text: m.text || '' }]
     }))
+
+    // Normalize contents for Gemini API:
+    // 1. Must start with a 'user' turn
+    // 2. Roles must strictly alternate (user -> model -> user -> model)
+    const contents: { role: 'user' | 'model'; parts: { text: string }[] }[] = []
+
+    for (const msg of rawContents) {
+      if (contents.length === 0) {
+        // Skip any initial model messages so the conversation starts with a user message
+        if (msg.role === 'user') {
+          contents.push(msg)
+        }
+      } else {
+        const last = contents[contents.length - 1]
+        if (last.role === msg.role) {
+          // Merge parts of consecutive turns with the same role
+          last.parts = [...last.parts, ...msg.parts]
+        } else {
+          contents.push(msg)
+        }
+      }
+    }
+
+    // Fallback: If no user message was added, construct a default user message
+    if (contents.length === 0) {
+      contents.push({
+        role: 'user',
+        parts: [{ text: 'Hello' }]
+      })
+    }
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
