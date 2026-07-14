@@ -4,21 +4,34 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import {
-  LayoutDashboard, LineChart, BookOpen, BarChart2, Globe, Bot, FlaskConical, Users, Wrench, Settings, HelpCircle, Shield, Menu, X, LogOut, ChevronRight
-} from 'lucide-react'
+import { Menu, X, LogOut, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import GoldBookLogo from '@/components/GoldBookLogo'
 import LineSidebar, { NavItem } from './LineSidebar'
+import {
+  IconDashboard,
+  IconTrades,
+  IconJournal,
+  IconDiscipline,
+  IconAnalysis,
+  IconMarket,
+  IconAICoach,
+  IconBacktesting,
+  IconCommunity,
+  IconTools,
+  IconSettings,
+  IconHelp,
+  IconGradients
+} from './SidebarIcons'
 
 const NAV_ITEMS: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Trades', href: '/trades', icon: LineChart },
-  { name: 'Journal', href: '/journal', icon: BookOpen },
-  { name: 'Discipline', href: '/rules', icon: Shield },
+  { name: 'Dashboard', href: '/dashboard', icon: IconDashboard },
+  { name: 'Trades', href: '/trades', icon: IconTrades },
+  { name: 'Journal', href: '/journal', icon: IconJournal },
+  { name: 'Discipline', href: '/rules', icon: IconDiscipline },
   {
     name: 'Analysis',
-    icon: BarChart2,
+    icon: IconAnalysis,
     children: [
       { name: 'Performance', href: '/analysis/performance' },
       { name: 'Trade Analysis', href: '/analysis/trade-analysis' },
@@ -26,16 +39,16 @@ const NAV_ITEMS: NavItem[] = [
       { name: 'Accounts', href: '/analysis/accounts' },
     ],
   },
-  { name: 'Market', href: '/market', icon: Globe },
-  { name: 'AI Coach', href: '/ai-report', icon: Bot, badge: 'NEW' },
-  { name: 'Backtesting', href: '/backtest', icon: FlaskConical, badge: 'BETA' },
-  { name: 'Community', href: '/community', icon: Users },
-  { name: 'Tools', href: '/tools', icon: Wrench },
+  { name: 'Market', href: '/market', icon: IconMarket },
+  { name: 'AI Coach', href: '/ai-report', icon: IconAICoach, badge: 'NEW' },
+  { name: 'Backtesting', href: '/backtest', icon: IconBacktesting, badge: 'BETA' },
+  { name: 'Community', href: '/community', icon: IconCommunity },
+  { name: 'Tools', href: '/tools', icon: IconTools },
 ]
 
 const SUPPORT_ITEMS: NavItem[] = [
-  { name: 'Settings', href: '/settings', icon: Settings },
-  { name: 'Help & Support', href: '/help', icon: HelpCircle },
+  { name: 'Settings', href: '/settings', icon: IconSettings },
+  { name: 'Help & Support', href: '/help', icon: IconHelp },
 ]
 
 export function Sidebar() {
@@ -65,6 +78,8 @@ export function Sidebar() {
 
   return (
     <>
+      <IconGradients />
+
       {/* Mobile Toggle */}
       <button
         className="md:hidden fixed top-3 left-4 z-60 p-2.5 bg-[#030712]/90 border border-white/10 rounded-xl text-white backdrop-blur-md transition-all active:scale-95 shadow-lg"
