@@ -295,6 +295,7 @@ export default function LineSidebar({
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.2 }}
                       className="overflow-hidden w-full"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <ul className="ml-11 mt-1 mb-2 pl-3 border-l border-white/5 space-y-1">
                         {item.children!.map((child) => {

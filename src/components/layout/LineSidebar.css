@@ -34,7 +34,7 @@
 }
 
 /* Wider pointer target */
-.line-sidebar__item::before {
+.line-sidebar__item-wrapper::before {
   content: '';
   position: absolute;
   inset: -4px -20px;
